@@ -307,7 +307,7 @@ export class LayoutNavbar extends CustomElement {
   constructor() {
     super();
     this.layout_gopage = "";
-    this.layout_appversion = "v0.5.0";
+    this.layout_appversion = "v0.6.0";
     this.layout_userpris = navbar_list.map((item) => (item.name));
     this._active_name = "";
     this.classList.add("navbar", "navbar-vertical", "navbar-expand-lg", "lit-navbar-fixed", "lit-navbar");
