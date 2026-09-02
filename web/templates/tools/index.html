@@ -1,0 +1,56 @@
+<div class="container-xl">
+  <div class="page-header d-print-none">
+    <div class="row align-items-center">
+      <div class="col">
+        <h2 class="page-title">工具</h2>
+        <div class="text-muted mt-1">经过适配并随项目发布的内置工具。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if Tools %}
+<div class="page-body">
+  <div class="container-xl">
+    <div class="row row-cards">
+      {% for Tool in Tools %}
+      <div class="col-sm-6 col-lg-4">
+        <div class="card h-100">
+          <div class="card-body d-flex gap-3">
+            <span class="avatar bg-blue-lt">
+              <img src="{{ url_for('static', filename='img/' ~ Tool.icon) }}" alt="">
+            </span>
+            <div class="flex-fill">
+              <h3 class="card-title mb-1">{{ Tool.name }}</h3>
+              <p class="text-muted mb-3">{{ Tool.description }}</p>
+              <a class="btn btn-primary tool-open" href="/{{ Tool.page }}"
+                 data-tool-page="{{ Tool.page }}">打开工具</a>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="page-body">
+  <div class="container-xl">
+    <div class="empty">
+      <p class="empty-title">暂无可用工具</p>
+      <p class="empty-subtitle text-muted">当前账号没有已集成工具的访问权限。</p>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script type="text/javascript">
+  $(document).off("click.tool-open", ".tool-open").on(
+    "click.tool-open",
+    ".tool-open",
+    function (event) {
+      event.preventDefault();
+      navmenu(this.dataset.toolPage || "tools");
+    }
+  );
+</script>

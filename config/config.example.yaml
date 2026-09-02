@@ -1,0 +1,141 @@
+# 【配置注意要符合yaml语法，:号后有1个空格，不能使用全角标点符号】
+# 【可通过WEB页面配置各项参数，推荐优先使用WEB页面进行配置】
+app:
+  # 【日志记录类型】：server、file、console
+  # Docker-only 部署建议设置为console，通过Docker日志查看
+  # 如设置为file，日志目录必须映射到可写的持久化路径；server可用于远程日志中心
+  logtype: console
+  # 【日志文件的路径】：logtype为file时生效
+  logpath:
+  # 【群晖日志中心IP和端口】：logtype为SERVER时生效。端口一般是514，只需要改动IP为群晖的IP，示例：127.0.0.1:514
+  logserver: 127.0.0.1:514
+  # 【日志级别】：info、debug、error
+  loglevel: info
+  # 【WEB管理页面登录用户】，默认admin
+  login_user: admin
+  # 【WEB管理页面登录密码】：默认为空，首次启动会自动随机生成并写入 /config/initial-credentials.txt
+  login_password: ''
+  # 【TMDB API KEY】：需要在https://www.themoviedb.org/申请，必须配置，否则无法识别媒体资源并按类型、二级分类自动选择下载目录
+  # 以下地址需要网络能够正常访问：api.themoviedb.org
+  rmt_tmdbkey:
+  # 【Fanart API KEY】：可选，需要在https://fanart.tv/get-an-api-key/申请；留空时不获取Fanart图片
+  fanart_api_key: ''
+  # 【豆瓣 API 凭据】：可选，需要同时配置Key与Secret；留空时不调用豆瓣移动端API
+  douban_api_key: ''
+  douban_api_secret: ''
+  # 【使用TMDB服务器域名】：api.themoviedb.org、api.tmdb.org，如api.themoviedb.org无法访问可偿试使用api.tmdb.org
+  tmdb_domain: api.tmdb.org
+  # 【TMDB匹配模式】：normal、strict，normal模式下如使用文件名/种子名中的年份无法匹配到媒体信息，会去掉年份再匹配一次；strict模式则严格按文件中年份匹配
+  # normal模式下会提升识别成功率，但也可能会导致误识别率增加；strict模式可以降低误识别率，但可能导致很多文件名/种子名中年份不正确的无法被识别（特别是剧集，需要是首播年份）
+  rmt_match_mode: normal
+  # 【设置代理】，themoviedb、fanart、telegram等将使用代理访问，http和https均需配置，可以是http也可以是socks5、socks5h(remote DNS) ，但需要带http或socks5前缀，两项可以配置为一样，留空则不启用
+  # 示例：'http://127.0.0.1:7890' 'socks5://127.0.0.1:8018' 'socks5h://127.0.0.1:8018'
+  proxies:
+    http:
+    https:
+  # 【OCR服务地址】：可选，需填写完整HTTP(S)地址；留空时不调用任何外部OCR服务，验证码改由用户手动输入
+  ocr_server: ''
+  # 【本系统的WEB的外网地址】：需要是外网IP或者域名，需要包含端口，用于Telegram信息点击跳转，如不需要可配空
+  # 示例：http://IP:3000
+  domain: ''
+  # 【UserAgent】：可适当修改，用于站点签到、豆瓣数据抓取等
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 
+    (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36
+  # 【登录界面壁纸】：themoviedb、bing，设置为themoviedb时需要配置TMDB API Key时才生效
+  wallpaper: bing
+# 【配置媒体分类信息】
+media:
+  # 【二级分类策略】：识别电影/电视剧/动漫后生成分类，供下载目录规则按类型和分类匹配
+  # 此处配置分类的策略名，配置文件目录中需要有与策略名同名的.yaml配置文件
+  # 默认策略 default-category 的设置可参考 default-category.yaml；如不需要二级分类则留空
+  category: default-category
+
+# 【配置站点检索信息】
+pt:
+  # 【下载使用的客户端软件】：qbittorrent、transmission
+  pt_client: qbittorrent
+  # 【只管理NASTool添加的下载】：启用后下载列表和自动删种默认只处理带 NASTOOL 标签的任务
+  pt_monitor_only: true
+  # 【内置索引器】：需要在配置文件目录/sites目录下存入对应的站点配置文件
+  # 使用WEB UI或Telegram发送关键字检索下载，会识别显示真实名称，并匹配种子名称与真实名称
+  # 【内建索引器使用的站点】：只有在该站点列表中内建索引器搜索时才会使用
+  indexer_sites:
+  # 【远程搜索自动择优下载开关】：如开启则Telegram等远程渠道搜索后会自动择优选择一项下载，如不开启则需要手工点击进入WEB页面选择下载
+  # 如没有配置app.domain或无公网环境建议开启，否则无法跳转WEB页面手工选择
+  search_auto: true
+  # 【下载优先规则】：远程搜索下载将按此优先规则选择下载资源，字典：site 站点优先、seeder做种数优先
+  download_order: site
+  # 【搜索结果数量限制】：每个站点返回搜索结果的最大数量
+  site_search_result_num: 100
+  # 【站点搜索并发数】：限制单次搜索同时访问的站点数量，范围1-32
+  site_search_concurrency: 8
+
+# 【内置工具】
+tools:
+  site_signin:
+    # 【执行周期】：支持小时间隔、固定时间或时间范围，例如 23.5、08:00、08:00-09:00；留空关闭定时执行
+    cron: 08:01
+    # 【并发数】：范围1-10，浏览器仿真任务会自动串行执行
+    concurrency: 5
+    # 【失败重试关键词】：支持正则表达式，当天失败结果命中后会在下次调度重试
+    retry_keyword: 错误|失败|失效|无法|超时|Cloudflare
+    # 【执行结果通知】
+    notify: true
+    # 【历史保留天数】：范围7-365
+    history_days: 30
+
+# 【配置qBittorrent下载软件】：pt区的pt_client如配置为qbittorrent则需要同步配置该项
+qbittorrent:
+  # 【qBittorrent IP地址和端口】：注意如果qb启动了HTTPS证书，则需要配置为https://IP
+  qbhost:
+  qbport:
+  # qBittorrent 登录用户名和密码
+  qbusername:
+  qbpassword:
+  # HTTPS WebUI 是否验证服务端证书
+  verify_cert: true
+  # 是否开始自动管理模式
+  auto_management: false
+
+# 【配置transmission下载软件】：pt区的pt_client如配置为transmission则需要同步配置该项，需要3.0以上版本，否则可能会报错
+transmission:
+  # 【transmission IP地址和端口】：注意如果tr启用了HTTPS证书，则需要配置为https://IP
+  trhost:
+  trport:
+  # transmission 登录用户名和密码
+  trusername:
+  trpassword:
+
+# 【下载目录】：配置下载目录，自动按媒体类型和二级分类下载到指定目录
+downloaddir: []
+
+
+
+# 【配置安全】
+security:
+  # 【Telegram webhook允许ip范围】：即只有如下范围的IP才允许调用webhook
+  telegram_webhook_allow_ip:
+    ipv4: 127.0.0.1
+    ipv6: ::1/128
+  # Telegram setWebhook 与回调请求共享的随机密钥，首次启动自动生成
+  telegram_webhook_secret:
+  # Flask Session 签名密钥，首次启动自动生成并持久化
+  flask_secret_key:
+  # HTTPS 反向代理入口应设为true，使浏览器仅通过HTTPS发送Session Cookie
+  session_cookie_secure: false
+  # 【API认证密钥】：默认为空，首次启动会自动随机生成并写入 /config/initial-credentials.txt
+  api_key: ''
+
+# 【实验室】
+laboratory:
+  # 【识别增强】关键字猜想
+  search_keyword: false
+  # 【识别增强】通过TMDB WEB检索
+  search_tmdbweb: false
+  # 【TMDB缓存过期策略】：是否开启TMDB缓存过期策略，默认7天过期，过期缓存将被删除,  7天内访问过期时间可以被刷新
+  tmdb_cache_expire: true
+  # 【使用豆瓣名称联想】：开启将使用豆瓣进行电影电视剧的名称联想，否则使用TMDB的数据
+  # 【精确搜索使用英文名称】：开启后对于远程搜索等精确搜索场景将优先使用英文名检索站点资源，但对标题仅含中文的站点可能无法匹配
+  search_en_title: true
+  # 【TMDB代理服务地址】：可选，需填写兼容TMDB API的完整HTTP(S)地址；留空时直连上方配置的TMDB域名
+  tmdb_proxy: ''

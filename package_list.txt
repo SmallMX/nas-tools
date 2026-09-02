@@ -1,0 +1,11 @@
+ca-certificates
+libffi
+libgcc
+libstdc++
+libxml2
+libxslt
+tzdata
+su-exec
+xvfb
+chromium-chromedriver
+dumb-init

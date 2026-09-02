@@ -1,0 +1,639 @@
+{% import 'macro/svg.html' as SVG %}
+<div class="container-xl">
+  <!-- Page title -->
+  <div class="page-header d-print-none">
+    <div class="row align-items-center">
+      <div class="col">
+        <h2 class="page-title">
+          {{ SettingTitle }}
+        </h2>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- 业务页面代码 -->
+<div class="page-body">
+  <div class="container-xl">
+    <div class="row row-cards">
+      {% if SettingSection == "system" %}
+      <div class="col-md-12">
+        <div class="card" id="basic_system">
+          <div class="card-header">
+            <h3 class="card-title"><strong>系统</strong></h3>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-lg">
+                <div class="mb-3">
+                  <label class="form-label required">日志输出类型</label>
+                  <select class="form-select" id="app.logtype">
+                    <option value="console" {% if Config.app.logtype=='console' %}selected{% endif %}>控制台</option>
+                    <option value="file" {% if Config.app.logtype=='file' %}selected{% endif %}>文件</option>
+                    <option value="server" {% if Config.app.logtype=='server' %}selected{% endif %}>日志中心</option>
+                  </select>
+                </div>
+              </div>
+              <div class="col-lg">
+                <div class="mb-3">
+                  <label class="form-label">日志文件路径 <span class="form-help"
+                                                               title="日志输出类型为文件时需要配置该项"
+                                                               data-bs-toggle="tooltip">?</span></label>
+                  <input type="text" value="{{ Config.app.logpath or '' }}" class="form-control filetree-folders-only"
+                         id="app.logpath" placeholder="/config/logs" autocomplete="off">
+                </div>
+              </div>
+              <div class="col-lg">
+                <div class="mb-3">
+                  <label class="form-label">日志中心地址 <span class="form-help"
+                                                               title="日志输出类型为日志中心时需要配置该项；需要配置IP地址和端口，配置示例：127.0.0.1:514"
+                                                               data-bs-toggle="tooltip">?</span></label>
+                  <input type="text" value="{{ Config.app.logserver or '' }}" class="form-control" id="app.logserver"
+                         placeholder="127.0.0.1:514" autocomplete="off">
+                </div>
+              </div>
+              <div class="col-lg">
+                <div class="mb-3">
+                  <label class="form-label">日志级别 <span class="form-help"
+                                                               title="一般情况下请选择INFO，排查问题可选择DEBUG"
+                                                               data-bs-toggle="tooltip">?</span></label>
+                  <select class="form-select" id="app.loglevel">
+                    <option value="info"
+                      {% if not Config.app.loglevel or Config.app.loglevel=='info' %}selected{% endif %}>
+                      INFO
+                    </option>
+                    <option value="debug" {% if Config.app.loglevel=='debug' %}selected{% endif %}>
+                      DEBUG
+                    </option>
+                    <option value="error" {% if Config.app.loglevel=='error' %}selected{% endif %}>
+                      ERROR
+                    </option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-lg">
+                <div class="mb-3">
+                  <label class="form-label required">WEB壁纸来源 <span class="form-help"
+                                                               title="登录界面壁纸来源：TMDB、Bing，设置为TMDB时需在媒体配置TMDB API Key"
+                                                               data-bs-toggle="tooltip">?</span></label>
+                  <select class="form-select" id="app.wallpaper">
+                    <option value="themoviedb"
+                      {% if not Config.app.wallpaper or Config.app.wallpaper=='themoviedb' %}selected{% endif %}>
+                      电影海报
+                    </option>
+                    <option value="bing" {% if Config.app.wallpaper=='bing' %}selected{% endif %}>
+                      Bing每日壁纸
+                    </option>
+                  </select>
+                </div>
+              </div>
+              <div class="col-lg">
+                <div class="mb-3">
+                  <label class="form-label required">WEB管理用户</label>
+                  <input type="text" value="{{ Config.app.login_user or '' }}" class="form-control" id="app.login_user"
+                         placeholder="admin" autocomplete="off">
+                </div>
+              </div>
+              <div class="col-lg">
+                <div class="mb-3">
+                  <label class="form-label required">WEB管理密码</label>
+                  <input type="password" value="{% if Config.app.login_password %}******{% endif %}" class="form-control"
+                         id="app.login_password" placeholder="password" autocomplete="off">
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-lg">
+                <div class="mb-3">
+                  <label class="form-label">代理服务器 <span class="form-help"
+                                                             title="将使用代理服务器访问 themoviedb、telegram、公开 BT 站等外部网站，站点默认不使用代理，如需使用需在站点维护中开启；配置格式示例：127.0.0.1:7890（HTTP 协议）、socks5://127.0.0.1:8018、socks5h://127.0.0.1:8018（remote DNS）"
+                                                             data-bs-toggle="tooltip">?</span></label>
+                  <input type="text" value="{{ Proxy or '' }}" class="form-control" id="app.proxies"
+                         placeholder="127.0.0.1:7890" autocomplete="off">
+                </div>
+              </div>
+              <div class="col-lg">
+                <div class="mb-3">
+                  <label class="form-label">外网访问地址 <span class="form-help"
+                                                               title="使用该地址进行通知点击跳转以及设置Telegram机器人Webhook；需要配置IP地址和端口，如为https则需要加https://前缀；如启用Telegram机器人Webhook，则端口必须为：443, 80, 88, 8443之一，80、443一般运营商会封禁，建议使用88、8443"
+                                                               data-bs-toggle="tooltip">?</span></label>
+                  <input type="text" value="{{ Config.app.domain or '' }}" class="form-control" id="app.domain"
+                         placeholder="http://IP:PORT" autocomplete="off">
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-lg">
+                <div class="mb-3">
+                  <label class="form-label">User-Agent <span class="form-help"
+                                                             title="如发现被豆瓣、PT站等封堵，请适当修改此项"
+                                                             data-bs-toggle="tooltip">?</span></label>
+                  <input type="text" value="{{ Config.app.user_agent or '' }}" class="form-control" id="app.user_agent"
+                         placeholder="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
+                         autocomplete="off">
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <div class="row align-items-center">
+              <div class="col-auto">
+                <a href="javascript:void(0)" class="btn d-none d-sm-inline-block" data-bs-toggle="modal" data-bs-target="#modal-user-script">
+                  自定义 CSS/JavaScript
+                </a>
+                <a href="javascript:void(0)" class="btn d-sm-none btn-icon" data-bs-toggle="modal" data-bs-target="#modal-user-script" title="自定义CSS/JavaScript">
+                  {{ SVG.code_dots() }}
+                </a>
+              </div>
+              <div class="col"></div>
+              <div class="col-auto">
+                <a id="basic_system_btn" href="javascript:save_basic_config('basic_system')" class="btn btn-primary">
+                  保存
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+      {% if SettingSection == "media" %}
+      <div class="col-md-12">
+        <div class="card" id="basic_media">
+          <div class="card-header">
+            <h3 class="card-title"><strong>媒体</strong></h3>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-lg">
+                <div class="mb-3">
+                  <label class="form-label required">TMDB API Key <span class="form-help"
+                                                                        title="在themoviedb.org网站申请API Key，该项必须配置，否则所有功能无法正常运行"
+                                                                        data-bs-toggle="tooltip">?</span></label>
+                  <input type="text" value="{{ Config.app.rmt_tmdbkey or '' }}" class="form-control"
+                         id="app.rmt_tmdbkey" placeholder="" autocomplete="off">
+                </div>
+              </div>
+              <div class="col-lg">
+                <div class="mb-3">
+                  <label class="form-label required">TMDB域名 <span class="form-help"
+                                                                    title="如api.themoviedb.org无法访问可偿试使用api.tmdb.org，如均无法访问，则需要修改host或者使用网络代理"
+                                                                    data-bs-toggle="tooltip">?</span></label>
+                  <select class="form-select" id="app.tmdb_domain">
+                    <option value="api.themoviedb.org" {% if not Config.app.tmdb_domain or
+                      Config.app.tmdb_domain=='api.themoviedb.org' %}selected{% endif %}>api.themoviedb.org
+                    </option>
+                    <option value="api.tmdb.org" {% if Config.app.tmdb_domain=='api.tmdb.org' %}selected{% endif %}>
+                      api.tmdb.org
+                    </option>
+                  </select>
+                </div>
+              </div>
+              <div class="col-lg">
+                <div class="mb-3">
+                  <label class="form-label required">TMDB匹配模式 <span class="form-help"
+                                                                        title="正常模式下会提升识别成功率，但也可能会导致误识别率增加；严格模式可以降低误识别率，但可能导致很多文件名/种子名中年份不正确的无法被识别（特别是剧集，需要是首播年份）"
+                                                                        data-bs-toggle="tooltip">?</span></label>
+                  <select class="form-select" id="app.rmt_match_mode">
+                    <option value="normal" {% if Config.app.rmt_match_mode=='normal' %}selected{% endif %}>正常模式
+                    </option>
+                    <option value="strict" {% if Config.app.rmt_match_mode=='strict' %}selected{% endif %}>严格模式
+                    </option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-lg">
+                <div class="mb-3">
+                  <label class="form-label">Fanart API Key <span class="form-help"
+                                                                      title="可选。用于获取Fanart高清图片；留空时不调用Fanart API"
+                                                                      data-bs-toggle="tooltip">?</span></label>
+                  <input type="password" value="{% if Config.app.fanart_api_key %}******{% endif %}"
+                         class="form-control" id="app.fanart_api_key" autocomplete="off">
+                </div>
+              </div>
+              <div class="col-lg">
+                <div class="mb-3">
+                  <label class="form-label">豆瓣 API Key <span class="form-help"
+                                                                     title="可选。需要与豆瓣 API Secret 同时配置；留空时不调用豆瓣移动端API"
+                                                                     data-bs-toggle="tooltip">?</span></label>
+                  <input type="password" value="{% if Config.app.douban_api_key %}******{% endif %}"
+                         class="form-control" id="app.douban_api_key" autocomplete="off">
+                </div>
+              </div>
+              <div class="col-lg">
+                <div class="mb-3">
+                  <label class="form-label">豆瓣 API Secret <span class="form-help"
+                                                                        title="可选。需要与豆瓣 API Key 同时配置；留空时不调用豆瓣移动端API"
+                                                                        data-bs-toggle="tooltip">?</span></label>
+                  <input type="password" value="{% if Config.app.douban_api_secret %}******{% endif %}"
+                         class="form-control" id="app.douban_api_secret" autocomplete="off">
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-lg">
+                <div class="mb-3">
+                  <label class="form-label">二级分类策略 <span class="form-help"
+                                                               title="按电影、电视剧、动漫的 TMDB 信息计算二级分类，供下载目录规则匹配；配置文件目录中需要有与策略名同名的.yaml文件，如不需要二级分类可留空"
+                                                               data-bs-toggle="tooltip">?</span></label>
+                  <input type="text" value="{{ Config.media.category or '' }}" class="form-control" id="media.category"
+                         placeholder="default-category" autocomplete="off">
+                </div>
+              </div>
+              <div class="col-lg">
+                <div class="mb-3">
+                  <label class="form-label required">下载优先规则 <span class="form-help"
+                                                                        title="远程搜索下载将按此优先规则选择下载资源，其中站点优先决定于维护的站点优先级或索引器中配置的站点顺序，默认为站点优先"
+                                                                        data-bs-toggle="tooltip">?</span></label>
+                  <select class="form-select" id="pt.download_order">
+                    <option value="" {% if not Config.pt.download_order %}selected{% endif %}>默认</option>
+                    <option value="site" {% if Config.pt.download_order=='site' %}selected{% endif %}>站点优先</option>
+                    <option value="seeder" {% if Config.pt.download_order=='seeder' %}selected{% endif %}>做种数优先
+                    </option>
+                  </select>
+                </div>
+              </div>
+              <div class="col-lg">
+                <div class="mb-3">
+                  <label class="form-label">TMDB代理服务地址 <span class="form-help"
+                                                                      title="可选。留空时直连上方选择的TMDB域名；项目不提供默认代理服务，请填写自行部署或信任的完整HTTP(S)地址"
+                                                                      data-bs-toggle="tooltip">?</span></label>
+                  <input type="url"
+                         value="{% if Config.laboratory and Config.laboratory.tmdb_proxy is string %}{{ Config.laboratory.tmdb_proxy }}{% endif %}"
+                         class="form-control" id="laboratory.tmdb_proxy"
+                         placeholder="https://tmdb-proxy.example.com" autocomplete="off">
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <div class="row align-items-center">
+              <div class="col-auto">
+                <a href="javascript:navmenu('tmdbcache')" class="btn d-none d-sm-inline-block">
+                  TMDB缓存
+                </a>
+                <a href="javascript:navmenu('tmdbcache')" class="btn d-sm-none btn-icon" title="TMDB缓存">
+                  {{ SVG.history('') }}
+                </a>
+                <a href="javascript:void(0)" class="btn d-none d-sm-inline-block" data-bs-toggle="modal" data-bs-target="#modal-release-groups">
+                  自定义制作组/字幕组
+                </a>
+                <a href="javascript:void(0)" class="btn d-sm-none btn-icon" data-bs-toggle="modal" data-bs-target="#modal-release-groups" title="自定义制作组/字幕组">
+                  {{ SVG.tex() }}
+                </a>
+              </div>
+              <div class="col"></div>
+              <div class="col-auto">
+                <a id="basic_media_btn" href="javascript:save_basic_config('basic_media')" class="btn btn-primary">
+                  保存
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+      {% if SettingSection == "service" %}
+      <div class="col-md-12">
+        <div class="card" id="basic_service">
+          <div class="card-header">
+            <h3 class="card-title"><strong>服务</strong></h3>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-xl">
+                <div class="mb-3">
+                  <label class="form-label">OCR服务地址 <span class="form-help"
+                                                                  title="可选。配置后，自动识别验证码功能会请求该地址下的/captcha/base64接口；留空时不会调用任何外部OCR服务"
+                                                                  data-bs-toggle="tooltip">?</span></label>
+                  <input type="url" value="{{ Config.app.ocr_server or '' }}" class="form-control"
+                         id="app.ocr_server" placeholder="https://ocr.example.com" autocomplete="off">
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-xl">
+                <div class="mb-3">
+                  <label class="form-label">搜索并发数 <span class="form-help"
+                                                               title="单次搜索同时访问的站点数量，范围 1-32；较小的值可降低 NAS 资源和 SQLite 连接压力。"
+                                                               data-bs-toggle="tooltip">?</span></label>
+                  <input type="number" min="1" max="32" value="{{ Config.pt.site_search_concurrency or 8 }}"
+                         class="form-control" id="pt.site_search_concurrency">
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-xl">
+                <div class="mb-3">
+                  <label class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="pt.pt_monitor_only" {% if
+                      Config.pt.pt_monitor_only %}checked{% endif %}>
+                    <span class="form-check-label">只显示NAStool添加的下载 <span class="form-help"
+                                                                                 title="启用后下载管理只显示含NASTOOL标签的任务；仅支持Qbittorrent、Transmission下载器"
+                                                                                 data-bs-toggle="tooltip">?</span></span>
+                  </label>
+                </div>
+              </div>
+              <div class="col-xl">
+                <div class="mb-3">
+                  <label class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="pt.search_auto"
+                           {% if Config.pt.search_auto %}checked{% endif %}>
+                    <span class="form-check-label">远程搜索自动择优下载 <span class="form-help"
+                                                                              title="启用后通过Telegram发送名称时会自动择优下载，否则需要点击链接跳转后手工选择"
+                                                                              data-bs-toggle="tooltip">?</span></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <div class="row align-items-center">
+              <div class="col"></div>
+              <div class="col-auto">
+                <a id="basic_service_btn" href="javascript:save_basic_config('basic_service')" class="btn btn-primary">
+                  保存
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+      {% if SettingSection == "security" %}
+      <div class="col-md-12">
+        <div class="card" id="security">
+          <div class="card-header">
+            <h3 class="card-title"><strong>安全</strong></h3>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-12 col-lg">
+                <div class="mb-1">
+                  <label class="form-label">Telegram源地址 <span class="form-help"
+                                                                 title="仅接收配置的地址范围内发送的Telegram消息，多个地址段用,号分隔，配置为0.0.0.0/0,::/0则不做限制；使用Telegram WebHook且未做代理转发时推荐IPv4地址设置为：149.154.160.0/20,91.108.4.0/22，关闭Telegram WebHook时推荐IPv4地址设置为：127.0.0.1"
+                                                                 data-bs-toggle="tooltip">?</span></label>
+                  <input type="text"
+                         value="{% if Config.security.telegram_webhook_allow_ip %}{{ Config.security.telegram_webhook_allow_ip.ipv4 or '' }}{% endif %}"
+                         class="form-control" id="security.telegram_webhook_allow_ip.ipv4" placeholder="允许的IPv4 CIDR"
+                         autocomplete="off">
+                </div>
+                <div class="mb-3">
+                  <input type="text"
+                         value="{% if Config.security.telegram_webhook_allow_ip %}{{ Config.security.telegram_webhook_allow_ip.ipv6 or '' }}{% endif %}"
+                         class="form-control" id="security.telegram_webhook_allow_ip.ipv6" placeholder="允许的IPv6 CIDR"
+                         autocomplete="off">
+                </div>
+              </div>
+              <div class="col-12 col-lg">
+                <div class="mb-3">
+                  <label class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="security.session_cookie_secure"
+                           {% if Config.security and Config.security.session_cookie_secure %}checked{% endif %}>
+                    <span class="form-check-label">仅通过 HTTPS 发送登录 Cookie
+                      <span class="form-help"
+                            title="仅当浏览器访问入口始终为 HTTPS 时开启，否则浏览器不会发送登录 Cookie，导致无法登录；保存后需重启容器生效。"
+                            data-bs-toggle="tooltip">?</span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+              <div class="col-12 col-lg">
+                <div class="mb-3">
+                  <label class="form-label">API密钥 <span class="form-help"
+                                                          title="调用受 API Key 保护的接口时，需要在 Authorization 中填入该密钥"
+                                                          data-bs-toggle="tooltip">?</span></label>
+                  <input type="text" id="security.api_key" class="form-control"
+                         value="{% if Config.security %}{{ Config.security.api_key }}{% endif %}">
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <div class="row align-items-center">
+              <div class="col"></div>
+              <div class="col-auto">
+                <a id="security_btn" href="javascript:save_basic_config('security')" class="btn btn-primary">
+                  保存
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+      {% if SettingSection == "laboratory" %}
+      <div class="col-md-12">
+        <div class="card" id="laboratory">
+          <div class="card-header">
+            <h3 class="card-title"><strong>实验室</strong></h3>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-12 col-xl-3">
+                <div class="mb-3">
+                  <label class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="laboratory.search_keyword" {% if
+                      Config.laboratory and Config.laboratory.search_keyword %}checked{% endif %}>
+                    <span class="form-check-label">辅助识别 <span class="form-help"
+                                                                  title="开启后，无法识别到媒体信息时会尝试猜测和纠正关键词并再次匹配，会大大增加识别耗时，一般情况下不建议开启"
+                                                                  data-bs-toggle="tooltip">?</span></span>
+                  </label>
+                </div>
+              </div>
+              <div class="col-12 col-xl-3">
+                <div class="mb-3">
+                  <label class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="laboratory.search_tmdbweb" {% if
+                      Config.laboratory and Config.laboratory.search_tmdbweb %}checked{% endif %}>
+                    <span class="form-check-label">增强识别 <span class="form-help"
+                                                                  title="开启后，通过TMDB的API无法识别到媒体信息时，会尝试通过themoviedb.org网站再次搜索匹配，仅个别极端情况下有效，会大大增加识别耗时，一般情况下不建议开启"
+                                                                  data-bs-toggle="tooltip">?</span></span>
+                  </label>
+                </div>
+              </div>
+              <div class="col-12 col-xl-3">
+                <div class="mb-3">
+                  <label class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="laboratory.tmdb_cache_expire" {% if
+                      Config.laboratory and Config.laboratory.tmdb_cache_expire %}checked{% endif %}>
+                    <span class="form-check-label">TMDB缓存过期策略 <span class="form-help"
+                                                                          title="开启TMDB缓存过期策略后，默认7天过期，过期缓存将被删除,  7天内访问过期时间可以被刷新，建议开启"
+                                                                          data-bs-toggle="tooltip">?</span></span>
+                  </label>
+                </div>
+              </div>
+              <div class="col-12 col-xl-3">
+                <div class="mb-3">
+                  <label class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="laboratory.use_douban_titles" {% if
+                      Config.laboratory and Config.laboratory.use_douban_titles %}checked{% endif %}>
+                    <span class="form-check-label">使用豆瓣名称联想 <span class="form-help"
+                                                                          title="开启将使用豆瓣进行电影电视剧的名称联想，允许中文名不完整时自动联想，但如豆瓣数据与TMDB不一致时可能会无法搜索；关闭后使用TMDB的数据，对中文支持不友好，但不会有无法搜索的问题"
+                                                                          data-bs-toggle="tooltip">?</span></span>
+                  </label>
+                </div>
+              </div>
+              <div class="col-12 col-xl-3">
+                <div class="mb-3">
+                  <label class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="laboratory.search_en_title" {% if
+                      Config.laboratory and Config.laboratory.search_en_title %}checked{% endif %}>
+                    <span class="form-check-label">搜索优先使用英文名 <span class="form-help"
+                                                                            title="开启后对于精确搜索场景将会优先使用英文名搜索，否则优先使用中文名搜索"
+                                                                            data-bs-toggle="tooltip">?</span></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <div class="row align-items-center">
+              <div class="col"></div>
+              <div class="col-auto">
+                <a id="laboratory_btn" href="javascript:save_basic_config('laboratory')" class="btn btn-primary">
+                  保存
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% if SettingSection == "system" %}
+<div class="modal modal-blur fade" id="modal-user-script" tabindex="-1" role="dialog" aria-hidden="true"
+     data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+    <div class="card modal-content" style="border-top-left-radius:var(--tblr-modal-inner-border-radius) !important; border-top-right-radius:var(--tblr-modal-inner-border-radius) !important">
+      <div class="card-header" style="border-top-left-radius:var(--tblr-modal-inner-border-radius) !important; border-top-right-radius:var(--tblr-modal-inner-border-radius) !important">
+        <ul class="nav nav-fill card-header-tabs nav-tabs rounded-3" data-bs-toggle="tabs"
+            role="tablist">
+          <li class="nav-item" role="presentation">
+            <a href="#tabs-user-css" class="nav-link active" style="justify-content: center" data-bs-toggle="tab"
+               aria-selected="true" role="tab">
+              CSS
+            </a>
+          </li>
+          <li class="nav-item" role="presentation">
+            <a href="#tabs-user-script" class="nav-link" style="justify-content: center" data-bs-toggle="tab"
+               aria-selected="false" role="tab" tabindex="-1">
+              JavaScript
+            </a>
+          </li>
+        </ul>
+      </div>
+      <div class="card-body">
+        <div class="tab-content">
+          <div class="tab-pane fade active show" id="tabs-user-css" role="tabpanel">
+            <div class="form-control" id="user_script_css" style="height: 20rem;">{{ CustomScriptCfg.css or '' }}</div>
+          </div>
+          <div class="tab-pane fade" id="tabs-user-script" role="tabpanel">
+            <div class="form-control" id="user_script_javascript" style="height: 20rem;">{{ CustomScriptCfg.javascript or '' }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-link" data-bs-dismiss="modal">取消</button>
+        <a id="user_script_save_btn" href="javascript:save_user_script()" class="btn btn-primary ms-auto">
+          保存
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% if SettingSection == "media" %}
+<div class="modal modal-blur fade" id="modal-release-groups" tabindex="-1" role="dialog" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">自定义制作组/字幕组 <span class="form-help" title="无法识别的制作组/字幕组在此添加" data-bs-toggle="tooltip">?</span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class='row'>
+          <div class="col-lg-12">
+            <div class="mb-3">
+              <textarea class="form-control" id="release_groups" rows="5" placeholder="多个制作组/字幕组请用;分隔，支持正则表达式，特殊字符注意转义">{{ Config.laboratory.release_groups or '' }}</textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-link me-auto" data-bs-dismiss="modal">取消</button>
+        <a id="release_groups_save_btn" href="javascript:save_release_groups_config()" class="btn btn-primary">
+          保存
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+<script type="text/javascript">
+
+  {% if SettingSection == "system" %}
+  // CSS编辑器
+  css_editor = ace.edit("user_script_css");
+  localStorage.getItem("tablerTheme") === "dark" ? css_editor.setTheme("ace/theme/one_dark") : css_editor.setTheme("ace/theme/xcode");
+  css_editor.session.setMode("ace/mode/css");
+  css_editor.setOptions({
+    fontFamily: "Consolas, Monaco, monospace",
+    fontSize: "10pt"
+  });
+  // JavaScript编辑器
+  javascript_editor = ace.edit("user_script_javascript");
+  localStorage.getItem("tablerTheme") === "dark" ? javascript_editor.setTheme("ace/theme/one_dark") : javascript_editor.setTheme("ace/theme/xcode");
+  javascript_editor.session.setMode("ace/mode/javascript");
+  javascript_editor.setOptions({
+    fontFamily: "Consolas, Monaco, monospace",
+    fontSize: "10pt"
+  });
+  {% endif %}
+
+  // 保存基础设置
+  function save_basic_config(type, flag=true) {
+    let params = input_select_GetVal(type);
+    if (flag) {
+      $("#" + type + "_btn").text("保存中...").attr("disabled", true);
+    }
+    ajax_post("update_config", params, function (ret) {
+      if (flag) {
+        $("#" + type + "_btn").text("保存").attr("disabled", false);
+      }
+      if (ret.code !== 0) {
+        show_fail_modal(ret.msg || "配置保存失败");
+      }
+    });
+  }
+
+  {% if SettingSection == "media" %}
+  // 保存自定义制作组/字幕组配置
+  function save_release_groups_config(){
+    let params = {'laboratory.release_groups': $("#release_groups").val().replace(/;$/g, '')};
+    $("#release_groups_save_btn").text("保存中...").attr("disabled", true);
+    ajax_post("update_config", params, function (ret) {
+      $("#release_groups_save_btn").text("保存").attr("disabled", false);
+    });
+    $("#modal-release-groups").modal("hide");
+  }
+  {% endif %}
+
+  {% if SettingSection == "system" %}
+  // 保存自定义CSS/JavaScript配置
+  function save_user_script(){
+    let css_text = css_editor.getValue();
+    let javascript_text = javascript_editor.getValue();
+    $("#user_script_save_btn").text("保存中...").attr("disabled", true);
+    ajax_post("save_user_script", {css: css_text, javascript: javascript_text}, function (ret) {
+      $("#user_script_save_btn").text("保存").attr("disabled", false);
+    });
+    $("#modal-user-script").modal("hide");
+  }
+  {% endif %}
+
+</script>

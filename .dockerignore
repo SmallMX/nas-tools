@@ -1,0 +1,17 @@
+.git
+.github
+.venv
+.python-version
+__pycache__
+*.sock
+*.log
+*.pid
+test.py
+tests/
+config/config.yaml
+config/user.db
+config/initial-credentials.txt
+config/temp/
+config/backup/
+docker/config/
+docker/media/

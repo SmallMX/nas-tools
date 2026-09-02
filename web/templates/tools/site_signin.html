@@ -1,0 +1,286 @@
+<div class="container-xl">
+  <div class="page-header d-print-none">
+    <div class="row align-items-center gy-2">
+      <div class="col-12 col-sm">
+        <h2 class="page-title">站点自动签到</h2>
+        <div class="text-muted mt-1">按日跳过成功站点，并自动重试符合条件的失败站点。</div>
+      </div>
+      <div class="col-12 col-sm-auto ms-sm-auto d-flex gap-2 flex-wrap">
+        <button class="btn" id="site_signin_refresh" type="button">刷新</button>
+        <button class="btn btn-outline-primary" id="site_signin_retry" type="button">执行待签与重试</button>
+        <button class="btn btn-primary" id="site_signin_force" type="button">强制全部执行</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="page-body">
+  <div class="container-xl">
+    <div class="alert alert-info mb-3" role="alert">
+      签到和保号登录站点在“站点维护”中选择；本工具只保存执行策略，不保存或展示站点 Cookie。
+    </div>
+
+    <div class="card mb-3" id="site_signin_settings">
+      <div class="card-header d-flex align-items-center">
+        <h3 class="card-title">工具设置</h3>
+        <button class="btn btn-primary ms-auto" id="site_signin_save" type="button">保存设置</button>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6 col-xl-3">
+            <div class="mb-3">
+              <label class="form-label">执行周期 <span class="form-help"
+                title="支持小时间隔、固定时间或时间范围，例如 23.5、08:00、08:00-09:00；留空关闭定时执行。"
+                data-bs-toggle="tooltip">?</span></label>
+              <input class="form-control" id="site_signin_cron" type="text"
+                     value="{{ ToolConfig.get('cron') or '' }}" placeholder="留空关闭定时执行" autocomplete="off">
+            </div>
+          </div>
+          <div class="col-md-6 col-xl-3">
+            <div class="mb-3">
+              <label class="form-label">并发数</label>
+              <input class="form-control" id="site_signin_concurrency" type="number" min="1" max="10"
+                     value="{{ ToolConfig.get('concurrency', 5) }}">
+            </div>
+          </div>
+          <div class="col-md-6 col-xl-3">
+            <div class="mb-3">
+              <label class="form-label">历史保留天数</label>
+              <input class="form-control" id="site_signin_history_days" type="number" min="7" max="365"
+                     value="{{ ToolConfig.get('history_days', 30) }}">
+            </div>
+          </div>
+          <div class="col-md-6 col-xl-3">
+            <div class="mb-3">
+              <label class="form-check form-switch mt-4">
+                <input class="form-check-input" id="site_signin_notify" type="checkbox"
+                       {% if ToolConfig.get('notify', true) %}checked{% endif %}>
+                <span class="form-check-label">发送执行结果通知</span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-12">
+            <div class="mb-0">
+              <label class="form-label">失败重试关键词 <span class="form-help"
+                title="支持正则表达式。当天执行失败且结果命中后，会在下一次调度时重试。"
+                data-bs-toggle="tooltip">?</span></label>
+              <input class="form-control" id="site_signin_retry_keyword" type="text"
+                     value="{{ ToolConfig.get('retry_keyword') or '错误|失败|失效|无法|超时|Cloudflare' }}"
+                     autocomplete="off">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row row-cards mb-3" id="site_signin_summary">
+      <div class="col-6 col-lg-3"><div class="card card-sm"><div class="card-body text-muted">正在加载...</div></div></div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center">
+        <h3 class="card-title">今日状态</h3>
+        <span class="badge ms-auto" id="site_signin_running"></span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-vcenter card-table">
+          <thead>
+            <tr>
+              <th>站点</th>
+              <th>任务</th>
+              <th>状态</th>
+              <th>结果</th>
+              <th>时间</th>
+            </tr>
+          </thead>
+          <tbody id="site_signin_items"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">最近执行记录</h3></div>
+      <div class="table-responsive">
+        <table class="table table-vcenter card-table">
+          <thead>
+            <tr>
+              <th>执行时间</th>
+              <th>站点</th>
+              <th>任务</th>
+              <th>结果</th>
+              <th>耗时</th>
+            </tr>
+          </thead>
+          <tbody id="site_signin_history"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="text/javascript">
+  (() => {
+    let followUpPolls = 0;
+    let pollTimer = null;
+    const text = (value) => document.createTextNode(value ?? "");
+
+    function cell(value, className = "") {
+      const item = document.createElement("td");
+      item.className = className;
+      item.append(text(value));
+      return item;
+    }
+
+    function badge(success) {
+      const item = document.createElement("span");
+      if (success === null) {
+        item.className = "badge bg-secondary-lt";
+        item.append(text("待执行"));
+      } else if (success) {
+        item.className = "badge bg-green-lt";
+        item.append(text("成功"));
+      } else {
+        item.className = "badge bg-red-lt";
+        item.append(text("失败"));
+      }
+      return item;
+    }
+
+    function emptyRow(message, columns) {
+      const row = document.createElement("tr");
+      const item = document.createElement("td");
+      item.colSpan = columns;
+      item.className = "text-center text-muted py-4";
+      item.append(text(message));
+      row.append(item);
+      return row;
+    }
+
+    function renderSummary(summary) {
+      const container = document.querySelector("#site_signin_summary");
+      container.replaceChildren();
+      [
+        ["配置任务", summary.total ?? 0, "blue"],
+        ["今日成功", summary.success ?? 0, "green"],
+        ["今日失败", summary.failed ?? 0, "red"],
+        ["今日待执行", summary.pending ?? 0, "yellow"],
+      ].forEach(([label, value, color]) => {
+        const column = document.createElement("div");
+        column.className = "col-6 col-lg-3";
+        const card = document.createElement("div");
+        card.className = "card card-sm h-100";
+        const body = document.createElement("div");
+        body.className = "card-body";
+        const labelNode = document.createElement("div");
+        labelNode.className = "text-muted";
+        labelNode.append(text(label));
+        const valueNode = document.createElement("div");
+        valueNode.className = `h1 mb-0 text-${color}`;
+        valueNode.append(text(String(value)));
+        body.append(labelNode, valueNode);
+        card.append(body);
+        column.append(card);
+        container.append(column);
+      });
+    }
+
+    function renderItems(items) {
+      const body = document.querySelector("#site_signin_items");
+      body.replaceChildren();
+      if (!items.length) {
+        body.append(emptyRow("尚未配置签到或保号登录站点", 5));
+        return;
+      }
+      items.forEach((item) => {
+        const row = document.createElement("tr");
+        row.append(cell(item.site), cell(item.action_name));
+        const status = document.createElement("td");
+        status.append(badge(item.success));
+        row.append(status, cell(item.message, item.success === false ? "text-danger" : ""), cell(item.created_at || "-"));
+        body.append(row);
+      });
+    }
+
+    function renderHistory(history) {
+      const body = document.querySelector("#site_signin_history");
+      body.replaceChildren();
+      if (!history.length) {
+        body.append(emptyRow("暂无执行记录", 5));
+        return;
+      }
+      history.forEach((item) => {
+        const row = document.createElement("tr");
+        row.append(cell(item.created_at), cell(item.site), cell(item.action_name));
+        const result = document.createElement("td");
+        result.append(badge(item.success), text(` ${item.message}`));
+        row.append(result, cell(`${item.duration} ms`));
+        body.append(row);
+      });
+    }
+
+    function schedulePoll(running) {
+      window.clearTimeout(pollTimer);
+      if (running || followUpPolls > 0) {
+        if (!running) followUpPolls -= 1;
+        pollTimer = window.setTimeout(loadStatus, 2000);
+      }
+    }
+
+    function loadStatus() {
+      ajax_post("tool_site_signin_status", {}, (ret) => {
+        if (ret.code !== 0) {
+          show_fail_modal(ret.msg || "签到状态加载失败");
+          return;
+        }
+        renderSummary(ret.summary || {});
+        renderItems(ret.items || []);
+        renderHistory(ret.history || []);
+        const running = document.querySelector("#site_signin_running");
+        running.className = ret.running ? "badge bg-blue-lt ms-auto" : "badge bg-green-lt ms-auto";
+        running.textContent = ret.running ? "运行中" : "空闲";
+        document.querySelector("#site_signin_retry").disabled = Boolean(ret.running);
+        document.querySelector("#site_signin_force").disabled = Boolean(ret.running);
+        schedulePoll(Boolean(ret.running));
+      }, true, false);
+    }
+
+    function runSignin(force) {
+      document.querySelector("#site_signin_retry").disabled = true;
+      document.querySelector("#site_signin_force").disabled = true;
+      ajax_post("tool_site_signin_run", {force}, (ret) => {
+        if (ret.code !== 0) {
+          show_fail_modal(ret.msg || "签到任务启动失败");
+          loadStatus();
+          return;
+        }
+        show_success_modal(ret.msg);
+        followUpPolls = 5;
+        window.setTimeout(loadStatus, 500);
+      });
+    }
+
+    function saveConfig() {
+      const button = document.querySelector("#site_signin_save");
+      button.disabled = true;
+      button.textContent = "保存中...";
+      const config = input_select_GetVal("site_signin_settings", "site_signin_");
+      ajax_post("tool_site_signin_config_update", config, (ret) => {
+        button.disabled = false;
+        button.textContent = "保存设置";
+        if (ret.code !== 0) {
+          show_fail_modal(ret.msg || "工具设置保存失败");
+          return;
+        }
+        show_success_modal(ret.msg || "工具设置已保存");
+      });
+    }
+
+    document.querySelector("#site_signin_refresh")?.addEventListener("click", loadStatus);
+    document.querySelector("#site_signin_retry")?.addEventListener("click", () => runSignin(false));
+    document.querySelector("#site_signin_force")?.addEventListener("click", () => runSignin(true));
+    document.querySelector("#site_signin_save")?.addEventListener("click", saveConfig);
+    loadStatus();
+  })();
+</script>

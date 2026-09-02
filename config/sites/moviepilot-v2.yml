@@ -1,0 +1,45 @@
+# 公开实现参考：jxxghp/MoviePilot v2（96ef431efc535caa4e0cc1203713efea0db74a0c）
+# 本文件只维护相对历史 sites.dat 发生变化或新增的公开站点适配。
+sites:
+  - id: mteam
+    name: 馒头
+    domain: https://m-team.io/
+    aliases:
+      - https://m-team.cc/
+      - https://kp.m-team.cc/
+    parser: MTorrentSpider
+    timeout: 15
+
+  - id: yema
+    name: 野马
+    domain: https://yemapt.org/
+    parser: YemaSpider
+    timeout: 15
+
+  - id: haidan
+    name: 海胆
+    domain: https://haidan.video/
+    aliases:
+      - https://www.haidan.video/
+    parser: HaiDanSpider
+    timeout: 15
+
+  - id: hddolby
+    name: 高清杜比
+    domain: https://hddolby.com/
+    aliases:
+      - https://www.hddolby.com/
+    parser: HDDolbySpider
+    timeout: 15
+
+  - id: rousi
+    name: 肉丝
+    domain: https://rousi.pro/
+    parser: RousiSpider
+    timeout: 15
+
+  - id: hhanclub
+    name: 憨憨
+    domain: https://hhanclub.net/
+    aliases:
+      - https://hhanclub.top/

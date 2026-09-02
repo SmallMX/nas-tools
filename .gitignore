@@ -1,0 +1,37 @@
+__pycache__
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.DS_Store
+.env
+.env.*
+!.env.example
+*.sock
+*.log
+*.pid
+*.db
+*.sqlite
+*.sqlite3
+*.pem
+*.key
+*.p12
+*.pfx
+test.py
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+gen/*.db
+
+# Data / Config files
+config/config.yaml
+config/user.db
+config/initial-credentials.txt
+config/temp/
+config/backup/
+docker/config/
+docker/media/
