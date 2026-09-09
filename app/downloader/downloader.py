@@ -111,6 +111,16 @@ class Downloader:
                 self.clients[ctype.value] = self.__build_class(ctype.value, conf)
             return self.clients.get(ctype.value)
 
+    def __get_download_attributes(self, media_info, download_setting=None):
+        """为添加任务和后续选集解析同一份下载器设置。"""
+        if not download_setting and media_info.site:
+            download_setting = self.sites.get_site_download_setting(media_info.site)
+        if download_setting:
+            download_attr = self.get_download_setting(download_setting)
+            if download_attr:
+                return download_attr
+        return self.get_download_setting(self.get_default_download_setting())
+
     def download(self,
                  media_info,
                  is_paused=None,
@@ -192,13 +202,7 @@ class Downloader:
             return None, retmsg
 
         # 下载设置
-        if not download_setting and media_info.site:
-            download_setting = self.sites.get_site_download_setting(media_info.site)
-        if download_setting:
-            download_attr = self.get_download_setting(download_setting) \
-                            or self.get_download_setting(self.get_default_download_setting())
-        else:
-            download_attr = self.get_download_setting(self.get_default_download_setting())
+        download_attr = self.__get_download_attributes(media_info, download_setting)
         # 下载器类型
         dl_type = self.__get_client_type(download_attr.get("downloader")) or self._default_client_type
         # 下载器客户端
@@ -441,7 +445,13 @@ class Downloader:
         # 返回按季、集数倒序排序的列表
         download_list = self.get_download_list(media_list)
 
-        def __download(download_item, torrent_file=None, tag=None, is_paused=None):
+        def __record_download(download_item):
+            if download_item not in return_items:
+                return_items.append(download_item)
+                self.message.send_download_message(in_from, download_item)
+
+        def __download(download_item, torrent_file=None, tag=None, is_paused=None,
+                       defer_success=False):
             """
             下载及发送通知
             """
@@ -454,9 +464,8 @@ class Downloader:
                 tag=tag,
                 is_paused=is_paused)
             if state:
-                if download_item not in return_items:
-                    return_items.append(download_item)
-                self.message.send_download_message(in_from, download_item)
+                if not defer_success:
+                    __record_download(download_item)
             else:
                 self.message.send_download_fail_message(download_item, msg)
             return state
@@ -474,15 +483,15 @@ class Downloader:
                 need_tvs.pop(tmdbid)
             return need
 
-        def __update_episodes(tmdbid, seq, need, current):
+        def __update_episodes(tmdbid, tv, need, current):
             """
             更新need_tvs集数
             """
-            need = list(set(need).difference(set(current)))
+            need = sorted(set(need).difference(current))
             if need:
-                need_tvs[tmdbid][seq]["episodes"] = need
+                tv["episodes"] = need
             else:
-                need_tvs[tmdbid].pop(seq)
+                need_tvs[tmdbid].remove(tv)
                 if not need_tvs.get(tmdbid):
                     need_tvs.pop(tmdbid)
             return need
@@ -551,8 +560,8 @@ class Downloader:
                 need_tv = need_tvs.get(need_tmdbid)
                 if not need_tv:
                     continue
-                index = 0
-                for tv in need_tv:
+                # 完成一季后会移除其记录，遍历快照避免跳过下一季。
+                for tv in list(need_tv):
                     need_season = tv.get("season") or 1
                     need_episodes = tv.get("episodes")
                     total_episodes = tv.get("total_episodes")
@@ -560,6 +569,8 @@ class Downloader:
                     if not need_episodes:
                         need_episodes = list(range(1, total_episodes + 1))
                     for item in download_list:
+                        if not need_episodes:
+                            break
                         if item.type == MediaType.MOVIE:
                             continue
                         if item.tmdb_id == need_tmdbid:
@@ -577,19 +588,18 @@ class Downloader:
                                     # 更新仍需集数
                                     need_episodes = __update_episodes(tmdbid=need_tmdbid,
                                                                       need=need_episodes,
-                                                                      seq=index,
+                                                                      tv=tv,
                                                                       current=item_episodes)
-                    index += 1
 
         # 仍然缺失的剧集，从整季中选择需要的集数文件下载，仅支持QB和TR
         if need_tvs:
+            pending_items = []
             need_tv_list = list(need_tvs)
             for need_tmdbid in need_tv_list:
                 need_tv = need_tvs.get(need_tmdbid)
                 if not need_tv:
                     continue
-                index = 0
-                for tv in need_tv:
+                for tv in list(need_tv):
                     need_season = tv.get("season") or 1
                     need_episodes = tv.get("episodes")
                     if not need_episodes:
@@ -597,7 +607,7 @@ class Downloader:
                     for item in download_list:
                         if item.type == MediaType.MOVIE:
                             continue
-                        if item in return_items:
+                        if item in return_items or item in pending_items:
                             continue
                         if not need_episodes:
                             break
@@ -620,21 +630,20 @@ class Downloader:
                             ret = __download(download_item=item,
                                              torrent_file=torrent_path,
                                              tag=torrent_tag,
-                                             is_paused=True)
+                                             is_paused=True,
+                                             defer_success=True)
                             if not ret:
                                 continue
-                            # 更新仍需集数
-                            need_episodes = __update_episodes(tmdbid=need_tmdbid,
-                                                              need=need_episodes,
-                                                              seq=index,
-                                                              current=selected_episodes)
+                            # 已添加的暂停任务不能因选集失败在本次执行中再次添加。
+                            pending_items.append(item)
                             # 获取下载器
-                            downloader = self._default_client_type
-                            if item.download_setting:
-                                download_attr = self.get_download_setting(item.download_setting)
-                                if download_attr.get("downloader"):
-                                    downloader = self.__get_client_type(download_attr.get("downloader"))
+                            download_attr = self.__get_download_attributes(item, item.download_setting)
+                            downloader = self.__get_client_type(download_attr.get("downloader")) \
+                                or self._default_client_type
                             _client = self.__get_client(downloader)
+                            if not _client:
+                                self.message.send_download_fail_message(item, "下载任务已添加并暂停，下载器不可用")
+                                continue
                             # 获取刚添加的任务ID
                             if downloader == DownloaderType.TR:
                                 torrent_id = ret.id
@@ -645,16 +654,25 @@ class Downloader:
                             if not torrent_id:
                                 log.error("【Downloader】获取下载器添加的任务信息出错：%s，tag=%s" % (
                                     item.org_string, torrent_tag))
+                                self.message.send_download_fail_message(item, "下载任务已添加并暂停，无法取得任务 ID")
                                 continue
                             # 设置任务只下载想要的文件
                             log.info("【Downloader】从 %s 中选取集：%s" % (item.org_string, selected_episodes))
-                            self.set_files_status(torrent_id, selected_episodes, downloader)
+                            actual_episodes = self.set_files_status(torrent_id, selected_episodes, downloader)
+                            if not actual_episodes:
+                                self.message.send_download_fail_message(item, "选集失败，下载任务保持暂停")
+                                continue
                             # 重新开始任务
                             log.info("【Downloader】%s 开始下载 " % item.org_string)
-                            _client.start_torrents(torrent_id)
-                            # 记录下载项
-                            return_items.append(item)
-                index += 1
+                            if not _client.start_torrents(torrent_id):
+                                self.message.send_download_fail_message(item, "选集完成，但启动下载任务失败")
+                                continue
+                            # 只有文件选择和启动均成功，才更新缺集并发送成功通知。
+                            need_episodes = __update_episodes(tmdbid=need_tmdbid,
+                                                              need=need_episodes,
+                                                              tv=tv,
+                                                              current=actual_episodes)
+                            __record_download(item)
 
         # 返回下载的资源，剩下没下完的
         return return_items, need_tvs
@@ -724,6 +742,8 @@ class Downloader:
         """
         sucess_epidised = []
         _client = self.__get_client(downloader)
+        if not _client:
+            return []
         if downloader == DownloaderType.TR:
             files_info = {}
             torrent_files = _client.get_files(tid)
@@ -742,7 +762,8 @@ class Downloader:
                 else:
                     files_info[tid][file_id] = {'priority': 'normal', 'selected': selected}
             if sucess_epidised and files_info:
-                _client.set_files(file_info=files_info)
+                if not _client.set_files(file_info=files_info):
+                    return []
         elif downloader == DownloaderType.QB:
             file_ids = []
             torrent_files = _client.get_files(tid)
@@ -756,8 +777,9 @@ class Downloader:
                 else:
                     sucess_epidised = list(set(sucess_epidised).union(set(meta_info.get_episode_list())))
             if sucess_epidised and file_ids:
-                _client.set_files(torrent_hash=tid, file_ids=file_ids, priority=0)
-        return sucess_epidised
+                if not _client.set_files(torrent_hash=tid, file_ids=file_ids, priority=0):
+                    return []
+        return sorted(sucess_epidised)
 
     def get_download_list(self, media_list):
         """

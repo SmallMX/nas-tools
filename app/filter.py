@@ -48,8 +48,8 @@ class Filter:
         对种子进行过滤
         :param meta_info: 名称识别后的MetaBase对象
         :param filter_args: 过滤条件的字典
-        :param uploadvolumefactor: 种子的上传因子 传空不过滤
-        :param downloadvolumefactor: 种子的下载因子 传空不过滤
+        :param uploadvolumefactor: 种子的上传因子 传None不过滤
+        :param downloadvolumefactor: 种子的下载因子 传None不过滤
         :return: 是否匹配，匹配的优先值，匹配信息，值越大越优先
         """
         # 过滤质量
@@ -82,9 +82,9 @@ class Filter:
         # 过滤促销
         if filter_args.get("sp_state"):
             ul_factor, dl_factor = filter_args.get("sp_state").split()
-            if uploadvolumefactor and ul_factor not in ("*", str(uploadvolumefactor)):
+            if uploadvolumefactor is not None and ul_factor not in ("*", str(uploadvolumefactor)):
                 return False, 0, f"{meta_info.org_string} 不符合促销要求"
-            if downloadvolumefactor and dl_factor not in ("*", str(downloadvolumefactor)):
+            if downloadvolumefactor is not None and dl_factor not in ("*", str(downloadvolumefactor)):
                 return False, 0, f"{meta_info.org_string} 不符合促销要求"
         # 过滤包含
         if filter_args.get("include"):

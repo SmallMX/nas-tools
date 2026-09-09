@@ -38,75 +38,85 @@ def search_medias_for_web(content, ident_flag=True, filters=None, tmdbid=None, m
     # 开始进度
     search_process = ProgressHelper()
     search_process.start('search')
-    # 识别媒体
-    media_info = None
-    if ident_flag:
+    try:
+        # 识别媒体
+        media_info = None
+        if ident_flag:
 
-        # 有TMDBID或豆瓣ID
-        if tmdbid:
-            media_info = WebUtils.get_mediainfo_from_id(mtype=mtype, mediaid=tmdbid)
-        else:
-            # 按输入名称查
-            media_info = Media().get_media_info(mtype=media_type or mtype,
-                                                title=content)
+            # 有TMDBID或豆瓣ID
+            if tmdbid:
+                media_info = WebUtils.get_mediainfo_from_id(mtype=mtype, mediaid=tmdbid)
+            else:
+                # 按输入名称查
+                media_info = Media().get_media_info(mtype=media_type or mtype,
+                                                    title=content)
 
-        # 整合集
-        if media_info:
-            if season_num:
-                media_info.begin_season = int(season_num)
-            if episode_num:
-                media_info.begin_episode = int(episode_num)
+            # 整合集
+            if media_info:
+                if season_num:
+                    media_info.begin_season = int(season_num)
+                if episode_num:
+                    media_info.begin_episode = int(episode_num)
 
-        if media_info and media_info.tmdb_info:
-            # 查询到TMDB信息
-            log.info(f"【Web】从TMDB中匹配到{media_info.type.value}：{media_info.get_title_string()}")
-            # 查找的季
-            if media_info.begin_season is None:
-                search_season = None
-            else:
-                search_season = media_info.get_season_list()
-            # 查找的集
-            search_episode = media_info.get_episode_list()
-            if search_episode and not search_season:
-                search_season = [1]
-            # 中文名
-            if media_info.cn_name:
-                search_cn_name = media_info.cn_name
-            else:
-                search_cn_name = media_info.title
-            # 英文名
-            search_en_name = None
-            if media_info.en_name:
-                search_en_name = media_info.en_name
-            else:
-                if media_info.original_language == "en":
-                    search_en_name = media_info.original_title
+            if media_info and media_info.tmdb_info:
+                # 查询到TMDB信息
+                log.info(f"【Web】从TMDB中匹配到{media_info.type.value}：{media_info.get_title_string()}")
+                # 查找的季
+                if media_info.begin_season is None:
+                    search_season = None
                 else:
-                    en_title = Media().get_tmdb_en_title(media_info)
-                    if en_title:
-                        search_en_name = en_title
-            # 两次搜索名称
-            second_search_name = None
-            if Config().get_config("laboratory").get("search_en_title"):
-                if search_en_name:
-                    first_search_name = search_en_name
-                    second_search_name = search_cn_name
+                    search_season = media_info.get_season_list()
+                # 查找的集
+                search_episode = media_info.get_episode_list()
+                if search_episode and not search_season:
+                    search_season = [1]
+                # 中文名
+                if media_info.cn_name:
+                    search_cn_name = media_info.cn_name
+                else:
+                    search_cn_name = media_info.title
+                # 英文名
+                search_en_name = None
+                if media_info.en_name:
+                    search_en_name = media_info.en_name
+                else:
+                    if media_info.original_language == "en":
+                        search_en_name = media_info.original_title
+                    else:
+                        en_title = Media().get_tmdb_en_title(media_info)
+                        if en_title:
+                            search_en_name = en_title
+                # 两次搜索名称
+                second_search_name = None
+                if Config().get_config("laboratory").get("search_en_title"):
+                    if search_en_name:
+                        first_search_name = search_en_name
+                        second_search_name = search_cn_name
+                    else:
+                        first_search_name = search_cn_name
                 else:
                     first_search_name = search_cn_name
-            else:
-                first_search_name = search_cn_name
-                if search_en_name:
-                    second_search_name = search_en_name
+                    if search_en_name:
+                        second_search_name = search_en_name
 
-            filter_args = {"season": search_season,
-                           "episode": search_episode,
-                           "year": media_info.year,
-                           "type": media_info.type}
+                filter_args = {"season": search_season,
+                               "episode": search_episode,
+                               "year": media_info.year,
+                               "type": media_info.type}
+            else:
+                # 查询不到数据，使用快速搜索
+                log.info(f"【Web】{content} 未从TMDB匹配到媒体信息，将使用快速搜索...")
+                ident_flag = False
+                media_info = None
+                first_search_name = key_word
+                second_search_name = None
+                filter_args = {
+                    "season": season_num,
+                    "episode": episode_num,
+                    "year": year
+                }
+        # 快速搜索
         else:
-            # 查询不到数据，使用快速搜索
-            log.info(f"【Web】{content} 未从TMDB匹配到媒体信息，将使用快速搜索...")
-            ident_flag = False
-            media_info = None
             first_search_name = key_word
             second_search_name = None
             filter_args = {
@@ -114,55 +124,46 @@ def search_medias_for_web(content, ident_flag=True, filters=None, tmdbid=None, m
                 "episode": episode_num,
                 "year": year
             }
-    # 快速搜索
-    else:
-        first_search_name = key_word
-        second_search_name = None
-        filter_args = {
-            "season": season_num,
-            "episode": episode_num,
-            "year": year
-        }
-    # 整合高级查询条件
-    if filters:
-        filter_args.update(filters)
-    # 开始检索
-    log.info("【Web】开始检索 %s ..." % content)
-    media_list = Searcher().search_medias(key_word=first_search_name,
-                                          filter_args=filter_args,
-                                          match_media=media_info,
-                                          in_from=SearchType.WEB)
-    # 使用第二名称重新搜索
-    if ident_flag \
-            and len(media_list) == 0 \
-            and second_search_name \
-            and second_search_name != first_search_name:
-        search_process.start('search')
-        search_process.update(ptype='search',
-                              text="%s 未检索到资源,尝试通过 %s 重新检索 ..." % (first_search_name, second_search_name))
-        log.info("【Searcher】%s 未检索到资源,尝试通过 %s 重新检索 ..." % (first_search_name, second_search_name))
-        media_list = Searcher().search_medias(key_word=second_search_name,
+        # 整合高级查询条件
+        if filters:
+            filter_args.update(filters)
+        # 开始检索
+        log.info("【Web】开始检索 %s ..." % content)
+        media_list = Searcher().search_medias(key_word=first_search_name,
                                               filter_args=filter_args,
                                               match_media=media_info,
                                               in_from=SearchType.WEB)
-    # 清空缓存结果
-    dbhepler = DbHelper()
-    dbhepler.delete_all_search_torrents()
-    # 结束进度
-    search_process.end('search')
-    if len(media_list) == 0:
-        log.info("【Web】%s 未检索到任何资源" % content)
-        return 1, "%s 未检索到任何资源" % content
-    else:
-        log.info("【Web】共检索到 %s 个有效资源" % len(media_list))
-        # 插入数据库
-        media_list = sorted(media_list, key=lambda x: "%s%s%s" % (str(x.res_order).rjust(3, '0'),
-                                                                  str(x.site_order).rjust(3, '0'),
-                                                                  str(x.seeders).rjust(10, '0')), reverse=True)
-        dbhepler.insert_search_results(media_items=media_list,
-                                       ident_flag=ident_flag,
-                                       title=content)
-        return 0, ""
+        # 使用第二名称重新搜索
+        if ident_flag \
+                and len(media_list) == 0 \
+                and second_search_name \
+                and second_search_name != first_search_name:
+            search_process.start('search')
+            search_process.update(ptype='search',
+                                  text="%s 未检索到资源,尝试通过 %s 重新检索 ..." % (first_search_name, second_search_name))
+            log.info("【Searcher】%s 未检索到资源,尝试通过 %s 重新检索 ..." % (first_search_name, second_search_name))
+            media_list = Searcher().search_medias(key_word=second_search_name,
+                                                  filter_args=filter_args,
+                                                  match_media=media_info,
+                                                  in_from=SearchType.WEB)
+        # 清空缓存结果
+        dbhepler = DbHelper()
+        dbhepler.delete_all_search_torrents()
+        if len(media_list) == 0:
+            log.info("【Web】%s 未检索到任何资源" % content)
+            return 1, "%s 未检索到任何资源" % content
+        else:
+            log.info("【Web】共检索到 %s 个有效资源" % len(media_list))
+            # 插入数据库
+            media_list = sorted(media_list, key=lambda x: "%s%s%s" % (str(x.res_order).rjust(3, '0'),
+                                                                      str(x.site_order).rjust(3, '0'),
+                                                                      str(x.seeders).rjust(10, '0')), reverse=True)
+            dbhepler.insert_search_results(media_items=media_list,
+                                           ident_flag=ident_flag,
+                                           title=content)
+            return 0, ""
+    finally:
+        search_process.end('search')
 
 
 def search_media_by_message(input_str, in_from: SearchType, user_id, user_name=None):
