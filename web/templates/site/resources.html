@@ -1,35 +1,19 @@
+{% import 'macro/ui.html' as UI %}
 {% import 'macro/svg.html' as SVG %}
-<div class="container-xl">
-  <div class="page-header d-print-none">
-    <div class="row align-items-center">
-      <div class="col">
-        <h2 class="page-title">
-          站点资源 - {{ Title }}
-        </h2>
-      </div>
-      <div class="col-auto ms-auto d-print-none">
-        <div class="btn-list">
+{% call UI.page_header(Title or '站点资源', '浏览站点资源，搜索名称并选择需要下载的种子。', eyebrow='站点资源', count=TotalCount) %}
+<div class="btn-list">
           {% if CanDownload %}
-          <a href="javascript:batch_download()" class="btn btn-primary d-none d-sm-inline-block">
+          <a href="javascript:batch_download()" class="btn btn-primary">
             {{ SVG.arrow_big_down() }}
             一键下载
           </a>
-          <a href="javascript:batch_download()" class="btn btn-primary d-sm-none btn-icon">
-            {{ SVG.arrow_big_down() }}
-          </a>
           {% endif %}
-          <a href="javascript:navmenu('sitelist')" class="btn d-none d-sm-inline-block" title="返回">
+          <a href="javascript:navmenu('sitelist')" class="btn" title="返回">
             {{ SVG.arrow_back_up() }}
             返回
           </a>
-          <a href="javascript:navmenu('sitelist')" class="btn d-sm-none btn-icon" title="返回">
-            {{ SVG.arrow_back_up() }}
-          </a>
         </div>
-      </div>
-    </div>
-  </div>
-</div>
+{% endcall %}
 <div class="page-body">
   <div class="container-xl">
     <div class="row row-cards">
@@ -49,7 +33,7 @@
               </div>
             </div>
           </div>
-          <div class="table-responsive">
+          <div class="table-responsive nt-table-region">
             <table id="site-resources-table" class="table table-vcenter card-table table-hover table-striped">
               <thead>
               <tr>

@@ -1,18 +1,9 @@
-<div class="container-xl">
-  <div class="page-header d-print-none">
-    <div class="row align-items-center gy-2">
-      <div class="col-12 col-sm">
-        <h2 class="page-title">站点自动签到</h2>
-        <div class="text-muted mt-1">按日跳过成功站点，并自动重试符合条件的失败站点。</div>
-      </div>
-      <div class="col-12 col-sm-auto ms-sm-auto d-flex gap-2 flex-wrap">
-        <button class="btn" id="site_signin_refresh" type="button">刷新</button>
+{% import 'macro/ui.html' as UI %}
+{% call UI.page_header('站点自动签到', '按日跳过成功站点，并自动重试符合条件的失败站点。', eyebrow='工具') %}
+<button class="btn" id="site_signin_refresh" type="button">刷新</button>
         <button class="btn btn-outline-primary" id="site_signin_retry" type="button">执行待签与重试</button>
         <button class="btn btn-primary" id="site_signin_force" type="button">强制全部执行</button>
-      </div>
-    </div>
-  </div>
-</div>
+{% endcall %}
 
 <div class="page-body">
   <div class="container-xl">
@@ -29,7 +20,7 @@
         <div class="row">
           <div class="col-md-6 col-xl-3">
             <div class="mb-3">
-              <label class="form-label">执行周期 <span class="form-help"
+              <label class="form-label" for="site_signin_cron">执行周期 <span class="form-help"
                 title="支持小时间隔、固定时间或时间范围，例如 23.5、08:00、08:00-09:00；留空关闭定时执行。"
                 data-bs-toggle="tooltip">?</span></label>
               <input class="form-control" id="site_signin_cron" type="text"
@@ -38,14 +29,14 @@
           </div>
           <div class="col-md-6 col-xl-3">
             <div class="mb-3">
-              <label class="form-label">并发数</label>
+              <label class="form-label" for="site_signin_concurrency">并发数</label>
               <input class="form-control" id="site_signin_concurrency" type="number" min="1" max="10"
                      value="{{ ToolConfig.get('concurrency', 5) }}">
             </div>
           </div>
           <div class="col-md-6 col-xl-3">
             <div class="mb-3">
-              <label class="form-label">历史保留天数</label>
+              <label class="form-label" for="site_signin_history_days">历史保留天数</label>
               <input class="form-control" id="site_signin_history_days" type="number" min="7" max="365"
                      value="{{ ToolConfig.get('history_days', 30) }}">
             </div>
@@ -63,7 +54,7 @@
         <div class="row">
           <div class="col-12">
             <div class="mb-0">
-              <label class="form-label">失败重试关键词 <span class="form-help"
+              <label class="form-label" for="site_signin_retry_keyword">失败重试关键词 <span class="form-help"
                 title="支持正则表达式。当天执行失败且结果命中后，会在下一次调度时重试。"
                 data-bs-toggle="tooltip">?</span></label>
               <input class="form-control" id="site_signin_retry_keyword" type="text"
@@ -84,7 +75,7 @@
         <h3 class="card-title">今日状态</h3>
         <span class="badge ms-auto" id="site_signin_running"></span>
       </div>
-      <div class="table-responsive">
+      <div class="table-responsive nt-table-region">
         <table class="table table-vcenter card-table">
           <thead>
             <tr>
@@ -102,7 +93,7 @@
 
     <div class="card">
       <div class="card-header"><h3 class="card-title">最近执行记录</h3></div>
-      <div class="table-responsive">
+      <div class="table-responsive nt-table-region">
         <table class="table table-vcenter card-table">
           <thead>
             <tr>

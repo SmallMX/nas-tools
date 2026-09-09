@@ -1,34 +1,17 @@
+{% import 'macro/ui.html' as UI %}
 {% import 'macro/svg.html' as SVG %}
-<div class="container-xl">
-  <!-- Page title -->
-  <div class="page-header d-print-none">
-    <div class="row align-items-center">
-      <div class="col">
-        <h2 class="page-title">
-          下载设置
-        </h2>
-      </div>
-      <div class="col-auto ms-auto d-print-none">
-        <div class="btn-list">
-          <a href="javascript:show_add_download_setting_modal()" class="btn btn-primary d-none d-sm-inline-block">
+{% call UI.page_header('下载设置', '保存常用的下载参数，为不同站点和资源复用。', eyebrow='系统设置', count=Count) %}
+<div class="btn-list">
+          <a href="javascript:show_add_download_setting_modal()" class="btn btn-primary">
             {{ SVG.plus() }}
             新增下载设置
           </a>
-          <a href="javascript:show_add_download_setting_modal()" class="btn btn-primary d-sm-none btn-icon">
-            {{ SVG.plus() }}
-          </a>
-          <a href="javascript:navmenu('downloader')" class="btn d-none d-sm-inline-block" title="返回">
+          <a href="javascript:navmenu('downloader')" class="btn" title="返回">
             {{ SVG.arrow_back_up() }}
             返回
           </a>
-          <a href="javascript:navmenu('downloader')" class="btn d-sm-none btn-icon" title="返回">
-            {{ SVG.arrow_back_up() }}
-          </a>
         </div>
-      </div>
-    </div>
-  </div>
-</div>
+{% endcall %}
 <!-- 业务页面代码 -->
 <div class="page-body">
   <div class="container-xl">
@@ -184,19 +167,20 @@
       <div class="modal-header">
         <h5 class="modal-title" id="modal-download-setting-title">新增下载设置</h5>
         <input type="hidden" id="download_setting_id" />
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body nt-form-body">
+        {{ UI.section_heading('基本信息', '为常用的下载行为创建可复用设置。') }}
         <div class="row">
           <div class="col-md">
             <div class="mb-3">
-              <label class="form-label required">名称</label>
+              <label class="form-label required" for="name">名称</label>
               <input type="text" id="name" class="form-control" placeholder="别名">
             </div>
           </div>
           <div class="col-md">
             <div class="mb-3">
-              <label class="form-label required">下载器</label>
+              <label class="form-label required" for="downloader">下载器</label>
               <select class="form-select" id="downloader">
                 <option value="" selected>默认</option>
                 {% for downloader_type in DownloaderTypes %}
@@ -209,34 +193,35 @@
         <div class="row">
           <div class="col-md">
             <div class="mb-3">
-              <label class="form-label">分类 <span class="form-help" title="仅适用于Qbittorrent" data-bs-toggle="tooltip">?</span></label>
+              <label class="form-label" for="category">分类 <span class="form-help" title="仅适用于Qbittorrent" data-bs-toggle="tooltip">?</span></label>
               <input type="text" id="category" class="form-control" placeholder="下载器分类名称">
             </div>
           </div>
           <div class="col-md">
             <div class="mb-3">
-              <label class="form-label">标签 <span class="form-help" title="若启用只管理NASTool添加的下载且应用该下载设置的种子需要被管理，请添加NASTOOL标签"
+              <label class="form-label" for="tags">标签 <span class="form-help" title="若启用只管理NASTool添加的下载且应用该下载设置的种子需要被管理，请添加NASTOOL标签"
                 data-bs-toggle="tooltip">?</span></label>
               <input type="text" id="tags" class="form-control" placeholder="多个标签用;分隔">
             </div>
           </div>
         </div>
+        {{ UI.section_heading('传输与文件', '限制传输速度，并选择下载文件的目录布局。') }}
         <div class="row">
           <div class="col-md">
             <div class="mb-3">
-              <label class="form-label">上传速度限制 </label>
+              <label class="form-label" for="upload_limit">上传速度限制 </label>
               <input type="text" id="upload_limit" class="form-control" placeholder="KB/s，留空或0为不限速">
             </div>
           </div>
           <div class="col-md">
             <div class="mb-3">
-              <label class="form-label">下载速度限制 </label>
+              <label class="form-label" for="download_limit">下载速度限制 </label>
               <input type="text" id="download_limit" class="form-control" placeholder="KB/s，留空或0为不限速">
             </div>
           </div>
           <div class="col-md">
             <div class="mb-3">
-              <label class="form-label">布局 <span class="form-help" title="仅适用于Qbittorrent" data-bs-toggle="tooltip">?</span></label>
+              <label class="form-label" for="content_layout">布局 <span class="form-help" title="仅适用于Qbittorrent" data-bs-toggle="tooltip">?</span></label>
               <select class="form-select" id="content_layout">
                 <option value="0" selected>全局</option>
                 <option value="1">原始</option>
@@ -246,22 +231,23 @@
             </div>
           </div>
         </div>
+        {{ UI.section_heading('做种与启动', '设置做种限制，以及添加下载后的初始状态。') }}
         <div class="row">
           <div class="col-md">
             <div class="mb-3">
-              <label class="form-label">分享率限制 <span class="form-help" title="仅适用于Qbittorrent" data-bs-toggle="tooltip">?</span></label>
+              <label class="form-label" for="ratio_limit">分享率限制 <span class="form-help" title="仅适用于Qbittorrent" data-bs-toggle="tooltip">?</span></label>
               <input type="text" id="ratio_limit" class="form-control" placeholder="留空或0为无限制">
             </div>
           </div>
           <div class="col-md">
             <div class="mb-3">
-              <label class="form-label">做种时间限制 <span class="form-help" title="仅适用于Qbittorrent" data-bs-toggle="tooltip">?</span></label>
+              <label class="form-label" for="seeding_time_limit">做种时间限制 <span class="form-help" title="仅适用于Qbittorrent" data-bs-toggle="tooltip">?</span></label>
               <input type="text" id="seeding_time_limit" class="form-control" placeholder="分钟，留空或0为无限制">
             </div>
           </div>
           <div class="col-md">
             <div class="mb-3">
-              <label class="form-label">动作 </label>
+              <label class="form-label" for="is_paused">动作 </label>
               <select class="form-select" id="is_paused">
                 <option value="0" selected>添加后开始</option>
                 <option value="1">添加后暂停</option>

@@ -1,0 +1,30 @@
+{# Shared page chrome for Jinja fragments and future pages. #}
+{% macro page_header(title, description='', eyebrow='', title_id='', count=none, description_id='') -%}
+<div class="container-xl">
+  <header class="page-header nt-page-header d-print-none">
+    <div class="nt-page-heading">
+      {% if eyebrow %}<div class="nt-eyebrow">{{ eyebrow }}</div>{% endif %}
+      <div class="nt-title-row">
+        <h1 class="page-title"{% if title_id %} id="{{ title_id }}"{% endif %}>{{ title }}</h1>
+        {% if count is not none %}<span class="nt-count badge">{{ count }}</span>{% endif %}
+      </div>
+      {% if description or description_id %}<p class="nt-page-description"{% if description_id %} id="{{ description_id }}"{% endif %}>{{ description }}</p>{% endif %}
+    </div>
+    {% if caller is defined %}<div class="nt-page-actions">{{ caller() }}</div>{% endif %}
+  </header>
+</div>
+{%- endmacro %}
+
+{% macro section_heading(title, description='') -%}
+<div class="nt-form-section-head">
+  <h3 class="nt-section-title">{{ title }}</h3>
+  {% if description %}<p class="nt-section-description">{{ description }}</p>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro empty_state(title, description='') -%}
+<div class="empty nt-empty-state">
+  <p class="empty-title">{{ title }}</p>
+  {% if description %}<p class="empty-subtitle text-muted">{{ description }}</p>{% endif %}
+</div>
+{%- endmacro %}

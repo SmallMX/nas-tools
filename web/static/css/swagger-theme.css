@@ -1,0 +1,30 @@
+/* Keep Swagger's method semantics and interactive API documentation intact. */
+html { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: inherit; }
+body { margin: 0; }
+.swagger-ui { font-family: var(--nt-font); color: var(--nt-text); padding-bottom: 48px; }
+.swagger-ui .wrapper { max-width: 1320px; padding: 0 32px; }
+.swagger-ui .info { margin: 40px 0 32px; }
+.swagger-ui .info .title { color: var(--nt-text); font-family: var(--nt-font); font-size: 28px; font-weight: 650; }
+.swagger-ui .opblock-tag, .swagger-ui .opblock .opblock-summary-description,
+.swagger-ui .info p, .swagger-ui .info li, .swagger-ui .info a,
+.swagger-ui label, .swagger-ui .parameter__name, .swagger-ui table thead tr th,
+.swagger-ui .btn, .swagger-ui .tab li, .swagger-ui .model-title,
+.swagger-ui .opblock-section-header h4, .swagger-ui .response-col_status {
+  font-family: var(--nt-font); color: var(--nt-text);
+}
+.swagger-ui .opblock-tag { font-size: 18px; border-color: var(--nt-border); }
+.swagger-ui .scheme-container { background: var(--nt-surface); box-shadow: none; border-block: 1px solid var(--nt-border); }
+.swagger-ui .opblock { border-radius: var(--nt-radius); box-shadow: none; margin-bottom: 16px; }
+.swagger-ui .opblock .opblock-section-header { background: var(--nt-surface); box-shadow: none; }
+.swagger-ui .opblock .opblock-summary-path { color: var(--nt-text); font-size: 14px; }
+.swagger-ui .opblock-description-wrapper p, .swagger-ui .response-col_description,
+.swagger-ui .parameter__type, .swagger-ui .parameter__in { color: var(--nt-muted); }
+.swagger-ui input, .swagger-ui select, .swagger-ui textarea { background: var(--nt-surface); color: var(--nt-text); border-radius: var(--nt-control-radius); border-color: var(--nt-border); }
+.swagger-ui .dialog-ux .modal-ux { background: var(--nt-surface); border-radius: var(--nt-radius); border-color: var(--nt-border); }
+.swagger-ui .dialog-ux .modal-ux-header h3, .swagger-ui .dialog-ux .modal-ux-content h4,
+.swagger-ui .dialog-ux .modal-ux-content p { color: var(--nt-text); }
+.swagger-ui section.models { border-color: var(--nt-border); border-radius: var(--nt-radius); }
+.swagger-ui section.models h4, .swagger-ui .model { color: var(--nt-text); }
+.swagger-ui svg { fill: currentColor; }
+@media (max-width: 767.98px) { .swagger-ui .wrapper { padding: 0 16px; } .swagger-ui .opblock .opblock-summary { flex-wrap: wrap; gap: 8px; } }

@@ -1,23 +1,13 @@
+{% import 'macro/ui.html' as UI %}
 {% import 'macro/oops.html' as OOPS %}
-<div class="container-xl">
-  <!-- Page title -->
-  <div class="page-header d-print-none">
-    <div class="row align-items-center">
-      <div class="col">
-        <h2 class="page-title">
-          站点资源
-        </h2>
-      </div>
-    </div>
-  </div>
-</div>
+{{ UI.page_header('站点资源', '选择站点，浏览最新资源并按需下载。', eyebrow='站点管理', count=Count) }}
 <!-- 业务页面代码 -->
 {% if Count > 0 %}
   <div class="page-body">
     <div class="container-xl">
       <div class="d-grid gap-3 grid-info-card">
         {% for Site in Sites %}
-        <a class="card card-link-pop"
+        <a class="card card-link-pop nt-resource-card"
            href='javascript:void(0)'
            onclick='open_site_resources(this, "resources?site=" + encodeURIComponent({{ Site.id|tojson }}) + "&title=" + encodeURIComponent({{ Site.name|tojson }}))'>
           <div class="card-body">

@@ -307,7 +307,7 @@ export class LayoutNavbar extends CustomElement {
   constructor() {
     super();
     this.layout_gopage = "";
-    this.layout_appversion = "v0.6.0";
+    this.layout_appversion = "v0.7.0";
     this.layout_userpris = navbar_list.map((item) => (item.name));
     this._active_name = "";
     this.classList.add("navbar", "navbar-vertical", "navbar-expand-lg", "lit-navbar-fixed", "lit-navbar");
@@ -352,7 +352,9 @@ export class LayoutNavbar extends CustomElement {
   }
 
   update_active(page) {
-    const requestedPage = page ?? window.history.state?.page;
+    const path = String(page ?? window.history.state?.page ?? "").replace(/^\//, "").split("?")[0];
+    const aliases = { resources: "sitelist", userdownloader: "brushtask", download_setting: "downloader", tmdbcache: "media_setting" };
+    const requestedPage = aliases[path] ?? path;
     const parent = navbar_list.find(
       (item) => item.page === requestedPage || item.relatedPages?.includes(requestedPage)
     );
@@ -377,7 +379,9 @@ export class LayoutNavbar extends CustomElement {
       for (const a of item.querySelectorAll("a")) {
         if (page === a.getAttribute("data-lit-page")) {
           item.classList.add("show");
-          this.querySelectorAll(`button[data-bs-target='#${item.id}']`)[0].classList.remove("collapsed");
+          const trigger = this.querySelector(`button[data-bs-target='#${item.id}']`);
+          trigger?.classList.remove("collapsed");
+          trigger?.setAttribute("aria-expanded", "true");
           return;
         }
       }
@@ -387,133 +391,36 @@ export class LayoutNavbar extends CustomElement {
   render() {
     return html`
       <style>
-        
-        .lit-navbar-fixed {
-          position: fixed;
-          inset: 0 auto 0 0;
-          z-index: 1031;
-          overflow: hidden;
+        .lit-navbar-fixed { background: var(--nt-sidebar); position: fixed; inset: 0 auto 0 0; z-index: 1031; overflow: hidden; }
+        .lit-navbar-fixed .lit-navbar-canvas { width: var(--app-sidebar-width) !important; height: 100dvh !important; max-height: 100dvh; min-height: 0; overflow: hidden; background: var(--nt-sidebar) !important; color: var(--nt-sidebar-text); }
+        .lit-navbar-scroll { flex: 1 1 auto; min-height: 0; max-height: 100%; overflow-x: hidden; overflow-y: auto !important; overscroll-behavior-y: contain; scrollbar-width: thin; scrollbar-color: #3d5e4e transparent; }
+        .lit-sidebar-brand { min-height: var(--app-header-height); border-bottom: 1px solid #2b4437; }
+        .lit-navbar-canvas .accordion-button { background: transparent; color: #9cb6a8; box-shadow: none; border: 0; font-size: 11px; letter-spacing: 1px; font-weight: 550; }
+        .lit-navbar-canvas .accordion-button::after { filter: brightness(0) invert(1); opacity: .45; width: 12px; height: 12px; background-size: 12px; }
+        .lit-navbar-canvas .nav-link { color: var(--nt-sidebar-text); font-size: 13px; min-height: 38px; border-radius: 7px; }
+        .lit-navbar-canvas .nav-link-icon { color: inherit; opacity: .9; margin-right: 10px; }
+        .lit-navbar-canvas .nav-link-icon .icon { width: 19px; height: 19px; stroke-width: 1.6; }
+        .lit-navbar-canvas .nav-link:hover { background: #254438; color: #fff; }
+        .lit-navbar-canvas .lit-navbar-accordion-item-active { background: #e7f2eb; color: #185b47; font-weight: 600; }
+        .lit-navbar-canvas .lit-navbar-accordion-item-active:hover { background: #d9eadd; color: #185b47; }
+        .nt-sidebar-footer { color: #9cb6a8; font-size: 11px; padding: 16px; border-top: 1px solid #2b4437; text-align: center; }
+        .nt-sidebar-footer:hover { color: #d3e0d7; }
+        .lit-navbar-canvas .btn-close { filter: invert(1); }
+        @media (min-width: 992px) {
+          .lit-navbar-canvas { position: static !important; visibility: visible !important; transform: none !important; }
+          .lit-navbar-fixed, .lit-navbar-fixed > .container-fluid { width: var(--app-sidebar-width) !important; height: 100dvh; max-height: 100dvh; min-height: 0; padding: 0; overflow: hidden; }
         }
-
-        .lit-navbar-canvas {
-          width: var(--app-sidebar-width) !important;
-          height: 100vh;
-          height: 100dvh;
-          max-height: 100vh;
-          max-height: 100dvh;
-          min-height: 0;
-          overflow: hidden;
-          background: var(--tblr-bg-surface) !important;
-        }
-
-        .theme-light .lit-navbar-canvas {
-          background: #ffffff !important;
-        }
-
-        .lit-navbar-scroll {
-          flex: 1 1 auto;
-          min-height: 0;
-          max-height: 100%;
-          overflow-x: hidden;
-          overflow-y: auto !important;
-          overscroll-behavior-y: contain;
-          touch-action: pan-y;
-          -webkit-overflow-scrolling: touch;
-          scrollbar-width: thin;
-          scrollbar-color: var(--tblr-border-color) transparent;
-        }
-
-        .lit-navbar-scroll::-webkit-scrollbar {
-          width: 0.375rem;
-        }
-
-        .lit-navbar-scroll::-webkit-scrollbar-thumb {
-          border-radius: 999px;
-          background: var(--tblr-border-color);
-        }
-
-        .lit-sidebar-brand {
-          min-height: var(--app-header-height);
-          border-bottom: 1px solid var(--tblr-border-color);
-        }
-        
-        .lit-navbar-logo {
-          width: 2.25rem;
-          height: 2.25rem;
-          object-fit: contain;
-        }
-
-        .theme-dark .lit-navbar-logo {
-          filter: invert(1) grayscale(100%) brightness(200%);
-        }
-
-        @media (min-width: 993px) {
-          .lit-navbar-canvas {
-            position: static !important;
-            visibility: visible !important;
-            transform: none !important;
-            height: 100vh;
-            border-right: 1px solid var(--tblr-border-color);
-          }
-
-          .lit-navbar-fixed,
-          .lit-navbar-fixed > .container-fluid {
-            width: var(--app-sidebar-width);
-            height: 100vh;
-            height: 100dvh;
-            max-height: 100vh;
-            max-height: 100dvh;
-            min-height: 0;
-            padding: 0;
-            overflow: hidden;
-          }
-
-          .lit-navbar-canvas {
-            height: 100%;
-            max-height: 100%;
-          }
-        }
-
-        .theme-dark .lit-navbar-accordion-button {
-
-        }
-        .theme-light .lit-navbar-accordion-button {
-
-        }
-        .lit-navbar-accordion-button::after {
-          
-        }
-
-        .lit-navbar-accordion-item, .lit-navbar-accordion-item-active {
-          border-radius: 0.5rem;
-          min-height: 2.5rem;
-        }
-
-        .theme-dark .lit-navbar-accordion-item:hover {
-          background-color: #2a3551ca!important;
-        }
-        .theme-light .lit-navbar-accordion-item:hover {
-          background-color: #f3f6f9 !important;
-        }
-
-        .theme-dark .lit-navbar-accordion-item-active {
-          background-color: #414d6dca!important;
-        }
-        .theme-light .lit-navbar-accordion-item-active {
-          background-color: rgba(var(--tblr-primary-rgb), 0.12) !important;
-          color: var(--tblr-primary) !important;
-        }
-
+        @media (max-width: 991.98px) { layout-navbar.lit-navbar { width: 0; min-height: 0 !important; padding: 0 !important; border: 0 !important; } }
       </style>
       <div class="container-fluid">
         <aside class="offcanvas offcanvas-start d-flex lit-navbar-canvas" tabindex="-1" id="litLayoutNavbar" aria-label="主导航">
           <div class="d-flex flex-row flex-grow-1 lit-navbar-scroll">
             <div class="d-flex flex-column flex-grow-1">
               <div class="lit-sidebar-brand d-flex align-items-center gap-2 px-3">
-                <img src="../static/img/logo-blue.png" alt="" class="lit-navbar-logo">
+                <span class="nt-brand-mark" aria-hidden="true">NT</span>
                 <div class="flex-grow-1">
-                  <div class="fw-bold">NAStool</div>
-                  <div class="small text-muted">媒体管理控制台</div>
+                  <div class="nt-brand-name">NAS-Tools</div>
+                  <div class="nt-brand-caption">你的媒体管理工作台</div>
                 </div>
                 <button type="button" class="btn-close d-lg-none" data-bs-dismiss="offcanvas" aria-label="关闭导航"></button>
               </div>
@@ -523,7 +430,7 @@ export class LayoutNavbar extends CustomElement {
                   ? html`
                     ${item.list?.length > 0
                     ? html`
-                      <button class="accordion-button lit-navbar-accordion-button collapsed ps-2 pe-1 py-2" style="font-size:1.1rem;" data-bs-toggle="collapse" data-bs-target="#lit-navbar-collapse-${index}" aria-expanded="false">
+                      <button class="accordion-button lit-navbar-accordion-button collapsed ps-2 pe-1 py-2" data-bs-toggle="collapse" data-bs-target="#lit-navbar-collapse-${index}" aria-expanded="false">
                         ${item.also??item.name}
                       </button>
                       <div class="accordion-collapse collapse" id="lit-navbar-collapse-${index}">
@@ -535,7 +442,7 @@ export class LayoutNavbar extends CustomElement {
                 `))}
               </div>
               <div class="d-flex align-items-end">
-                <a class="d-flex flex-grow-1 justify-content-center border rounded-3 m-3 p-2 text-muted"
+                <a class="d-flex flex-grow-1 justify-content-center nt-sidebar-footer"
                    href="https://github.com/SmallMX/nas-tools" target="_blank" rel="noopener noreferrer"
                    aria-label="查看源代码和 AGPL-3.0 许可证">
                   <span>
@@ -561,11 +468,11 @@ export class LayoutNavbar extends CustomElement {
   _render_page_item(item, child) {
     return html`
     <a class="nav-link lit-navbar-accordion-item${this._active_name === item.page ? "-active" : ""} my-1 p-2 ${child ? "ps-3" : "lit-navbar-accordion-button"}" 
-      href="javascript:void(0)" data-bs-dismiss="offcanvas" aria-label="Close"
-      style="${child ? "font-size:1rem" : "font-size:1.1rem;"}"
+      href=${`/?next=${encodeURIComponent(item.page)}`} data-bs-dismiss="offcanvas"
+      aria-current=${this._active_name === item.page ? "page" : nothing}
       data-lit-page=${item.page}
-      @click=${ () => { navmenu(item.page) }}>
-      <span class="nav-link-icon" ?hidden=${!child} style="color:var(--tblr-body-color);">
+      @click=${ (event) => { event.preventDefault(); navmenu(item.page) }}>
+      <span class="nav-link-icon">
         ${item.icon ?? nothing}
       </span>
       <span class="nav-link-title">

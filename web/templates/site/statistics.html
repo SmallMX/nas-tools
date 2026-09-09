@@ -1,16 +1,7 @@
+{% import 'macro/ui.html' as UI %}
 {% import 'macro/svg.html' as SVG %}
 {% import 'macro/oops.html' as OOPS %}
-<div class="container-xl">
-  <div class="page-header d-print-none">
-    <div class="row align-items-center">
-      <div class="col">
-        <h2 class="page-title">
-          数据统计
-        </h2>
-      </div>
-    </div>
-  </div>
-</div>
+{{ UI.page_header('数据统计', '查看上传、下载与做种数据，了解各站点的使用情况。', eyebrow='站点管理') }}
 {% if SiteNames %}
   <div class="page-body">
     <div class="container-xl">
@@ -20,7 +11,7 @@
             <div class="card-body">
               <div class="row align-items-center">
                 <div class="col-auto">
-                <span class="bg-blue avatar text-white">
+                <span class="avatar bg-primary-lt text-primary">
                   {{ SVG.world_upload() }}
                 </span>
                 </div>
@@ -41,7 +32,7 @@
             <div class="card-body">
               <div class="row align-items-center">
                 <div class="col-auto">
-                <span class="bg-red avatar text-white">
+                <span class="avatar bg-primary-lt text-muted">
                   {{ SVG.world_download() }}
                 </span>
                 </div>
@@ -62,7 +53,7 @@
             <div class="card-body">
               <div class="row align-items-center">
                 <div class="col-auto">
-                <span class="bg-green avatar text-white">
+                <span class="avatar bg-primary-lt text-primary">
                   {{ SVG.arrow_big_up_lines() }}
                 </span>
                 </div>
@@ -83,7 +74,7 @@
             <div class="card-body">
               <div class="row align-items-center">
                 <div class="col-auto">
-                <span class="bg-green avatar text-white">
+                <span class="avatar bg-primary-lt text-primary">
                   {{ SVG.cloud_upload() }}
                 </span>
                 </div>
@@ -130,13 +121,13 @@
               <div class="row align-items-center">
                 <div class="col-auto ms-auto d-print-none">
                   <div class="btn-list">
-                    <button id="btn-history-one-week" class="btn btn-ghost-info active btn-site-history"
+                    <button id="btn-history-one-week" class="btn btn-ghost-primary active btn-site-history"
                             onclick="show_site_history(this, 7)">最近一周
                     </button>
-                    <button id="btn-history-one-month" class="btn btn-ghost-info btn-site-history"
+                    <button id="btn-history-one-month" class="btn btn-ghost-primary btn-site-history"
                             onclick="show_site_history(this, 30)">最近一月
                     </button>
-                    <button id="btn-history-one-year" class="btn btn-ghost-info btn-site-history"
+                    <button id="btn-history-one-year" class="btn btn-ghost-primary btn-site-history"
                             onclick="show_site_history(this, 365)">最近一年
                     </button>
                   </div>
@@ -167,7 +158,7 @@
                 </a>
               </div>
             </div>
-            <div id="table-site-user-data" class="table-responsive" style="min-height: 300px">
+            <div id="table-site-user-data" class="table-responsive nt-table-region" style="min-height: 300px">
               <table class="table table-vcenter card-table table-hover table-striped">
                 <thead>
                 <tr>
@@ -226,11 +217,11 @@
                       </td>
                       <td class="sort-data" data-data="{{ item.upload }}">
                         <div class="flex-fill">
-                          <span class="text-green">{{ SVG.arrow_narrow_up() }}</span>
+                          <span class="text-primary">{{ SVG.arrow_narrow_up() }}</span>
                           <small>{{ item.upload | filesizeformat(true) }}</small>
                         </div>
                         <div class="flex-fill">
-                          <span class="text-red">{{ SVG.arrow_narrow_down() }}</span>
+                          <span class="text-muted">{{ SVG.arrow_narrow_down() }}</span>
                           <small>{{ item.download | filesizeformat(true) }}</small>
                         </div>
                       </td>
@@ -279,9 +270,9 @@
         <div class="modal-header">
           <h5 class="modal-title" id="site-activity-title">站点信息</h5>
           <input type="hidden" id="site-activity-name" name="site-name" value="">
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
         </div>
-        <div class="modal-body">
+        <div class="modal-body nt-form-body">
           <div id="site-activity-chart"></div>
         </div>
         <div class="modal-footer">
@@ -295,9 +286,9 @@
         <div class="modal-header">
           <h5 class="modal-title" id="site-seeding-info-title">站点信息</h5>
           <input type="hidden" id="site-seeding-info-name" name="site-name" value="">
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
         </div>
-        <div class="modal-body">
+        <div class="modal-body nt-form-body">
           <div id="site-seeding-info-chart"></div>
         </div>
         <div class="modal-footer">
@@ -310,9 +301,9 @@
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">分享设置 </h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
         </div>
-        <div class="modal-body">
+        <div class="modal-body nt-form-body">
           <div class="row">
             <div class="mb-3">
               <div class="btn-list">
@@ -344,7 +335,7 @@
             </div>
             <div class="col-lg-3">
               <div class="mb-3">
-                <label class="form-label">排序方式</label>
+                <label class="form-label" for="statistics_pic_sort_on">排序方式</label>
                   <select class="form-select" id="statistics_pic_sort_on">
                     <option value="desc" selected>降序</option>
                     <option value="asc">升序</option>
@@ -380,23 +371,25 @@
     </div>
     </div>
   </div>
+  <script src="{{ url_for('static', filename='js/ui-charts.js') }}"></script>
   <script type="text/javascript">
+    var statistics_chart_theme = NasToolsCharts.theme();
     $('#site-activity').off('shown.bs.modal').on('shown.bs.modal', function (e) {
       let site_name = $('#site-activity-name').val();
 
       // 单站点历史数据图
-      if (typeof (chart_site_activity) != 'undefined') {
+      if (typeof (chart_site_activity) != 'undefined' && !chart_site_activity.isDisposed()) {
         chart_site_activity.dispose();
       }
-      chart_site_activity = echarts.init($('#site-activity-chart')[0], null, {
-        height: 350
-      });
-      chart_site_activity.showLoading();
+      chart_site_activity = NasToolsCharts.create($('#site-activity-chart')[0], 350);
+      NasToolsCharts.loading(chart_site_activity);
 
       ajax_post("get_site_activity", {"name": site_name}, function (ret) {
+            if (chart_site_activity.isDisposed()) return;
             chart_site_activity.hideLoading();
             if (ret.code == 0) {
-              const colors = ['#206bc4', '#d63939', '#2fb344', '#d6b344'];
+              const colors = [statistics_chart_theme.primary, statistics_chart_theme.download,
+                statistics_chart_theme.palette[2], statistics_chart_theme.palette[4]];
               let options_site_activity = {
                 animation: false,
                 color: colors,
@@ -438,6 +431,7 @@
                   }
                 },
                 legend: {
+                  type: 'scroll',
                   data: ['总上传量', '总下载量', '做种体积', '积分']
                 },
                 xAxis: [
@@ -614,15 +608,14 @@
     $('#site-seeding-info').off('shown.bs.modal').on('shown.bs.modal', function (e) {
       let site_name = $('#site-seeding-info-name').val();
       // 做种散点图
-      if (typeof (chart_seeding_info) != 'undefined') {
+      if (typeof (chart_seeding_info) != 'undefined' && !chart_seeding_info.isDisposed()) {
         chart_seeding_info.dispose();
       }
-      chart_seeding_info = echarts.init($('#site-seeding-info-chart')[0], null, {
-        height: 350
-      });
-      chart_seeding_info.showLoading();
+      chart_seeding_info = NasToolsCharts.create($('#site-seeding-info-chart')[0], 350);
+      NasToolsCharts.loading(chart_seeding_info);
 
       ajax_post("get_site_seeding_info", {"name": site_name}, function (ret) {
+            if (chart_seeding_info.isDisposed()) return;
             chart_seeding_info.hideLoading();
             if (ret.code == 0) {
               let options_seeding_info = {
@@ -673,38 +666,21 @@
 
     });
 
-    // 今日上传饼图
-    if (typeof (pie_ul) != 'undefined')
-      pie_ul.dispose();
-    pie_ul = echarts.init($('#chart-recent-upload')[0], null, {
-      height: 300
-    });
-    // 今日下载饼图
-    if (typeof (pie_dl) != 'undefined')
-      pie_dl.dispose();
-    pie_dl = echarts.init($('#chart-recent-download')[0], null, {
-      height: 300
-    });
-    // 站点历史柱状图
-    if (typeof (chart_history) != 'undefined')
-      chart_history.dispose();
-    chart_history = echarts.init($('#chart-site-history')[0], null, {
-      height: 350
-    });
-
-    // 响应大小调整
-    window.onresize = function () {
-      pie_ul.resize();
-      pie_dl.resize();
-      chart_history.resize();
-    };
+    // 容器变化由共享 ResizeObserver 处理，兼顾侧栏、断点与弹窗尺寸。
+    if (typeof (pie_ul) != 'undefined' && !pie_ul.isDisposed()) pie_ul.dispose();
+    pie_ul = NasToolsCharts.create($('#chart-recent-upload')[0], 280);
+    if (typeof (pie_dl) != 'undefined' && !pie_dl.isDisposed()) pie_dl.dispose();
+    pie_dl = NasToolsCharts.create($('#chart-recent-download')[0], 280);
+    if (typeof (chart_history) != 'undefined' && !chart_history.isDisposed()) chart_history.dispose();
+    chart_history = NasToolsCharts.create($('#chart-site-history')[0], 350);
 
     function show_site_history(obj, days) {
       $('.btn-site-history').removeClass('active');
       $(obj).addClass('active');
-      chart_history.showLoading();
+      NasToolsCharts.loading(chart_history);
 
       ajax_post("get_site_history", {"days": days}, function (ret) {
+            if (chart_history.isDisposed()) return;
             chart_history.hideLoading();
             if (ret.code == 0) {
               let rotate = ret.dataset.length > 15 ? 40 : 0;
@@ -717,7 +693,8 @@
                     bottom: "0%",
                     containLabel: true
                 },
-                color: ['#206bc4', '#d63939'],
+                color: [statistics_chart_theme.primary, statistics_chart_theme.download],
+                legend: { top: 4, data: ['上传量', '下载量'] },
                 tooltip: {
                   trigger: 'axis',
                   axisPointer: {
@@ -753,7 +730,8 @@
                   }
                 ],
                 series: [
-                  {name: "上传量", type: 'bar'}, {name: "下载量", type: 'bar'}
+                  {name: "上传量", type: 'bar', barMaxWidth: 28, itemStyle: {borderRadius: [4, 4, 0, 0]}},
+                  {name: "下载量", type: 'bar', barMaxWidth: 28, itemStyle: {borderRadius: [4, 4, 0, 0]}}
                 ]
               };
               chart_history.setOption(option_history);
@@ -779,73 +757,19 @@
     // 当前一周数据
     $('#btn-history-one-week').trigger('click');
 
-    pie_dl.showLoading();
-    pie_ul.showLoading();
+    NasToolsCharts.loading(pie_dl);
+    NasToolsCharts.loading(pie_ul);
     ajax_post("get_site_history", {"days": 1}, function (ret) {
+          if (pie_dl.isDisposed()) return;
           pie_dl.hideLoading();
+          if (pie_ul.isDisposed()) return;
           pie_ul.hideLoading();
           if (ret.code == 0) {
-            let option_ul = {
-              tooltip: {
-                trigger: 'item', valueFormatter: value => numeral(value).format('0.0 ib')
-              },
-              dataset: {
-                source: ret.dataset.filter(item => {
-                  return (item[1] > 0 || item[1] === 'upload')
-                })
-              },
-              series: [
-                {
-                  type: 'pie',
-                  encode: {
-                    itemName: 'site',
-                    value: 'upload'
-                  },
-                  label: {
-                    formatter: function (params) {
-                      value = numeral(params.value[params.encode.value[0]]).format('0.0 ib');
-                      return params.name + ': ' + value;
-                    }
-                  },
-                  emptyCircleStyle: {
-                    color: 'transparent',
-                    borderColor: '#ddd',
-                    borderWidth: 1
-                  }
-                },
-              ]
-            };
-            pie_ul.setOption(option_ul)
-            let option_dl = {
-              tooltip: {
-                trigger: 'item', valueFormatter: value => numeral(value).format('0.0 ib')
-              },
-              dataset: {
-                source: ret.dataset.filter(item => {
-                  return (item[2] > 0 || item[2] === 'download')
-                })
-              },
-              series: [
-                {
-                  type: 'pie',
-                  encode: {
-                    itemName: 'site',
-                    value: 'download'
-                  },
-                  label: {
-                    formatter: function (params) {
-                      value = numeral(params.value[params.encode.value[0]]).format('0.0 ib');
-                      return params.name + ': ' + value;
-                    }
-                  }, emptyCircleStyle: {
-                    color: 'transparent',
-                    borderColor: '#ddd',
-                    borderWidth: 1
-                  }
-                }
-              ]
-            };
-            pie_dl.setOption(option_dl)
+            const upload_data = ret.dataset.filter(item => item[1] > 0 || item[1] === 'upload');
+            const download_data = ret.dataset.filter(item => item[2] > 0 || item[2] === 'download');
+            const site_names = ret.dataset.slice(1).map(item => item[0]);
+            pie_ul.setOption(NasToolsCharts.donut(upload_data, 'upload', '上传分布', site_names));
+            pie_dl.setOption(NasToolsCharts.donut(download_data, 'download', '下载分布', site_names));
           } else {
             show_fail_modal(`历史数据 查询失败：${ret.msg}！`);
           }
@@ -1028,7 +952,7 @@
         </div>
       </div>
     </div>
-    <div class="table-responsive">
+    <div class="table-responsive nt-table-region">
       <table class="table table-vcenter card-table table-hover table-striped">
         <thead>
         <tr>
@@ -1057,13 +981,13 @@
       </td>
       <td>
         <div class="flex-fill">
-          <span class="text-green">{{ SVG.arrow_narrow_up() }}</span>
+          <span class="text-primary">{{ SVG.arrow_narrow_up() }}</span>
           <strong data-statistics-upload></strong>
         </div>
       </td>
       <td>
         <div class="flex-fill">
-          <span class="text-red">{{ SVG.arrow_narrow_down() }}</span>
+          <span class="text-muted">{{ SVG.arrow_narrow_down() }}</span>
           <span data-statistics-download></span>
         </div>
       </td>

@@ -1,0 +1,382 @@
+{
+  "preview": true,
+  "dataSource": "local fixtures; real templates and static assets",
+  "liveIntegrationsTested": false,
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "generatedAt": "2026-09-09T08:38:19.229Z",
+  "pages": 41,
+  "results": [
+    {
+      "route": "/preview/login",
+      "title": "登录",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/preview-login.png",
+      "status": 200,
+      "heading": "让每一份收藏，井然有序。"
+    },
+    {
+      "route": "/api/v1/",
+      "title": "API 文档（Swagger）",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/api-v1-.png",
+      "status": 200,
+      "heading": "NAStool Api 1.0 "
+    },
+    {
+      "route": "/?next=ranking",
+      "title": "榜单推荐",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/ranking.png",
+      "status": 200,
+      "heading": "发现下一部好作品"
+    },
+    {
+      "route": "/?next=tmdb_movie",
+      "title": "TMDB 电影",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/tmdb_movie.png",
+      "status": 200,
+      "heading": "TMDB 电影"
+    },
+    {
+      "route": "/?next=tmdb_tv",
+      "title": "TMDB 电视剧",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/tmdb_tv.png",
+      "status": 200,
+      "heading": "TMDB 电视剧"
+    },
+    {
+      "route": "/?next=bangumi",
+      "title": "每日放送",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/bangumi.png",
+      "status": 200,
+      "heading": "每一天，都有新番陪伴"
+    },
+    {
+      "route": "/?next=recommend",
+      "title": "推荐列表",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/recommend.png",
+      "status": 200,
+      "heading": "推荐列表"
+    },
+    {
+      "route": "/?next=media_detail",
+      "title": "媒体详情",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/media_detail.png",
+      "status": 200,
+      "heading": "远山来信 (2026)"
+    },
+    {
+      "route": "/?next=discovery_person",
+      "title": "演员阵容",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/discovery_person.png",
+      "status": 200,
+      "heading": "演员阵容 4"
+    },
+    {
+      "route": "/?next=search",
+      "title": "资源搜索",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/search.png",
+      "status": 200,
+      "heading": "资源搜索"
+    },
+    {
+      "route": "/?next=site",
+      "title": "站点维护",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/site.png",
+      "status": 200,
+      "heading": "站点维护"
+    },
+    {
+      "route": "/?next=sitelist",
+      "title": "站点资源",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/sitelist.png",
+      "status": 200,
+      "heading": "站点资源"
+    },
+    {
+      "route": "/?next=resources",
+      "title": "单站资源",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/resources.png",
+      "status": 200,
+      "heading": "松林影站"
+    },
+    {
+      "route": "/?next=statistics",
+      "title": "数据统计",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/statistics.png",
+      "status": 200,
+      "heading": "数据统计"
+    },
+    {
+      "route": "/?next=brushtask",
+      "title": "刷流任务",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/brushtask.png",
+      "status": 200,
+      "heading": "刷流任务"
+    },
+    {
+      "route": "/?next=userdownloader",
+      "title": "自定义下载器",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/userdownloader.png",
+      "status": 200,
+      "heading": "自定义下载器"
+    },
+    {
+      "route": "/?next=downloading",
+      "title": "正在下载",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/downloading.png",
+      "status": 200,
+      "heading": "正在下载"
+    },
+    {
+      "route": "/?next=downloaded",
+      "title": "近期下载",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/downloaded.png",
+      "status": 200,
+      "heading": "近期下载"
+    },
+    {
+      "route": "/?next=torrent_remove",
+      "title": "自动删种",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/torrent_remove.png",
+      "status": 200,
+      "heading": "自动删种"
+    },
+    {
+      "route": "/?next=tools",
+      "title": "工具",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/tools.png",
+      "status": 200,
+      "heading": "工具"
+    },
+    {
+      "route": "/?next=tools%2Fsite-signin",
+      "title": "站点自动签到",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/tools-site-signin.png",
+      "status": 200,
+      "heading": "站点自动签到"
+    },
+    {
+      "route": "/?next=service",
+      "title": "服务",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/service.png",
+      "status": 200,
+      "heading": "服务"
+    },
+    {
+      "route": "/?next=tmdbcache",
+      "title": "TMDB 缓存",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/tmdbcache.png",
+      "status": 200,
+      "heading": "TMDB 缓存"
+    },
+    {
+      "route": "/?next=basic",
+      "title": "基础设置",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/basic.png",
+      "status": 200,
+      "heading": "基础设置"
+    },
+    {
+      "route": "/?next=media_setting",
+      "title": "媒体设置",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/media_setting.png",
+      "status": 200,
+      "heading": "媒体设置"
+    },
+    {
+      "route": "/?next=service_setting",
+      "title": "服务设置",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/service_setting.png",
+      "status": 200,
+      "heading": "服务设置"
+    },
+    {
+      "route": "/?next=security_setting",
+      "title": "安全设置",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/security_setting.png",
+      "status": 200,
+      "heading": "安全设置"
+    },
+    {
+      "route": "/?next=laboratory_setting",
+      "title": "实验室",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/laboratory_setting.png",
+      "status": 200,
+      "heading": "实验室"
+    },
+    {
+      "route": "/?next=downloader",
+      "title": "下载器",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/downloader.png",
+      "status": 200,
+      "heading": "下载器"
+    },
+    {
+      "route": "/?next=download_setting",
+      "title": "下载设置",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/download_setting.png",
+      "status": 200,
+      "heading": "下载设置"
+    },
+    {
+      "route": "/?next=notification",
+      "title": "消息通知",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/notification.png",
+      "status": 200,
+      "heading": "消息通知"
+    },
+    {
+      "route": "/?next=users",
+      "title": "用户管理",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/users.png",
+      "status": 200,
+      "heading": "用户管理"
+    },
+    {
+      "route": "/?next=recommend%3Ftype%3DSEARCH%26title%3D%E5%AA%92%E4%BD%93%E6%90%9C%E7%B4%A2%26keyword%3D%E8%BF%9C%E5%B1%B1",
+      "title": "recommend?type=SEARCH&title=媒体搜索&keyword=远山",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/recommend-search.png",
+      "status": 200,
+      "heading": "媒体搜索"
+    },
+    {
+      "route": "/?next=recommend%3Ftype%3DMOV%26subtype%3Dperson%26title%3D%E5%8F%82%E6%BC%94%E4%BD%9C%E5%93%81",
+      "title": "recommend?type=MOV&subtype=person&title=参演作品",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/recommend-person.png",
+      "status": 200,
+      "heading": "参演作品"
+    },
+    {
+      "route": "/?next=recommend%3Ftype%3DMOV%26subtype%3Dsim%26title%3D%E7%B1%BB%E4%BC%BC%E4%BD%9C%E5%93%81",
+      "title": "recommend?type=MOV&subtype=sim&title=类似作品",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/recommend-sim.png",
+      "status": 200,
+      "heading": "类似作品"
+    },
+    {
+      "route": "/?next=recommend%3Ftype%3DMOV%26subtype%3Dmore%26title%3D%E7%9B%B8%E5%85%B3%E6%8E%A8%E8%8D%90",
+      "title": "recommend?type=MOV&subtype=more&title=相关推荐",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/recommend-more.png",
+      "status": 200,
+      "heading": "相关推荐"
+    },
+    {
+      "route": "/?next=recommend%3Ftype%3DTV%26subtype%3Dbangumi%26week%3D3%26title%3D%E6%98%9F%E6%9C%9F%E4%B8%89",
+      "title": "recommend?type=TV&subtype=bangumi&week=3&title=星期三",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/recommend-bangumi.png",
+      "status": 200,
+      "heading": "星期三"
+    },
+    {
+      "route": "/?next=resources%3Fsite%3D1%26title%3D%E6%9D%BE%E6%9E%97%E5%BD%B1%E7%AB%99",
+      "title": "resources?site=1&title=松林影站",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/resources-detail.png",
+      "status": 200,
+      "heading": "松林影站"
+    },
+    {
+      "route": "/preview/error/403",
+      "title": "403",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/preview-error-403.png",
+      "status": 200,
+      "heading": "权限不足"
+    },
+    {
+      "route": "/preview/error/404",
+      "title": "404",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/preview-error-404.png",
+      "status": 200,
+      "heading": "页面不存在"
+    },
+    {
+      "route": "/preview/error/500",
+      "title": "500",
+      "errors": [],
+      "overflow": false,
+      "screenshot": "pages/preview-error-500.png",
+      "status": 200,
+      "heading": "服务暂时不可用"
+    }
+  ]
+}

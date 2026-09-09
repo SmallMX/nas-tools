@@ -1,51 +1,34 @@
+{% import 'macro/ui.html' as UI %}
 {% import 'macro/svg.html' as SVG %}
 {% import 'macro/form.html' as FORM %}
-<div class="container-xl">
-  <!-- Page title -->
-  <div class="page-header d-print-none">
-    <div class="row align-items-center">
-      <div class="col">
-        <h2 class="page-title">
-          下载器
-        </h2>
-      </div>
-      <div class="col-auto ms-auto d-print-none">
-        <div class="btn-list">
-          <a href="javascript:show_downloaddir_modal()" class="btn btn-primary d-none d-sm-inline-block">
+{% call UI.page_header('下载器', '连接下载客户端，配置保存目录和默认下载参数。', eyebrow='系统设置') %}
+<div class="btn-list">
+          <a href="javascript:show_downloaddir_modal()" class="btn btn-primary">
             {{ SVG.folders() }}
             下载目录
           </a>
-          <a href="javascript:show_downloaddir_modal()" class="btn btn-primary d-sm-none btn-icon" title="下载目录">
-            {{ SVG.folders() }}
-          </a>
-          <a href="javascript:navmenu('download_setting')" class="btn d-none d-sm-inline-block">
+          <a href="javascript:navmenu('download_setting')" class="btn">
             {{ SVG.settings() }}
             下载设置
           </a>
-          <a href="javascript:navmenu('download_setting')" class="btn d-sm-none btn-icon" title="下载设置">
-            {{ SVG.settings() }}
-          </a>
         </div>
-      </div>
-    </div>
-  </div>
-</div>
+{% endcall %}
 <!-- 业务页面代码 -->
 <div class="page-body">
   <div class="container-xl">
-    <div class="d-grid gap-3 grid-normal-card">
+    <div class="d-grid gap-3 grid-normal-card nt-connector-grid">
     {% for Type, Downloader in DownloaderConf.items() %}
-      <a class="card card-link-pop p-0" href="#" data-bs-toggle="modal" data-bs-target="#modal-{{ Type }}">
-        <div class="card-cover card-cover-blurred text-center {{ Downloader.background }}">
-          <span class="avatar avatar-xl avatar-thumb avatar-rounded"
-                style="background-image: url('{{ Downloader.img_url }}')">
-          </span>
-        </div>
-        <div class="card-body text-center">
-          <div class="card-title mb-1">{{ Downloader.name }}</div>
-          <div class="text-muted">{% if Config.pt.pt_client == Type %}<span class="badge bg-green"
-                                                                                     title="已开启"></span>
-            默认使用{% endif %}</div>
+      <a class="card card-link-pop nt-connector-card" href="#" data-bs-toggle="modal" data-bs-target="#modal-{{ Type }}">
+        <div class="card-body">
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <img class="nt-connector-logo" src="{{ Downloader.img_url }}" alt="">
+            <div>
+              <h3 class="card-title mb-1">{{ Downloader.name }}</h3>
+              {% if Config.pt.pt_client == Type %}<span class="badge bg-green-lt">默认下载器</span>{% endif %}
+            </div>
+          </div>
+          <p class="text-muted mb-3">配置服务器地址、访问账号与连接选项。</p>
+          <span class="nt-card-link">配置连接 <span aria-hidden="true">→</span></span>
         </div>
       </a>
     {% endfor %}
@@ -59,9 +42,9 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">{{ Downloader.name }}</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body nt-form-body">
       {{ FORM.gen_form_config_elements(Type, Config, Downloader.config) }}
       </div>
       <div class="modal-footer">
@@ -83,9 +66,9 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">下载目录配置</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body nt-form-body">
         <div class="row">
           <div class="mb-3" id="dirdiv_container">
             <label class="form-label required">目录信息 <span class="form-help"

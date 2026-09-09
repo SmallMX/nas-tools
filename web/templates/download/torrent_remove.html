@@ -1,28 +1,14 @@
+{% import 'macro/ui.html' as UI %}
 {% import 'macro/svg.html' as SVG %}
 {% import 'macro/oops.html' as OOPS %}
-<div class="container-xl">
-  <!-- Page title -->
-  <div class="page-header d-print-none">
-    <div class="row align-items-center">
-      <div class="col">
-        <h2 class="page-title">
-          自动删种任务
-        </h2>
-      </div>
-      <div class="col-auto ms-auto d-print-none">
-        <div class="btn-list">
-          <a href="javascript:show_add_torrent_remove_task_modal()" class="btn btn-primary d-none d-sm-inline-block">
+{% call UI.page_header('自动删种', '设置种子清理规则，运行前可预览待处理的种子。', eyebrow='下载管理', count=Count) %}
+<div class="btn-list">
+          <a href="javascript:show_add_torrent_remove_task_modal()" class="btn btn-primary">
             {{ SVG.plus() }}
             新增删种任务
           </a>
-          <a href="javascript:show_add_torrent_remove_task_modal()" class="btn btn-primary d-sm-none btn-icon">
-            {{ SVG.plus() }}
-          </a>
         </div>
-      </div>
-    </div>
-  </div>
-</div>
+{% endcall %}
 <!-- 业务页面代码 -->
 {% if Count > 0 %}
 <div class="page-body">
@@ -253,19 +239,20 @@
       <div class="modal-header">
         <h5 class="modal-title" id="modal-torrent-remove-task-title">新增删种任务</h5>
         <input type="hidden" id="torrent_remove_task_id" />
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body nt-form-body">
+        {{ UI.section_heading('任务配置', '选择执行动作与周期，可先停用任务并预览结果。') }}
         <div class="row">
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label required">名称</label>
+              <label class="form-label required" for="name">名称</label>
               <input type="text" id="name" class="form-control" placeholder="别名">
             </div>
           </div>
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label">动作</label>
+              <label class="form-label" for="action">动作</label>
               <select class="form-select" id="action">
                 <option value="1" selected>暂停种子</option>
                 <option value="2">删除种子</option>
@@ -275,7 +262,7 @@
           </div>
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label required">运行间隔（分钟） <span class="form-help" title="执行自动删种任务的间隔时间"
+              <label class="form-label required" for="interval">运行间隔（分钟） <span class="form-help" title="执行自动删种任务的间隔时间"
                   data-bs-toggle="tooltip">?</span></label>
               <input type="text" id="interval" class="form-control" placeholder="分钟">
             </div>
@@ -284,7 +271,7 @@
         <div class="row">
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label">状态</label>
+              <label class="form-label" for="enabled">状态</label>
               <select class="form-select" id="enabled">
                 <option value="1">启用</option>
                 <option value="0" selected>停用</option>
@@ -293,7 +280,7 @@
           </div>
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label">处理辅种 <span class="form-help" title="若种子名称及大小与满足其他删种条件的种子相同，则一并处理"
+              <label class="form-label" for="samedata">处理辅种 <span class="form-help" title="若种子名称及大小与满足其他删种条件的种子相同，则一并处理"
                   data-bs-toggle="tooltip">?</span></label>
               <select class="form-select" id="samedata">
                 <option value="0" selected>否</option>
@@ -303,7 +290,7 @@
           </div>
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label">只管理NAStool添加的下载 <span class="form-help" title="只管理含有NASTOOL标签的种子"
+              <label class="form-label" for="onlynastool">只管理NAStool添加的下载 <span class="form-help" title="只管理含有NASTOOL标签的种子"
                   data-bs-toggle="tooltip">?</span></label>
               <select class="form-select" id="onlynastool">
                 <option value="0">否</option>
@@ -312,24 +299,25 @@
             </div>
           </div>
         </div>
+        {{ UI.section_heading('数值条件', '设置分享率、做种时间与上传速度等条件。') }}
         <div class="row">
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label">分享率 <span class="form-help" title="种子分享率大于等于设置值视为满足该条件，留空为不启用"
+              <label class="form-label" for="ratio">分享率 <span class="form-help" title="种子分享率大于等于设置值视为满足该条件，留空为不启用"
                 data-bs-toggle="tooltip">?</span></label>
               <input type="text" id="ratio" class="form-control" placeholder="保留一位小数">
             </div>
           </div>
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label">做种时间 <span class="form-help" title="种子做种时间大于等于设置值视为满足该条件，留空为不启用"
+              <label class="form-label" for="seeding_time">做种时间 <span class="form-help" title="种子做种时间大于等于设置值视为满足该条件，留空为不启用"
                 data-bs-toggle="tooltip">?</span></label>
               <input type="text" id="seeding_time" class="form-control" placeholder="小时">
             </div>
           </div>
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label">平均上传速度 <span class="form-help" title="种子平均上传速度小于等于设置值视为满足该条件，留空为不启用"
+              <label class="form-label" for="upload_avs">平均上传速度 <span class="form-help" title="种子平均上传速度小于等于设置值视为满足该条件，留空为不启用"
                 data-bs-toggle="tooltip">?</span></label>
               <input type="text" id="upload_avs" class="form-control" placeholder="KB/s">
             </div>
@@ -338,30 +326,31 @@
         <div class="row">
           <div class="col-lg-3">
             <div class="mb-3">
-              <label class="form-label">种子大小 <span class="form-help" title="种子大小在设置范围内视为满足该条件，留空为不启用"
+              <label class="form-label" for="size">种子大小 <span class="form-help" title="种子大小在设置范围内视为满足该条件，留空为不启用"
                 data-bs-toggle="tooltip">?</span></label>
               <input type="text" id="size" class="form-control" placeholder="GB，例如如1-10">
             </div>
           </div>
           <div class="col-lg-9">
             <div class="mb-3">
-              <label class="form-label">标签 <span class="form-help" title="设置多个标签时，种子包含所有标签视为满足该条件，留空为不启用"
+              <label class="form-label" for="tags">标签 <span class="form-help" title="设置多个标签时，种子包含所有标签视为满足该条件，留空为不启用"
                 data-bs-toggle="tooltip">?</span></label>
               <input type="text" id="tags" class="form-control" placeholder="多个标签用;分隔">
             </div>
           </div>
         </div>
+        {{ UI.section_heading('匹配范围', '使用目录与 Tracker 条件缩小处理范围。') }}
         <div class="row">
           <div class="col-lg-6">
             <div class="mb-3">
-              <label class="form-label">保存路径关键词 <span class="form-help" title="种子保存路径含有关键词视为满足该条件，留空为不启用"
+              <label class="form-label" for="savepath_key">保存路径关键词 <span class="form-help" title="种子保存路径含有关键词视为满足该条件，留空为不启用"
                 data-bs-toggle="tooltip">?</span></label>
               <input type="text" id="savepath_key" class="form-control" placeholder="支持正则表达式">
             </div>
           </div>
           <div class="col-lg-6">
             <div class="mb-3">
-              <label class="form-label">tracker关键词 <span class="form-help" title="种子第一个活动tracker含有关键词视为满足该条件，留空为不启用"
+              <label class="form-label" for="tracker_key">tracker关键词 <span class="form-help" title="种子第一个活动tracker含有关键词视为满足该条件，留空为不启用"
                 data-bs-toggle="tooltip">?</span></label>
               <input type="text" id="tracker_key" class="form-control" placeholder="支持正则表达式">
             </div>
@@ -405,7 +394,7 @@
           </div>
           <div class="col-lg-5">
             <div class="mb-3">
-              <label class="form-label">分类 <span class="form-help" title="设置多个分类时，种子属于其中任一分类视为满足该条件，留空为不启用"
+              <label class="form-label" for="qb_category">分类 <span class="form-help" title="设置多个分类时，种子属于其中任一分类视为满足该条件，留空为不启用"
                 data-bs-toggle="tooltip">?</span></label>
               <input type="text" id="qb_category" class="form-control" placeholder="多个分类用;分隔">
             </div>
@@ -414,7 +403,7 @@
         <div id="tr_config_div" class="row">
           <div class="col-lg-7">
             <div class="mb-3">
-              <label class="form-label">种子状态 <span class="form-help"
+              <label class="form-label" for="tr_state">种子状态 <span class="form-help"
                 title="{% for Id, Attr in DownloaderConfig.Tr.torrent_state.items() %}
                 {{ Id }}：{{ Attr }}<br>
                 {% endfor %}
@@ -426,7 +415,7 @@
           </div>
           <div class="col-lg-5">
             <div class="mb-3">
-              <label class="form-label">错误信息关键词 <span class="form-help" title="种子错误信息含有关键词视为满足该条件，留空为不启用"
+              <label class="form-label" for="tr_error_key">错误信息关键词 <span class="form-help" title="种子错误信息含有关键词视为满足该条件，留空为不启用"
                 data-bs-toggle="tooltip">?</span></label>
               <input type="text" id="tr_error_key" class="form-control" placeholder="支持正则表达式">
             </div>
@@ -450,9 +439,9 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">预处理种子列表</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
-      <div class="table-responsive" style="overflow-y: auto; max-height: 35em;">
+      <div class="table-responsive nt-table-region" style="overflow-y: auto; max-height: 35em;">
         <table id="table-remove-torrents" class="table table-vcenter card-table">
         </table>
       </div>

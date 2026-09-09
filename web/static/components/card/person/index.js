@@ -1,8 +1,8 @@
+import "../media-styles.js";
 import { html } from "../../utility/lit-core.min.js";
 import { CustomElement, Golbal } from "../../utility/utility.js";
 
 export class PersonCard extends CustomElement {
-
   static properties = {
     person_id: { attribute: "person-id" },
     person_image: { attribute: "person-image" },
@@ -18,30 +18,16 @@ export class PersonCard extends CustomElement {
 
   render() {
     return html`
-      <div class="card card-sm lit-person-card rounded-4 overflow-hidden cursor-pointer ratio">
-        <div class="text-center p-4 pt-3 placeholder-glow">
-          <div class="avatar-rounded overflow-hidden" style="position:relative;z-index:1;">
-            <custom-img
-              lazy=${this.lazy}
-              img-src=${this.person_image}
-              img-noimage=${Golbal.noImage_person}
-              img-ratio="100%"
-              img-style="object-fit:cover;"
-            ></custom-img>
-          </div>
-          <h3 class="lh-sm text-white mt-3 ${this.lazy == "1" ? "placeholder" : ""}"
-              style="margin-bottom: 5px; -webkit-line-clamp:2; display: -webkit-box; -webkit-box-orient:vertical; overflow:hidden; text-overflow: ellipsis;">
-            <strong>${this.person_name}</strong>
-          </h3>
-          <div class="lh-sm text-white mt-2 ${this.lazy == "1" ? "placeholder" : ""}"
-              style="margin-bottom: 5px; -webkit-line-clamp:3; display: -webkit-box; -webkit-box-orient:vertical; overflow:hidden; text-overflow: ellipsis;">
-            ${this.person_role}
-          </div>
-        </div>
-      </div>
-    `;
+      <button type="button" class="nt-person-card" ?disabled=${!this.person_id}
+        aria-label=${this.person_name ? `查看 ${this.person_name} 的参演作品` : "正在加载人物信息"}>
+        <span class="nt-person-card__portrait">
+          <custom-img lazy=${this.lazy} img-src=${this.person_image} img-noimage=${Golbal.noImage_person}
+            img-ratio="100%" img-style="object-fit:cover;width:100%;height:100%;"></custom-img>
+        </span>
+        <span class="nt-person-card__name">${this.person_name || "正在加载…"}</span>
+        <span class="nt-person-card__role">${this.person_role || (this.person_name ? "演职人员" : "")}</span>
+      </button>`;
   }
-
 }
 
 window.customElements.define("person-card", PersonCard);

@@ -1,3 +1,4 @@
+import "../../card/media-styles.js";
 import { html, nothing } from "../../utility/lit-core.min.js";
 import { CustomElement, Golbal } from "../../utility/utility.js";
 
@@ -5,12 +6,14 @@ export class PageDiscovery extends CustomElement {
   static properties = {
     discovery_type: { attribute: "discovery-type" },
     _slide_card_list: { state: true },
+    _slide_errors: { state: true },
     _media_type_list: { state: true },
   };
 
   constructor() {
     super();
     this._slide_card_list = {};
+    this._slide_errors = {};
     this._media_type_list = {
       "RANKING": [
         {
@@ -107,54 +110,84 @@ export class PageDiscovery extends CustomElement {
   }
 
   firstUpdated() {
-    for (const item of this._media_type_list[this.discovery_type] ?? []) {
-      Golbal.get_cache_or_ajax(
-          "get_recommend",
-          this.discovery_type + item.title,
-          { "type": item.type, "subtype": item.subtype, "page": 1, "week": item.week},
-          (ret) => {
-            this._slide_card_list = {...this._slide_card_list, [item.title]: ret.Items};
-          }
-       );
+    for (const item of this._media_type_list[this.discovery_type] ?? []) this._loadSection(item);
+  }
+
+  _loadSection(item, retry = false) {
+    this._slide_errors = { ...this._slide_errors, [item.title]: "" };
+    this._slide_card_list = { ...this._slide_card_list, [item.title]: undefined };
+    const params = { type: item.type, subtype: item.subtype, page: 1, week: item.week };
+    const cacheName = this.discovery_type + item.title;
+    const receive = (ret) => {
+      if (!this.isConnected) return;
+      if (ret?.code !== 0 || !Array.isArray(ret.Items)) {
+        this._slide_errors = { ...this._slide_errors, [item.title]: ret?.msg || "暂时无法获取内容，请稍后重试。" };
+        return;
+      }
+      this._slide_card_list = { ...this._slide_card_list, [item.title]: ret.Items };
+    };
+    if (retry) {
+      ajax_post("get_recommend", params, (ret) => {
+        if (!this.isConnected) return;
+        if (ret?.code === 0) Golbal.save_page_data("get_recommend" + cacheName, ret);
+        receive(ret);
+      });
+    } else {
+      Golbal.get_cache_or_ajax("get_recommend", cacheName, params, receive);
     }
   }
 
+  _scrollToWeek(week) {
+    const section = this.querySelector(`[data-discovery-week="${week}"]`);
+    section?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
+    section?.querySelector(".nt-slide__viewport")?.focus({ preventScroll: true });
+  }
+
   render() {
+    const bangumi = this.discovery_type === "BANGUMI";
+    const today = String(new Date().getDay() || 7);
     return html`
-      <div class="container-xl">
-        ${this._media_type_list[this.discovery_type]?.map((item) => ( html`
-          <custom-slide
+      <div class="container-xl nt-discovery-page">
+        <header class="nt-discovery-header">
+          <div class="nt-discovery-eyebrow">探索 · ${bangumi ? "BANGUMI" : "DISCOVER"}</div>
+          <h1 class="nt-discovery-title">${bangumi ? "每一天，都有新番陪伴" : "发现下一部好作品"}</h1>
+          <p class="nt-discovery-description">${bangumi ? "按星期浏览每日放送，查看番剧详情，轻松找到想追的故事。" : "从热门榜单到每周新番，找到值得收藏的影视。"}</p>
+        </header>
+        <div class="nt-discovery-banner">
+          <div>
+            <h2>${bangumi ? "你的每周追番日历" : "海量影视资源，发现更多精彩"}</h2>
+            <p>${bangumi ? "选择星期快速定位，点击海报了解作品，搜索资源开始追番。" : "汇聚 TMDB 与豆瓣榜单，按类型、评分和地区探索感兴趣的作品。"}</p>
+          </div>
+          <div class="nt-discovery-banner__actions">
+            ${bangumi ? html`<button type="button" class="btn btn-primary" @click=${() => this._scrollToWeek(today)}>查看今日放送 →</button>` : html`
+              <button type="button" class="btn btn-primary" @click=${() => navmenu("tmdb_movie")}>浏览电影 →</button>
+              <button type="button" class="btn btn-outline-primary" @click=${() => navmenu("tmdb_tv")}>浏览剧集 →</button>`}
+          </div>
+        </div>
+        ${bangumi ? html`
+          <nav class="nt-discovery-week" aria-label="按星期浏览每日放送">
+            ${this._media_type_list.BANGUMI.map((item) => html`
+              <button type="button" aria-current=${item.week === today ? "date" : nothing}
+                @click=${() => this._scrollToWeek(item.week)}>${item.title}${item.week === today ? " · 今天" : ""}</button>`)}
+          </nav>` : nothing}
+        ${this._media_type_list[this.discovery_type]?.map((item) => html`
+          <custom-slide data-discovery-week=${item.week || ""}
             slide-title=${item.title}
-            .slide_click=${Golbal.build_nav_path("recommend", {
-              type: item.type,
-              subtype: item.subtype,
-              week: item.week ?? "",
-              title: item.title,
-            })}
+            slide-status=${this._slide_errors[item.title] ? "error" : this._slide_card_list[item.title] ? "ready" : "loading"}
+            slide-error=${this._slide_errors[item.title] || ""}
+            @retry=${() => this._loadSection(item, true)}
+            .slide_click=${Golbal.build_nav_path("recommend", { type: item.type, subtype: item.subtype, week: item.week ?? "", title: item.title })}
             lazy="normal-card"
             .slide_card=${this._slide_card_list[item.title]
-              ? this._slide_card_list[item.title].map((card) => ( html`
-                <normal-card
-                  lazy=1
-                  card-tmdbid=${card.id}
-                  card-mediatype=${card.type}
-                  card-showsub=1
-                  card-image=${card.image}
-                  card-vote=${card.vote}
-                  card-year=${card.year}
-                  card-title=${card.title}
-                  card-overview=${card.overview}
-                  card-restype=${card.media_type}
-                  class="px-2"
-                ></normal-card>`))
-              : Array(20).fill(html`<normal-card-placeholder></normal-card-placeholder>`)
-            }
-          ></custom-slide>`
-        ))}
-      </div>
-    `;
+              ? this._slide_card_list[item.title].map((card) => html`
+                <normal-card lazy="1" card-tmdbid=${card.id} card-mediatype=${card.type} card-showsub="1"
+                  card-image=${card.image} card-vote=${card.vote} card-year=${card.year}
+                  card-title=${card.title} card-overview=${card.overview} card-restype=${card.media_type}
+                  card-weekday=${card.weekday} card-date=${card.date} card-site=${card.site}></normal-card>`)
+              : Array.from({ length: 8 }, () => html`<normal-card-placeholder></normal-card-placeholder>`) }
+          ></custom-slide>`)}
+      </div>`;
   }
 }
-
 
 window.customElements.define("page-discovery", PageDiscovery);

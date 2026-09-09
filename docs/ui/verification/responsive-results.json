@@ -1,0 +1,311 @@
+[
+  {
+    "width": 390,
+    "route": "ranking",
+    "overflow": 0,
+    "sidebar": 0,
+    "header": 64,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "route": "media_detail?id=1&type=MOV",
+    "overflow": 0,
+    "sidebar": 0,
+    "header": 64,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "route": "search",
+    "overflow": 0,
+    "sidebar": 0,
+    "header": 64,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "route": "statistics",
+    "overflow": 0,
+    "sidebar": 0,
+    "header": 64,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "route": "basic",
+    "overflow": 0,
+    "sidebar": 0,
+    "header": 64,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "route": "tools/site-signin",
+    "overflow": 0,
+    "sidebar": 0,
+    "header": 64,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "route": "downloader",
+    "overflow": 0,
+    "sidebar": 0,
+    "header": 64,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "route": "users",
+    "overflow": 0,
+    "sidebar": 0,
+    "header": 64,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "route": "downloading",
+    "overflow": 0,
+    "sidebar": 0,
+    "header": 64,
+    "errors": []
+  },
+  {
+    "width": 768,
+    "route": "ranking",
+    "overflow": 0,
+    "sidebar": 0,
+    "header": 64,
+    "errors": []
+  },
+  {
+    "width": 768,
+    "route": "media_detail?id=1&type=MOV",
+    "overflow": 0,
+    "sidebar": 0,
+    "header": 64,
+    "errors": []
+  },
+  {
+    "width": 768,
+    "route": "search",
+    "overflow": 0,
+    "sidebar": 0,
+    "header": 64,
+    "errors": []
+  },
+  {
+    "width": 768,
+    "route": "statistics",
+    "overflow": 0,
+    "sidebar": 0,
+    "header": 64,
+    "errors": []
+  },
+  {
+    "width": 768,
+    "route": "basic",
+    "overflow": 0,
+    "sidebar": 0,
+    "header": 64,
+    "errors": []
+  },
+  {
+    "width": 768,
+    "route": "tools/site-signin",
+    "overflow": 0,
+    "sidebar": 0,
+    "header": 64,
+    "errors": []
+  },
+  {
+    "width": 768,
+    "route": "downloader",
+    "overflow": 0,
+    "sidebar": 0,
+    "header": 64,
+    "errors": []
+  },
+  {
+    "width": 768,
+    "route": "users",
+    "overflow": 0,
+    "sidebar": 0,
+    "header": 64,
+    "errors": []
+  },
+  {
+    "width": 768,
+    "route": "downloading",
+    "overflow": 0,
+    "sidebar": 0,
+    "header": 64,
+    "errors": []
+  },
+  {
+    "width": 992,
+    "route": "ranking",
+    "overflow": 0,
+    "sidebar": 232,
+    "header": 72,
+    "errors": []
+  },
+  {
+    "width": 992,
+    "route": "media_detail?id=1&type=MOV",
+    "overflow": 0,
+    "sidebar": 232,
+    "header": 72,
+    "errors": []
+  },
+  {
+    "width": 992,
+    "route": "search",
+    "overflow": 0,
+    "sidebar": 232,
+    "header": 72,
+    "errors": []
+  },
+  {
+    "width": 992,
+    "route": "statistics",
+    "overflow": 0,
+    "sidebar": 232,
+    "header": 72,
+    "errors": []
+  },
+  {
+    "width": 992,
+    "route": "basic",
+    "overflow": 0,
+    "sidebar": 232,
+    "header": 72,
+    "errors": []
+  },
+  {
+    "width": 992,
+    "route": "tools/site-signin",
+    "overflow": 0,
+    "sidebar": 232,
+    "header": 72,
+    "errors": []
+  },
+  {
+    "width": 992,
+    "route": "downloader",
+    "overflow": 0,
+    "sidebar": 232,
+    "header": 72,
+    "errors": []
+  },
+  {
+    "width": 992,
+    "route": "users",
+    "overflow": 0,
+    "sidebar": 232,
+    "header": 72,
+    "errors": []
+  },
+  {
+    "width": 992,
+    "route": "downloading",
+    "overflow": 0,
+    "sidebar": 232,
+    "header": 72,
+    "errors": []
+  },
+  {
+    "width": 1440,
+    "route": "ranking",
+    "overflow": 0,
+    "sidebar": 232,
+    "header": 72,
+    "errors": []
+  },
+  {
+    "width": 1440,
+    "route": "media_detail?id=1&type=MOV",
+    "overflow": 0,
+    "sidebar": 232,
+    "header": 72,
+    "errors": []
+  },
+  {
+    "width": 1440,
+    "route": "search",
+    "overflow": 0,
+    "sidebar": 232,
+    "header": 72,
+    "errors": []
+  },
+  {
+    "width": 1440,
+    "route": "statistics",
+    "overflow": 0,
+    "sidebar": 232,
+    "header": 72,
+    "errors": []
+  },
+  {
+    "width": 1440,
+    "route": "basic",
+    "overflow": 0,
+    "sidebar": 232,
+    "header": 72,
+    "errors": []
+  },
+  {
+    "width": 1440,
+    "route": "tools/site-signin",
+    "overflow": 0,
+    "sidebar": 232,
+    "header": 72,
+    "errors": []
+  },
+  {
+    "width": 1440,
+    "route": "downloader",
+    "overflow": 0,
+    "sidebar": 232,
+    "header": 72,
+    "errors": []
+  },
+  {
+    "width": 1440,
+    "route": "users",
+    "overflow": 0,
+    "sidebar": 232,
+    "header": 72,
+    "errors": []
+  },
+  {
+    "width": 1440,
+    "route": "downloading",
+    "overflow": 0,
+    "sidebar": 232,
+    "header": 72,
+    "errors": []
+  },
+  {
+    "check": "dark",
+    "background": "rgb(16, 27, 23)"
+  },
+  {
+    "check": "ime-not-submitted",
+    "value": "星际",
+    "page": "ranking"
+  },
+  {
+    "check": "search-submit",
+    "title": "搜索结果"
+  },
+  {
+    "check": "mobile-navigation",
+    "width": 232
+  },
+  {
+    "check": "password-toggle",
+    "type": "text"
+  }
+]

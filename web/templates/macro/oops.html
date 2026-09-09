@@ -1,62 +1,18 @@
-<!-- 没有记录 -->
-{% macro nodatafound(title, text) %}
+{% import 'macro/svg.html' as SVG %}
+{% macro state(title, text, error=false) %}
 <div class="page-body">
-  <div class="container-xl d-flex flex-column justify-content-center">
-    <div class="empty">
-      <div class="empty-img"><img src="./static/img/sign_in.svg" height="128" alt="">
-      </div>
+  <div class="container-xl">
+    <div class="empty" role="status">
+      <div class="nt-empty-icon" aria-hidden="true">{{ SVG.info_circle() if error else SVG.folders() }}</div>
       <p class="empty-title">{{ title }}</p>
-      <p class="empty-subtitle text-muted">
-        {{ text }}
-      </p>
+      {% if text %}<p class="empty-subtitle text-muted">{{ text }}</p>{% endif %}
     </div>
   </div>
 </div>
 {% endmacro %}
-
-<!-- 内容为空 -->
-{% macro empty(title, text) %}
-<div class="page-body">
-  <div class="container-xl d-flex flex-column justify-content-center">
-    <div class="empty">
-      <div class="empty-img"><img src="./static/img/posting_photo.svg" height="128" alt="">
-      </div>
-      <p class="empty-title">{{ title }}</p>
-      <p class="empty-subtitle text-muted">
-        {{ text }}
-      </p>
-    </div>
-  </div>
-</div>
-{% endmacro %}
-
-<!-- 系统错误 -->
-{% macro systemerror(title, text) %}
-<div class="page-body">
-  <div class="container-xl d-flex flex-column justify-content-center">
-    <div class="empty">
-      <div class="empty-img"><img src="./static/img/bug_fixing.svg" height="128" alt="">
-      </div>
-      <p class="empty-title">{{ title }}</p>
-      <p class="empty-subtitle text-muted">
-        {{ text }}
-      </p>
-    </div>
-  </div>
-</div>
-{% endmacro %}
-
-<!-- 系统错误 -->
+{% macro nodatafound(title, text) %}{{ state(title, text) }}{% endmacro %}
+{% macro empty(title, text) %}{{ state(title, text) }}{% endmacro %}
+{% macro systemerror(title, text) %}{{ state(title, text, true) }}{% endmacro %}
 {% macro loading() %}
-<div class="page-center justify-content-center">
-  <div class="container-tight py-4">
-    <div class="empty">
-      <div class="mb-3"><img src="../static/img/quitting_time.svg" height="256" alt="">
-      </div>
-      <p class="empty-subtitle text-muted">
-        页面正在加载，请稍候...
-      </p>
-    </div>
-  </div>
-</div>
+<div class="container-xl"><div class="nt-loading" role="status" aria-live="polite"><span class="spinner-border spinner-border-sm text-primary" aria-hidden="true"></span><span>正在加载页面，请稍候…</span></div></div>
 {% endmacro %}

@@ -1,51 +1,30 @@
+{% import 'macro/ui.html' as UI %}
 {% import 'macro/svg.html' as SVG %}
 {% import 'macro/oops.html' as OOPS %}
-<div class="container-xl">
-  <!-- Page title -->
-  <div class="page-header d-print-none">
-    <div class="row align-items-center">
-      <div class="col">
-        <h2 class="page-title">
-          站点
-        </h2>
-      </div>
-      <!-- Page title actions -->
-      <div class="col-auto ms-auto d-print-none">
-        <div class="btn-list">
-          <a href="javascript:show_site_modal()" class="btn btn-primary d-none d-sm-inline-block">
+{% call UI.page_header('站点维护', '统一管理站点连接、访问凭据与自动化用途。', eyebrow='站点管理') %}
+<div class="btn-list">
+          <a href="javascript:show_site_modal()" class="btn btn-primary">
             {{ SVG.plus() }}
             新增站点
           </a>
-          <a href="javascript:show_site_modal()" class="btn btn-primary d-sm-none btn-icon">
-            {{ SVG.plus() }}
-          </a>
           {% if CanSystemSettings %}
-          <a href="javascript:show_cookiecloud_modal()" class="btn btn-twitter d-none d-sm-inline-block">
+          <a href="javascript:show_cookiecloud_modal()" class="btn btn-outline-primary">
             {{ SVG.refresh_dot() }}
             CookieCloud
           </a>
-          <a href="javascript:show_cookiecloud_modal()" class="btn btn-twitter d-sm-none btn-icon">
-            {{ SVG.refresh_dot() }}
-          </a>
           {% endif %}
-          <a href="javascript:show_sitetest_modal()" class="btn d-none d-sm-inline-block">
+          <a href="javascript:show_sitetest_modal()" class="btn">
             {{ SVG.activity_heartbeat() }}
             站点测试
           </a>
-          <a href="javascript:show_sitetest_modal()" class="btn d-sm-none btn-icon">
-            {{ SVG.activity_heartbeat() }}
-          </a>
         </div>
-      </div>
-    </div>
-  </div>
-</div>
+{% endcall %}
 {% if Sites %}
 <div class="page-body">
   <div class="container-xl">
     <div class="d-grid gap-3 grid-info-card">
       {% for Site in Sites %}
-      <div class="card card-link-pop">
+      <div class="card card-link-pop nt-resource-card">
         <div class="card-header">
           <h3 class="card-title">
             <span class="badge badge-pill bg-teal"><small>{{ Site.pri }}</small></span>
@@ -139,20 +118,21 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="modal-site-title">新增站点</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body nt-form-body">
+        {{ UI.section_heading('基本信息', '为站点命名，并选择需要启用的功能。') }}
         <div class="row">
           <div class="col-lg-6">
             <div class="mb-3">
-              <label class="form-label required">名称</label>
+              <label class="form-label required" for="site_name">名称</label>
               <input type="hidden" id="site_id" />
               <input type="text" class="form-control" id="site_name" placeholder="自定义站点名称">
             </div>
           </div>
           <div class="col-lg-6">
             <div class="mb-3">
-              <label class="form-label">优先级 <span class="form-help" title="多个站点同时命中资源搜索时选择下载的优先级，数值越小优先级越高"
+              <label class="form-label" for="site_pri">优先级 <span class="form-help" title="多个站点同时命中资源搜索时选择下载的优先级，数值越小优先级越高"
                   data-bs-toggle="tooltip">?</span></label>
               <select class="form-select" id="site_pri">
               </select>
@@ -162,7 +142,7 @@
         <div class="row">
           <div class="col-lg-6">
             <div class="mb-3">
-              <label class="form-label required">站点地址 <span class="form-help"
+              <label class="form-label required" for="site_signurl">站点地址 <span class="form-help"
                   title="站点访问地址，自动签到、站点数据统计、刷流、内置索引器等将使用，有独立签到页面的站点可以配置为签到页面以实现自动签到，否则可以配置为首页（配置为首页时可通过开启站点浏览器仿真来实现自动签到）"
                   data-bs-toggle="tooltip">?</span></label>
               <input type="text" class="form-control" id="site_signurl" value="" placeholder="站点http地址">
@@ -197,6 +177,7 @@
             </div>
           </div>
         </div>
+        {{ UI.section_heading('访问凭据', '按站点要求填写 Cookie 或 API Key。') }}
         <div class="row">
           <div class="col-lg-8">
             <div class="mb-3">
@@ -207,7 +188,7 @@
           </div>
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label">API Key / Passkey <span class="form-help"
+              <label class="form-label" for="site_apikey">API Key / Passkey <span class="form-help"
                   title="馒头、高清杜比、肉丝等 API 索引站点使用；请在对应站点的个人设置或开发者页面获取"
                   data-bs-toggle="tooltip">?</span></label>
               <input type="password" class="form-control" id="site_apikey" value="" autocomplete="new-password"
@@ -218,16 +199,17 @@
         <div class="row">
           <div class="col-lg-12">
             <div class="mb-3">
-              <label class="form-label">站点 RSS 地址 <span class="form-help" title="站点 RSS 源地址，用于资源浏览和刷流，点击站点 RSS 图标获取"
+              <label class="form-label" for="site_rssurl">站点 RSS 地址 <span class="form-help" title="站点 RSS 源地址，用于资源浏览和刷流，点击站点 RSS 图标获取"
                   data-bs-toggle="tooltip">?</span></label>
               <input type="text" class="form-control" id="site_rssurl" value="" placeholder="站点 RSS URL">
             </div>
           </div>
         </div>
+        {{ UI.section_heading('资源与连接选项', '设置资源解析、下载预设及网络访问方式。') }}
         <div class="row">
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label required">RSS解析种子详情 <span class="form-help"
+              <label class="form-label required" for="site_parse">RSS解析种子详情 <span class="form-help"
                   title="选择是时资源浏览会解析站点种子详情页面获取种子 FREE 及 H&R 状态，会增加站点访问压力；选择否时无法判断 FREE 种，无法实现 FREE 优先规则；刷流不受此限制"
                   data-bs-toggle="tooltip">?</span></label>
               <select class="form-select" id="site_parse">
@@ -238,7 +220,7 @@
           </div>
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label required">发送站点未读消息通知 <span class="form-help" title="选择是时检测到站点有未读消息会通过消息推送通知"
+              <label class="form-label required" for="site_unread_msg_notify">发送站点未读消息通知 <span class="form-help" title="选择是时检测到站点有未读消息会通过消息推送通知"
                   data-bs-toggle="tooltip">?</span></label>
               <select class="form-select" id="site_unread_msg_notify">
                 <option value="Y" selected>是</option>
@@ -248,7 +230,7 @@
           </div>
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label">下载设置</label>
+              <label class="form-label" for="site_download_setting">下载设置</label>
               <select class="form-select" id="site_download_setting">
                 <option value="">默认</option>
                 {% for Id, Attr in DownloadSettings.items() %}
@@ -259,7 +241,7 @@
           </div>
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label required">开启浏览器仿真 <span class="form-help"
+              <label class="form-label required" for="site_chrome">开启浏览器仿真 <span class="form-help"
                   title="开启后站点签到、数据统计可以兼容更多站点，但获取数据耗时会大幅增加；需要拉取含浏览器内核的镜像才能使用" data-bs-toggle="tooltip">?</span></label>
               <select class="form-select" id="site_chrome">
                 {% if ChromeOk %}
@@ -271,7 +253,7 @@
           </div>
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label required">使用代理服务器 <span class="form-help"
+              <label class="form-label required" for="site_proxy">使用代理服务器 <span class="form-help"
                   title="开启后该站点的访问将使用代理服务器，代理需在基础设置->系统->代理服务器中设置" data-bs-toggle="tooltip">?</span></label>
               <select class="form-select" id="site_proxy">
                 <option value="Y" selected>是</option>
@@ -281,7 +263,7 @@
           </div>
           <div class="col-lg-8">
             <div class="mb-3">
-              <label class="form-label">User-Agent <span class="form-help"
+              <label class="form-label" for="site_ua">User-Agent <span class="form-help"
                   title="站点签到/数据获取/搜索请求时使用的User-Agent，为空则使用基础配置中User-Agent设置" data-bs-toggle="tooltip">?</span></label>
               <input type="text" class="form-control" id="site_ua" value="" placeholder="站点访问User-Agent">
             </div>
@@ -305,9 +287,9 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">站点连通性测试</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
-      <div class="table-responsive" style="min-height: 300px">
+      <div class="table-responsive nt-table-region" style="min-height: 300px">
         <table class="table table-vcenter card-table table-hover table-striped">
           <thead>
             <tr>
@@ -350,25 +332,25 @@
       <div class="modal-header">
         <h5 class="modal-title" id="cookieua_modal_title">更新站点</h5>
         <input type="hidden" id="cookieua_siteid">
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body nt-form-body">
         <div class="row">
           <div class="col-lg">
             <div class="mb-3">
-              <label class="form-label required">用户名</label>
+              <label class="form-label required" for="cookieua_username">用户名</label>
               <input type="text" value="{{ CookieUserInfoCfg.username }}" id="cookieua_username" class="form-control" placeholder="站点登录用户名">
             </div>
           </div>
           <div class="col-lg">
             <div class="mb-3">
-              <label class="form-label required">密码</label>
+              <label class="form-label required" for="cookieua_password">密码</label>
               <input type="password" value="" id="cookieua_password" class="form-control" placeholder="每次更新时重新输入登录密码" autocomplete="new-password">
             </div>
           </div>
           <div class="col-lg">
             <div class="mb-3">
-              <label class="form-label">两步验证</label>
+              <label class="form-label" for="cookieua_two_step_code">两步验证</label>
               <input type="password" value="" id="cookieua_two_step_code" class="form-control" placeholder="如有设置必须重新填写" autocomplete="one-time-code">
             </div>
           </div>
@@ -392,7 +374,7 @@
              style="width: 0" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
         </div>
       </div>
-      <div class="modal-body" id="cookieua_result_div" style="display: none">
+      <div class="modal-body nt-form-body" id="cookieua_result_div" style="display: none">
         <div class="row">
           <div class="alert" id="cookieua_result" role="alert">
           </div>
@@ -414,13 +396,13 @@
       <div class="modal-header">
         <h5 class="modal-title" id="cookieua_modal_title">CookieCloud数据同步</h5>
         <input type="hidden" id="cookieua_siteid">
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body nt-form-body">
         <div class="row">
           <div class="col-lg">
             <div class="mb-3">
-              <label class="form-label required">服务器地址 <span class="form-help"
+              <label class="form-label required" for="cookiecloud_server">服务器地址 <span class="form-help"
                                                               title="请填写自行部署或信任的CookieCloud服务，项目不提供默认公共服务器；可参考CookieCloud项目文档搭建私有服务"
                                                               data-bs-toggle="tooltip">?</span></label>
               <input type="url" value="{{ CookieCloudCfg.server }}" id="cookiecloud_server" class="form-control" placeholder="https://cookiecloud.example.com">
@@ -428,7 +410,7 @@
           </div>
           <div class="col-lg">
             <div class="mb-3">
-              <label class="form-label required">用户KEY <span class="form-help"
+              <label class="form-label required" for="cookiecloud_key">用户KEY <span class="form-help"
                                                               title="在浏览器CookieCloud插件中获取，请勿对外泄露"
                                                               data-bs-toggle="tooltip">?</span></label>
               <input type="password" value="" id="cookiecloud_key" class="form-control" placeholder="每次同步时重新输入" autocomplete="new-password">
@@ -436,7 +418,7 @@
           </div>
           <div class="col-lg">
             <div class="mb-3">
-              <label class="form-label required">端对端加密密码 <span class="form-help"
+              <label class="form-label required" for="cookiecloud_password">端对端加密密码 <span class="form-help"
                                                               title="在浏览器CookieCloud插件中获取，请勿对外泄露"
                                                               data-bs-toggle="tooltip">?</span></label>
               <input type="password" value="" id="cookiecloud_password" class="form-control" placeholder="每次同步时重新输入" autocomplete="new-password">
@@ -458,7 +440,7 @@
      data-bs-backdrop="static" data-bs-keyboard="false">
   <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
     <div class="modal-content">
-      <div class="modal-body">
+      <div class="modal-body nt-form-body">
         <div class="row">
           <label class="form-label required">请在 30秒 内输入验证码</label>
           <div class="row mb-3">

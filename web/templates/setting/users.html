@@ -1,27 +1,13 @@
+{% import 'macro/ui.html' as UI %}
 {% import 'macro/svg.html' as SVG %}
-<div class="container-xl">
-  <!-- Page title -->
-  <div class="page-header d-print-none">
-    <div class="row align-items-center">
-      <div class="col">
-        <h2 class="page-title">
-          用户管理
-        </h2>
-      </div>
-      <div class="col-auto ms-auto d-print-none">
-        <div class="btn-list">
-          <a href="javascript:show_user_modal()" class="btn btn-primary d-none d-sm-inline-block">
+{% call UI.page_header('用户管理', '管理账号与功能权限，让每位用户访问所需内容。', eyebrow='系统设置', count=UserCount) %}
+<div class="btn-list">
+          <a href="javascript:show_user_modal()" class="btn btn-primary">
             {{ SVG.plus() }}
             新增用户
           </a>
-          <a href="javascript:show_user_modal()" class="btn btn-primary d-sm-none btn-icon">
-            {{ SVG.plus() }}
-          </a>
         </div>
-      </div>
-    </div>
-  </div>
-</div>
+{% endcall %}
 <!-- 业务页面代码 -->
 <div class="page-body">
   <div class="container-xl">
@@ -35,7 +21,7 @@
               </div>
             </div>
           </div>
-          <div class="table-responsive">
+          <div class="table-responsive nt-table-region">
             <table class="table table-vcenter card-table table-hover table-striped">
               <thead>
               <tr>
@@ -82,19 +68,19 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">新增用户</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body nt-form-body">
         <div class="row">
           <div class="col-lg-6">
             <div class="mb-3">
-              <label class="form-label required">用户名</label>
+              <label class="form-label required" for="user_name">用户名</label>
               <input type="text" value="" id="user_name" class="form-control">
             </div>
           </div>
           <div class="col-lg-6">
             <div class="mb-3">
-              <label class="form-label required">密码</label>
+              <label class="form-label required" for="user_password">密码</label>
               <input type="password" value="" id="user_password" class="form-control">
             </div>
           </div>

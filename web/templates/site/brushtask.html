@@ -1,35 +1,18 @@
+{% import 'macro/ui.html' as UI %}
 {% import 'macro/svg.html' as SVG %}
 {% import 'macro/oops.html' as OOPS %}
-<div class="container-xl">
-  <!-- Page title -->
-  <div class="page-header d-print-none">
-    <div class="row align-items-center">
-      <div class="col">
-        <h2 class="page-title">
-          刷流任务
-        </h2>
-      </div>
-      <div class="col-auto ms-auto d-print-none">
-        <div class="btn-list">
-          <a href="javascript:show_brushtask_modal()" class="btn btn-primary d-none d-sm-inline-block">
+{% call UI.page_header('刷流任务', '管理站点刷流任务与下载、做种和清理规则。', eyebrow='站点管理', count=Count) %}
+<div class="btn-list">
+          <a href="javascript:show_brushtask_modal()" class="btn btn-primary">
             {{ SVG.plus() }}
             新建任务
           </a>
-          <a href="javascript:show_brushtask_modal()" class="btn btn-primary d-sm-none btn-icon">
-            {{ SVG.plus() }}
-          </a>
-          <a href="javascript:navmenu('userdownloader')" class="btn d-none d-sm-inline-block" title="自定义下载器">
+          <a href="javascript:navmenu('userdownloader')" class="btn" title="自定义下载器">
             {{ SVG.apps() }}
             自定义下载器
           </a>
-          <a href="javascript:navmenu('userdownloader')" class="btn d-sm-none btn-icon" title="自定义下载器">
-            {{ SVG.apps() }}
-          </a>
         </div>
-      </div>
-    </div>
-  </div>
-</div>
+{% endcall %}
 {% if Count > 0 %}
   <div class="page-body">
     <div class="container-xl">
@@ -220,19 +203,20 @@
       <div class="modal-header">
         <h5 class="modal-title" id="brushtask_modal_title">新建任务</h5>
         <input type="hidden" id="brushtask_id">
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body nt-form-body">
+        {{ UI.section_heading('任务配置', '选择站点、下载器与执行频率。') }}
         <div class="row">
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label required">任务名称</label>
+              <label class="form-label required" for="brushtask_name">任务名称</label>
               <input type="text" id="brushtask_name" class="form-control">
             </div>
           </div>
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label required">站点</label>
+              <label class="form-label required" for="brushtask_site">站点</label>
               <select class="form-select" id="brushtask_site">
                 <option value="" selected>请选择</option>
                 {% for site in Sites %}
@@ -243,7 +227,7 @@
           </div>
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label required">刷新间隔(分钟) <span class="form-help"
+              <label class="form-label required" for="brushtask_interval">刷新间隔(分钟) <span class="form-help"
                                                                       title="检查站点RSS更新的间隔时间，为了减小站点压力，建议不小于5分钟"
                                                                       data-bs-toggle="tooltip">?</span></label>
               <input type="text" id="brushtask_interval" class="form-control" placeholder="10">
@@ -253,7 +237,7 @@
         <div class="row">
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label required">下载器 <span class="form-help"
+              <label class="form-label required" for="brushtask_downloader">下载器 <span class="form-help"
                                                               title="选择刷流任务使用的下载器，可在自定义下载器中添加"
                                                               data-bs-toggle="tooltip">?</span></label>
               <select class="form-select" id="brushtask_downloader">
@@ -266,7 +250,7 @@
           </div>
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label">保种体积(GB) <span class="form-help"
+              <label class="form-label" for="brushtask_totalsize">保种体积(GB) <span class="form-help"
                                                            title="该任务所有下载任务的保种体积超过设定值时不再新增下载"
                                                            data-bs-toggle="tooltip">?</span></label>
               <input type="text" id="brushtask_totalsize" class="form-control" placeholder="">
@@ -274,7 +258,7 @@
           </div>
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label required">状态</label>
+              <label class="form-label required" for="brushtask_state">状态</label>
               <select class="form-select" id="brushtask_state">
                 <option value="Y">正常</option>
                 <option value="N">暂停</option>
@@ -303,11 +287,11 @@
             </div>
           </div>
         </div>
-        <div class="hr-text hr-text-center hr-text-spaceless mt-1 mb-3">选种规则</div>
+        {{ UI.section_heading('选种规则', '按促销、名称与资源条件筛选需要下载的种子。') }}
         <div class="row">
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label">促销 <span class="form-help"
+              <label class="form-label" for="brushtask_free">促销 <span class="form-help"
                                                    title="选全部即不过滤会下载到非促销的种子，免费包括2X免费"
                                                    data-bs-toggle="tooltip">?</span></label>
               <select class="form-select" id="brushtask_free">
@@ -319,7 +303,7 @@
           </div>
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label">Hit&Run</label>
+              <label class="form-label" for="brushtask_hr">Hit&Run</label>
               <select class="form-select" id="brushtask_hr">
                 <option value="" selected>全部</option>
                 <option value="HR">排除HR</option>
@@ -328,7 +312,7 @@
           </div>
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label">同时下载任务数 <span class="form-help"
+              <label class="form-label" for="brushtask_dlcount">同时下载任务数 <span class="form-help"
                                                              title="下载器中正在下载的任务数超过此值时不再添加下载"
                                                              data-bs-toggle="tooltip">?</span></label>
               <input type="text" id="brushtask_dlcount" class="form-control" placeholder="10">
@@ -336,7 +320,7 @@
           </div>
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label">包含 <span class="form-help"
+              <label class="form-label" for="brushtask_include">包含 <span class="form-help"
                                                    title="种子名称或副标题中包括对应关键字或者匹配正则式时才会下载"
                                                    data-bs-toggle="tooltip">?</span></label>
               <input type="text" id="brushtask_include" class="form-control" placeholder="关键字或正则表达式">
@@ -344,7 +328,7 @@
           </div>
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label">排除 <span class="form-help"
+              <label class="form-label" for="brushtask_exclude">排除 <span class="form-help"
                                                    title="种子名称或副标题中包括对应关键字或者匹配正则式时不会下载"
                                                    data-bs-toggle="tooltip">?</span></label>
               <input type="text" id="brushtask_exclude" class="form-control" placeholder="关键字或正则表达式">
@@ -352,14 +336,14 @@
           </div>
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label">上传限速（KB/S） <span class="form-help" title="限制添加下载后的上传速度"
+              <label class="form-label" for="brushtask_upspeed">上传限速（KB/S） <span class="form-help" title="限制添加下载后的上传速度"
                                                              data-bs-toggle="tooltip">?</span></label>
               <input type="text" id="brushtask_upspeed" class="form-control" placeholder="">
             </div>
           </div>
           <div class="col-lg-4">
             <div class="mb-3">
-              <label class="form-label">下载限速（KB/S） <span class="form-help" title="限制添加下载后的下载速度"
+              <label class="form-label" for="brushtask_downspeed">下载限速（KB/S） <span class="form-help" title="限制添加下载后的下载速度"
                                                              data-bs-toggle="tooltip">?</span></label>
               <input type="text" id="brushtask_downspeed" class="form-control" placeholder="">
             </div>
@@ -456,7 +440,7 @@
             </div>
           </div>
         </div>
-        <div class="hr-text hr-text-center hr-text-spaceless mt-1 mb-3">删种规则</div>
+        {{ UI.section_heading('删种规则', '设置做种与传输条件，控制任务的保留时间。') }}
         <div class="row">
           <div class="col-lg-4">
             <div class="mb-3">
@@ -618,9 +602,9 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">刷流种子明细</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
-      <div class="table-responsive" style="overflow-y: auto; max-height: 35em;">
+      <div class="table-responsive nt-table-region" style="overflow-y: auto; max-height: 35em;">
         <table id="table-brushtask-torrents" class="table table-vcenter card-table table-hover table-striped">
         </table>
       </div>

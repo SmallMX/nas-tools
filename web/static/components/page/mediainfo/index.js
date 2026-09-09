@@ -1,18 +1,18 @@
+import "../../card/media-styles.js";
 import { html, nothing } from "../../utility/lit-core.min.js";
 import { CustomElement, Golbal } from "../../utility/utility.js";
 
 export class PageMediainfo extends CustomElement {
   static properties = {
-    // 类型
     media_type: { attribute: "media-type" },
-    // TMDBID/DB:豆瓣ID
     tmdbid: { attribute: "media-tmdbid" },
-    // 媒体信息
     media_info: { type: Object },
-    // 类似影片
     similar_media: { type: Array },
-    // 推荐影片
     recommend_media: { type: Array },
+    _loading: { state: true },
+    _error: { state: true },
+    _recommendState: { state: true },
+    _recommendErrors: { state: true },
   };
 
   constructor() {
@@ -20,257 +20,152 @@ export class PageMediainfo extends CustomElement {
     this.media_info = {};
     this.similar_media = [];
     this.recommend_media = [];
+    this._loading = true;
+    this._error = "";
+    this._recommendState = { sim: "loading", more: "loading" };
+    this._recommendErrors = {};
   }
 
   firstUpdated() {
-    // 媒体信息、演员阵容
-    Golbal.get_cache_or_ajax("media_detail", "info", { "type": this.media_type, "tmdbid": this.tmdbid},
-      (ret) => {
-        if (ret.code === 0) {
-          this.media_info = ret.data;
-          this.tmdbid = ret.data.tmdbid;
-          // 类似
-          Golbal.get_cache_or_ajax("get_recommend", "sim", { "type": this.media_type, "subtype": "sim", "tmdbid": ret.data.tmdbid, "page": 1},
-            (ret) => {
-              if (ret.code === 0) {
-                this.similar_media = ret.Items;
-              }
-            }
-          );
-          // 推荐
-          Golbal.get_cache_or_ajax("get_recommend", "more", { "type": this.media_type, "subtype": "more", "tmdbid": ret.data.tmdbid, "page": 1},
-            (ret) => {
-              if (ret.code === 0) {
-                this.recommend_media = ret.Items;
-              }
-            }
-          );
-        } else {
-          show_fail_modal("未查询到TMDB媒体信息！");
-          window.history.go(-1);
-        }
-      }
-    );
+    this._loadDetail();
   }
 
-  _render_placeholder(width, height, col, num) {
-    return Array(num ?? 1).fill(html`
-      <div class="placeholder ${col}"
-        style="min-width:${width};min-height:${height};">
-      </div>
-    `);
+  _loadDetail(retry = false) {
+    this._loading = true;
+    this._error = "";
+    const params = { type: this.media_type, tmdbid: this.tmdbid };
+    const receive = (ret) => {
+      if (!this.isConnected) return;
+      this._loading = false;
+      if (ret?.code !== 0 || !ret.data) {
+        this._error = ret?.msg || "未查询到 TMDB 媒体信息，请稍后重试。";
+        return;
+      }
+      this.media_info = ret.data;
+      this.tmdbid = ret.data.tmdbid;
+      this._loadRecommendations("sim");
+      this._loadRecommendations("more");
+    };
+    if (retry) {
+      ajax_post("media_detail", params, (ret) => {
+        if (!this.isConnected) return;
+        if (ret?.code === 0) Golbal.save_page_data("media_detailinfo", ret);
+        receive(ret);
+      });
+    } else Golbal.get_cache_or_ajax("media_detail", "info", params, receive);
+  }
+
+  _loadRecommendations(subtype, retry = false) {
+    this._recommendState = { ...this._recommendState, [subtype]: "loading" };
+    const params = { type: this.media_type, subtype, tmdbid: this.tmdbid, page: 1 };
+    const receive = (ret) => {
+      if (!this.isConnected) return;
+      const failed = ret?.code !== 0 || !Array.isArray(ret.Items);
+      this._recommendState = { ...this._recommendState, [subtype]: failed ? "error" : "ready" };
+      this._recommendErrors = { ...this._recommendErrors, [subtype]: failed ? ret?.msg || "暂时无法获取推荐内容。" : "" };
+      if (!failed) this[subtype === "sim" ? "similar_media" : "recommend_media"] = ret.Items;
+    };
+    if (retry) {
+      ajax_post("get_recommend", params, (ret) => {
+        if (!this.isConnected) return;
+        if (ret?.code === 0) Golbal.save_page_data("get_recommend" + subtype, ret);
+        receive(ret);
+      });
+    } else Golbal.get_cache_or_ajax("get_recommend", subtype, params, receive);
+  }
+
+  _renderRecommendations(items, subtype, title) {
+    return html`
+      <custom-slide slide-title=${title} lazy="normal-card"
+        slide-status=${this._recommendState[subtype]} slide-error=${this._recommendErrors[subtype] || ""}
+        @retry=${() => this._loadRecommendations(subtype, true)}
+        .slide_click=${Golbal.build_nav_path("recommend", {
+          type: this.media_type, subtype, tmdbid: this.tmdbid, title, subtitle: this.media_info.title,
+        })}
+        .slide_card=${this._recommendState[subtype] === "loading"
+          ? Array.from({ length: 6 }, () => html`<normal-card-placeholder></normal-card-placeholder>`)
+          : items.map((item) => html`
+            <normal-card lazy="1" card-tmdbid=${item.id} card-mediatype=${item.type} card-showsub="1"
+              card-image=${item.image} card-vote=${item.vote} card-year=${item.year}
+              card-title=${item.title} card-overview=${item.overview}></normal-card>`) }>
+      </custom-slide>`;
   }
 
   render() {
-    const tmdbLink = Golbal.safe_external_url(this.media_info.link);
-    const doubanLink = Golbal.safe_external_url(this.media_info.douban_link);
+    const info = this.media_info;
+    const tmdbLink = Golbal.safe_external_url(info.link);
+    const doubanLink = Golbal.safe_external_url(info.douban_link);
+    const actorsPath = Golbal.build_nav_path("discovery_person", {
+      tmdbid: this.tmdbid, type: this.media_type, title: "演职人员", subtitle: info.title,
+    });
+    if (this._error) return html`
+      <div class="container-xl nt-media-detail">
+        <div class="nt-media-state" role="status"><h1 class="nt-discovery-title">作品详情暂时无法加载</h1><p>${this._error}</p>
+          <button type="button" class="btn btn-primary" @click=${() => this._loadDetail(true)}>重新加载</button>
+          <button type="button" class="btn btn-outline-primary ms-2" @click=${() => navmenu("ranking")}>浏览榜单</button>
+        </div>
+      </div>`;
     return html`
-      <style>
-        .lit-media-info-page-bg {
-          background-color: rgb(var(--tblr-body-bg-rgb));
-        }
-        
-        .theme-light .lit-media-info-page-bg {
-          background-color: rgb(231, 235, 239);
-        }
-      </style>
-      <div class="container-xl placeholder-glow page-wrapper-top-off lit-media-info-page-bg">
-        <!-- 渲染媒体信息 -->
-        <div class="card rounded-0 lit-media-info-background" style="border:none;height:calc(env(safe-area-inset-top) + var(--safe-area-inset-top) + 541px);">
-          <custom-img style="border:none;height:calc(env(safe-area-inset-top) + var(--safe-area-inset-top) + 541px);"
-            div-style="display:inline;"
-            img-placeholder="0"
-            img-error="0"
-            .img_src_list=${this.media_info.background}
-            img-class="card-img rounded-0"
-            img-style="padding-bottom: 1px; display: block; width: 0px; height: 0px; min-width: 100%; max-width: 100%; min-height: 100%; max-height: 100%; object-fit: cover;">
-          </custom-img>
-          <div class="card-img-overlay rounded-0 lit-media-info-background">
-            <div class="d-md-flex flex-md-row mb-4">
-              <custom-img class="d-flex justify-content-center"
-                img-class="rounded-4 object-cover lit-media-info-image"
-                img-error=${Object.keys(this.media_info).length === 0 ? "0" : "1"}
-                img-src=${this.media_info.image}>
-              </custom-img>
-              <div class="d-flex justify-content-center">
-                <div class="d-flex flex-column justify-content-end ms-2 mt-2">
-                  <h1 class="align-self-center align-self-md-start display-6">
-                    <strong>${this.media_info.title ?? this._render_placeholder("200px")}</strong>
-                    <strong class="h1" ?hidden=${!this.media_info.year}>(${this.media_info.year})</strong>
-                  </h1>
-                  <div class="align-self-center align-self-md-start">
-                    <a href=${tmdbLink || "#"} target="_blank" rel="noopener noreferrer" ?hidden=${!this.media_info.tmdbid || !tmdbLink}><span class="badge badge-outline text-green">${this.media_info.tmdbid}</span></a>
-                    <a href=${doubanLink || "#"} target="_blank" rel="noopener noreferrer" ?hidden=${!this.media_info.douban_id || !doubanLink}><span class="badge badge-outline text-orange">${this.media_info.douban_id}</span></a>
-                    <span class="ms-1" ?hidden=${!this.media_info.runtime}>${this.media_info.runtime}</span>
-                    <span ?hidden=${!this.media_info.genres}>| ${this.media_info.genres}</span>
-                    ${Object.keys(this.media_info).length === 0 ? this._render_placeholder("205px") : nothing }
-                  </div>
-                  <div class="align-self-center align-self-md-start me-1 mt-2">
-                    ${Object.keys(this.media_info).length !== 0
-                    ? html`
-                      <span class="btn btn-primary btn-pill me-1"
-                        @click=${(e) => {
-                          e.stopPropagation();
-                          media_search(this.tmdbid + "", this.media_info.title, this.media_type);
-                        }}>
-                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"></path><circle cx="10" cy="10" r="7"></circle><line x1="21" y1="21" x2="15" y2="15"></line></svg>
-                        搜索资源
-                      </span>`
-                    : html`
-                      <span class="me-1">${this._render_placeholder("100px", "30px")}</span>
-                      <span class="me-1">${this._render_placeholder("100px", "30px")}</span>
-                      `
-                    }
-                  </div>
-                </div>
+      <div class="container-xl nt-media-detail" aria-busy=${this._loading ? "true" : "false"}>
+        <div class="nt-discovery-eyebrow">探索 · 作品详情</div>
+        <section class="nt-media-detail__hero" aria-label="作品概览">
+          ${info.background?.length ? html`
+            <div class="nt-media-detail__backdrop" aria-hidden="true">
+              <img src=${info.background[0]} alt="" style="width:100%;height:100%;object-fit:cover;" @error=${(event) => { event.target.hidden = true; }}>
+            </div>` : nothing}
+          <div class="nt-media-detail__hero-content">
+            <div class="nt-media-detail__poster">
+              ${this._loading ? html`<normal-card-placeholder></normal-card-placeholder>` : html`
+                <custom-img img-src=${info.image} img-ratio="150%" img-style="width:100%;height:100%;object-fit:cover;"></custom-img>`}
+            </div>
+            <div class="nt-media-detail__heading">
+              <h1>${this._loading ? "正在加载作品信息…" : info.title}${info.year ? html` <span class="nt-media-detail__year">(${info.year})</span>` : nothing}</h1>
+              <div class="nt-media-detail__metadata">
+                ${Number(info.vote) > 0 ? html`<span class="nt-media-detail__score">★ ${info.vote}</span>` : nothing}
+                ${info.runtime ? html`<span>${info.runtime}</span>` : nothing}
+                ${info.genres ? html`<span>${info.genres}</span>` : nothing}
               </div>
-            </div>
-            <h1 class="d-flex">
-              <strong>${Object.keys(this.media_info).length === 0 ? "加载中.." : "简介"}</strong>
-            </h1>
-          </div>
-        </div>
-        <div class="row">
-          <div class="col-lg-8">
-            <h2 class="text-muted ms-4 me-2">
-              <small>${this.media_info.overview ?? this._render_placeholder("200px", "", "col-12", 7)}</small>
-            </h2>
-            <div class="row mx-2 mt-4">
-              ${this.media_info.crews
-              ? this.media_info.crews.map((item, index) => ( html`
-                <div class="col-12 col-md-6 col-lg-4">
-                  <h2 class="">
-                    <strong>${Object.keys(item)[0]}</strong>
-                  </h2>
-                  <p class="text-muted mb-4">
-                    <strong>${Object.values(item)[0]}</strong>
-                  </p>
-                </div>
-                `) )
-              : nothing }
+              <div class="nt-media-detail__links">
+                ${info.tmdbid && tmdbLink ? html`<a href=${tmdbLink} target="_blank" rel="noopener noreferrer">TMDB · ${info.tmdbid} ↗</a>` : nothing}
+                ${info.douban_id && doubanLink ? html`<a href=${doubanLink} target="_blank" rel="noopener noreferrer">豆瓣 · ${info.douban_id} ↗</a>` : nothing}
+              </div>
+              ${!this._loading ? html`
+                <div class="btn-list">
+                  <button type="button" class="btn btn-primary" @click=${() => media_search(String(this.tmdbid), info.title, this.media_type)}>
+                    <svg class="icon" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" fill="none" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="m16 16 4.5 4.5"></path></svg>搜索资源
+                  </button>
+                  ${info.actors?.length ? html`<button type="button" class="btn btn-outline-primary" @click=${() => navmenu(actorsPath)}>查看演职人员</button>` : nothing}
+                </div>` : html`<div class="nt-media-skeleton nt-media-skeleton--line"></div>`}
             </div>
           </div>
-          <div class="col-lg-4">
-            ${this.media_info.fact
-            ? html`
-              <div class="ms-3 me-2 mt-1">
-                <div class="card rounded-3" style="background: none">
-                  ${this.media_info.fact.map((item) => ( html`
-                    <div class="card-body p-2">
-                      <div class="d-flex justify-content-between">
-                        <div class="align-self-center" style="min-width:25%;">
-                          <strong>${Object.keys(item)[0]}</strong>
-                        </div>
-                        <div class="text-break text-muted" style="text-align:end;">
-                          ${Object.values(item)[0]}
-                        </div>
-                      </div>
-                    </div>
-                    `) ) }
-                </div>
-              </div>`
-            : this._render_placeholder("200px", "200px", "col-12") }
-          </div>
+        </section>
+        <div class="nt-media-detail__columns">
+          <section class="nt-media-detail__section">
+            <h2>剧情简介</h2>
+            <p class="nt-media-detail__overview">${this._loading ? "正在加载剧情简介…" : info.overview || "这部作品暂未提供剧情简介。"}</p>
+            ${info.crews?.length ? html`
+              <dl class="nt-media-detail__crew">${info.crews.map((item) => html`
+                <div><dt>${Object.keys(item)[0]}</dt><dd>${Object.values(item)[0]}</dd></div>`)}</dl>` : nothing}
+          </section>
+          <section class="nt-media-detail__section">
+            <h2>作品资料</h2>
+            ${info.fact?.length ? html`
+              <dl class="nt-media-detail__facts">${info.fact.map((item) => html`
+                <div><dt>${Object.keys(item)[0]}</dt><dd>${Object.values(item)[0]}</dd></div>`)}</dl>`
+              : html`<p class="nt-media-detail__overview">${this._loading ? "正在加载资料…" : "暂无更多作品资料。"}</p>`}
+          </section>
         </div>
-
-        <!-- 渲染演员阵容 -->
-        ${this.media_info.actors && this.media_info.actors.length
-        ? html`
-          <custom-slide
-            slide-title="演员阵容"
-            .slide_click=${Golbal.build_nav_path("discovery_person", {
-              tmdbid: this.tmdbid,
-              type: this.media_type,
-              title: "演员",
-              subtitle: this.media_info.title,
-            })}
-            lazy="person-card"
-            .slide_card=${this.media_info.actors.map((item) => ( html`
-              <person-card
-                lazy=1
-                person-id=${item.id}
-                person-image=${item.image}
-                person-name=${item.name}
-                person-role=${item.role}
-                @click=${() => {
-                  navmenu(Golbal.build_nav_path("recommend", {
-                    type: this.media_type,
-                    subtype: "person",
-                    personid: item.id,
-                    title: "参演作品",
-                    subtitle: item.name,
-                  }));
-                }}
-              ></person-card>`))
-            }
-          ></custom-slide>`
-        : nothing }
-
-        <!-- 渲染类似影片 -->
-        ${this.similar_media.length
-        ? html`
-          <custom-slide
-            slide-title="类似"
-            .slide_click=${Golbal.build_nav_path("recommend", {
-              type: this.media_type,
-              subtype: "sim",
-              tmdbid: this.tmdbid,
-              title: "类似",
-              subtitle: this.media_info.title,
-            })}
-            lazy="normal-card"
-            .slide_card=${this.similar_media.map((item) => ( html`
-              <normal-card
-                lazy=1
-                card-tmdbid=${item.id}
-                card-mediatype=${item.type}
-                card-showsub=1
-                card-image=${item.image}
-                card-vote=${item.vote}
-                card-year=${item.year}
-                card-title=${item.title}
-                card-overview=${item.overview}
-              ></normal-card>`))
-            }
-          ></custom-slide>`
-        : nothing }
-
-        <!-- 渲染推荐影片 -->
-        ${this.recommend_media.length
-        ? html`
-          <custom-slide
-            slide-title="推荐"
-            .slide_click=${Golbal.build_nav_path("recommend", {
-              type: this.media_type,
-              subtype: "more",
-              tmdbid: this.tmdbid,
-              title: "推荐",
-              subtitle: this.media_info.title,
-            })}
-            lazy="normal-card"
-            .slide_card=${this.recommend_media.map((item) => ( html`
-              <normal-card
-                lazy=1
-                card-tmdbid=${item.id}
-                card-mediatype=${item.type}
-                card-showsub=1
-                card-image=${item.image}
-                card-vote=${item.vote}
-                card-year=${item.year}
-                card-title=${item.title}
-                card-overview=${item.overview}
-              ></normal-card>`))
-            }
-          ></custom-slide>`
-        : nothing }
-
-      </div>
-    `;
+        ${info.actors?.length ? html`
+          <custom-slide slide-title="演员阵容" .slide_click=${actorsPath} lazy="person-card"
+            .slide_card=${info.actors.map((item) => html`
+              <person-card lazy="1" person-id=${item.id} person-image=${item.image} person-name=${item.name} person-role=${item.role}
+                @click=${() => navmenu(Golbal.build_nav_path("recommend", {
+                  type: this.media_type, subtype: "person", personid: item.id, title: "参演作品", subtitle: item.name,
+                }))}></person-card>`) }></custom-slide>` : nothing}
+        ${!this._loading ? this._renderRecommendations(this.similar_media, "sim", "相似作品") : nothing}
+        ${!this._loading ? this._renderRecommendations(this.recommend_media, "more", "你可能还喜欢") : nothing}
+      </div>`;
   }
-
-
-
 }
-
 
 window.customElements.define("page-mediainfo", PageMediainfo);

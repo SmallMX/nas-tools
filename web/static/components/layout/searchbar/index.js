@@ -44,12 +44,33 @@ export class LayoutSearchbar extends CustomElement {
   }
 
   firstUpdated() {
-    this._search_source = localStorage.getItem("SearchSource") ?? this.layout_search_source;
+    this._search_source = ["tmdb", "douban"].includes(localStorage.getItem("SearchSource")) ? localStorage.getItem("SearchSource") : this.layout_search_source;
   }
 
-  // 卸载事件
+  connectedCallback() {
+    super.connectedCallback();
+    this._shortcut = (event) => {
+      if (!event.isComposing && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        this.input?.focus();
+      }
+    };
+    document.addEventListener("keydown", this._shortcut);
+  }
+
   disconnectedCallback() {
+    document.removeEventListener("keydown", this._shortcut);
     super.disconnectedCallback();
+  }
+
+  _submit_search() {
+    const keyword = this.input?.value.trim();
+    if (!keyword) { this.input?.focus(); return; }
+    navmenu(Golbal.build_nav_path("recommend", {
+      type: "SEARCH", title: "搜索结果", subtitle: keyword,
+      keyword, source: this._search_source,
+    }));
+    this.input.value = "";
   }
 
   get input() {
@@ -61,8 +82,10 @@ export class LayoutSearchbar extends CustomElement {
       <style>
 
         .lit-searchbar {
+          height: var(--app-header-height);
           min-height: var(--app-header-height);
-          background: var(--tblr-bg-surface) !important;
+          padding: 0;
+          background: var(--nt-surface) !important;
           border: 0 !important;
           border-bottom: 1px solid var(--tblr-border-color) !important;
           box-shadow: none !important;
@@ -70,10 +93,12 @@ export class LayoutSearchbar extends CustomElement {
           -webkit-backdrop-filter: blur(12px);
         }
 
+        .nt-message-button { margin-left: auto; flex-shrink: 0; }
         .lit-searchbar .input-group {
-          max-width: 46rem;
+          max-width: 720px;
         }
 
+        .lit-searchbar .input-group-text { padding: 0 10px; }
         .lit-searchbar .input-group-text,
         .lit-searchbar .form-control {
           background: var(--tblr-bg-surface);
@@ -82,7 +107,7 @@ export class LayoutSearchbar extends CustomElement {
         .lit-user-menu {
           min-height: 2.5rem;
           border: 1px solid var(--tblr-border-color);
-          border-radius: 0.5rem;
+          border-radius: var(--nt-control-radius);
           background: var(--tblr-bg-surface);
         }
 
@@ -93,30 +118,23 @@ export class LayoutSearchbar extends CustomElement {
           <layout-navbar-button></layout-navbar-button>
           <!-- 搜索栏 -->
           <div class="input-group input-group-flat flex-grow-1">
-            <span class="input-group-text form-control-rounded">
-              <a href="#" class="link-secondary" aria-label="切换搜索来源" title="切换搜索来源"
+            <span class="input-group-text ">
+              <button type="button" class="btn btn-icon btn-sm border-0 p-0" aria-label=${`当前来源 ${this._search_source === "tmdb" ? "TMDB" : "豆瓣"}，点击切换`} title="切换搜索来源"
                 @click=${ () => {
                   this._search_source = this._search_source === "tmdb" ? "douban" : "tmdb";
                   localStorage.setItem("SearchSource", this._search_source);
                 }}>
                 ${search_source_icon[this._search_source]}
-              </a>
+              </button>
             </span>
-            <input type="text" class="home_search_bar form-control form-control-rounded" placeholder="搜索电影、电视剧" autocomplete="new-password"
-              @keypress=${ (e) => {
-                if(e.which === 13 && this.input.value){
-                  const keyword = this.input.value;
-                  navmenu(Golbal.build_nav_path("recommend", {
-                    type: "SEARCH",
-                    title: "搜索结果",
-                    subtitle: keyword,
-                    keyword: keyword,
-                    source: this._search_source,
-                  }));
-                  this.input.value = "";
-                }
-              }}>
-            <span class="input-group-text form-control-rounded">
+            <input type="search" class="home_search_bar form-control " placeholder="搜索电影、电视剧" aria-label="搜索电影、电视剧" autocomplete="off"
+              @keydown=${ (event) => { if (event.key === "Enter" && !event.isComposing && event.keyCode !== 229) { event.preventDefault(); this._submit_search(); } }}>
+            <span class="input-group-text">
+              <button type="button" class="btn btn-icon btn-sm border-0 p-0" aria-label="搜索" title="搜索（⌘ / Ctrl K 聚焦）" @click=${() => this._submit_search()}>
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="m16 16 4.5 4.5"></path></svg>
+              </button>
+            </span>
+            <span class="input-group-text ">
               <a href="javascript:show_search_advanced_modal()" class="link-secondary" aria-label="高级搜索" title="高级搜索">
                 <!-- http://tabler-icons.io/i/adjustments -->
                 <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2"
@@ -135,6 +153,10 @@ export class LayoutSearchbar extends CustomElement {
               </a>
             </span>
           </div>
+          ${this.layout_userpris.includes("系统设置") ? html`
+            <button class="btn btn-icon nt-message-button" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasEnd" aria-controls="offcanvasEnd" aria-label="打开消息中心" title="消息中心">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"></path></svg>
+            </button>` : nothing}
           <!-- 头像 -->
           <div class="nav-item dropdown">
               <a href="#" class="lit-user-menu nav-link d-flex align-items-center gap-2 lh-1 text-reset px-3" data-bs-toggle="dropdown" aria-label="用户菜单">

@@ -1,0 +1,56 @@
+{
+  "errors": [],
+  "checks": [
+    {
+      "viewport": "1440 light",
+      "upload": [
+        "50%",
+        "72%"
+      ],
+      "colors": [
+        "#187761",
+        "rgb(135, 184, 173)",
+        "rgb(27, 95, 79)",
+        "rgb(151, 194, 184)",
+        "rgb(72, 120, 105)",
+        "rgb(197, 221, 216)",
+        "rgb(29, 75, 63)",
+        "rgb(149, 161, 154)"
+      ],
+      "axis": "#68786f",
+      "tooltip": "#fff",
+      "overflow": false
+    },
+    {
+      "viewport": "390 light",
+      "width": 316,
+      "container": 316,
+      "overflow": false
+    },
+    {
+      "viewport": "1440 dark",
+      "colors": [
+        "#65c8a8",
+        "rgb(65, 124, 104)",
+        "rgb(147, 213, 191)",
+        "rgb(59, 113, 95)",
+        "rgb(139, 189, 170)",
+        "rgb(44, 81, 68)",
+        "rgb(186, 225, 210)",
+        "rgb(123, 140, 131)"
+      ],
+      "axis": "#a5b6ac",
+      "tooltip": "#192923",
+      "overflow": false
+    },
+    {
+      "viewport": "768 modal",
+      "width": 686,
+      "container": 686
+    },
+    {
+      "navigation": "statistics -> tools",
+      "released": true
+    }
+  ]
+}

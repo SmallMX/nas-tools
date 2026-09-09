@@ -1,22 +1,12 @@
-<div class="container-xl">
-  <!-- Page title -->
-  <div class="page-header d-print-none">
-    <div class="row align-items-center">
-      <div class="col">
-        <h2 class="page-title">
-          服务
-        </h2>
-      </div>
-    </div>
-  </div>
-</div>
+{% import 'macro/ui.html' as UI %}
+{{ UI.page_header('服务', '测试媒体识别与网络连接，备份当前配置。', eyebrow='工作空间') }}
 <!-- 业务页面代码 -->
 {% if Count > 0 %}
 <div class="page-body">
   <div class="container-xl">
     <div class="d-grid gap-3 grid-normal-card">
       {% for Scheduler in SchedulerTasks %}
-      <div class="card card-sm card-link-pop">
+      <div class="card card-link-pop nt-tool-card">
         <div class="card-body">
           <div class="row align-items-center">
             <div class="col-auto">
@@ -25,12 +15,12 @@
               </span>
             </div>
             <div class="col">
-              <div class="font-weight-medium">
-                <a href="#" class="service-action"
+              <h3 class="card-title mb-2">
+                <a href="#" class="service-action stretched-link"
                    data-service-id="{{ Scheduler.id }}" data-service-name="{{ Scheduler.name }}">{{ Scheduler.name }}</a>
-              </div>
+              </h3>
               <div class="text-muted">
-                {{ Scheduler.time }}
+                {{ {'nametest': '检查资源名称的媒体类型、年份与识别结果。', 'nettest': '检查媒体信息源与通知服务的连接情况。', 'backup': '下载当前配置与数据库的备份文件。'}.get(Scheduler.id, Scheduler.time) }}
               </div>
             </div>
             {% if Scheduler.state == "ON" %}
@@ -48,14 +38,7 @@
 {% else %}
 <div class="page-body">
   <div class="container-xl d-flex flex-column justify-content-center">
-    <div class="empty">
-      <div class="empty-img"><img src="./static/img/sign_in.svg" height="128" alt="">
-      </div>
-      <p class="empty-title">没有服务</p>
-      <p class="empty-subtitle text-muted">
-        没有开启任何后台服务。
-      </p>
-    </div>
+    {{ UI.empty_state('暂无可用服务', '当前账号没有可访问的服务。') }}
   </div>
 </div>
 {% endif %}
@@ -65,13 +48,13 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">名称识别测试</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
-      <div class="modal-body" style="overflow: hidden">
+      <div class="modal-body nt-form-body" style="overflow: hidden">
         <div class="row">
           <div class="col">
             <div class="mb-3">
-              <label class="form-label">资源名称 <span class="form-help"
+              <label class="form-label" for="test_name">资源名称 <span class="form-help"
                   title="用于测试名称识别情况" data-bs-toggle="tooltip">?</span></label>
               <input type="text" value="" id="test_name" class="form-control" placeholder="种子名/文件名等">
             </div>
@@ -97,9 +80,9 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">网络连通性测试</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
-      <div class="table-responsive">
+      <div class="table-responsive nt-table-region">
         <table class="table table-vcenter card-table">
           <thead>
             <tr>
@@ -135,7 +118,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">备份配置</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
       <div class="modal-body text-muted">
         将当前配置、站点文件和数据库打包下载。备份可能包含账号与密钥等敏感信息，请妥善保管。

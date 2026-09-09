@@ -1,31 +1,22 @@
+{% import 'macro/ui.html' as UI %}
 {% import 'macro/svg.html' as SVG %}
-<div class="container-xl">
-  <!-- Page title -->
-  <div class="page-header d-print-none">
-    <div class="row align-items-center">
-      <div class="col">
-        <h2 class="page-title">
-          {{ SettingTitle }}
-        </h2>
-      </div>
-    </div>
-  </div>
-</div>
+{{ UI.page_header(SettingTitle, {'system': '配置访问方式、账号与日志，保持系统稳定运行。', 'media': '管理媒体信息来源与识别规则。', 'service': '设置识别服务与搜索、下载行为。', 'security': '管理访问来源、会话与接口凭据。', 'laboratory': '按需开启实验功能，调整媒体识别与搜索策略。'}.get(SettingSection, ''), eyebrow='系统设置') }}
 <!-- 业务页面代码 -->
 <div class="page-body">
   <div class="container-xl">
     <div class="row row-cards">
       {% if SettingSection == "system" %}
       <div class="col-md-12">
-        <div class="card" id="basic_system">
+        <div class="card nt-settings-card" id="basic_system">
           <div class="card-header">
             <h3 class="card-title"><strong>系统</strong></h3>
           </div>
           <div class="card-body">
+            {{ UI.section_heading('日志与诊断', '选择日志的输出位置和详细程度。') }}
             <div class="row">
               <div class="col-lg">
                 <div class="mb-3">
-                  <label class="form-label required">日志输出类型</label>
+                  <label class="form-label required" for="app.logtype">日志输出类型</label>
                   <select class="form-select" id="app.logtype">
                     <option value="console" {% if Config.app.logtype=='console' %}selected{% endif %}>控制台</option>
                     <option value="file" {% if Config.app.logtype=='file' %}selected{% endif %}>文件</option>
@@ -35,7 +26,7 @@
               </div>
               <div class="col-lg">
                 <div class="mb-3">
-                  <label class="form-label">日志文件路径 <span class="form-help"
+                  <label class="form-label" for="app.logpath">日志文件路径 <span class="form-help"
                                                                title="日志输出类型为文件时需要配置该项"
                                                                data-bs-toggle="tooltip">?</span></label>
                   <input type="text" value="{{ Config.app.logpath or '' }}" class="form-control filetree-folders-only"
@@ -44,7 +35,7 @@
               </div>
               <div class="col-lg">
                 <div class="mb-3">
-                  <label class="form-label">日志中心地址 <span class="form-help"
+                  <label class="form-label" for="app.logserver">日志中心地址 <span class="form-help"
                                                                title="日志输出类型为日志中心时需要配置该项；需要配置IP地址和端口，配置示例：127.0.0.1:514"
                                                                data-bs-toggle="tooltip">?</span></label>
                   <input type="text" value="{{ Config.app.logserver or '' }}" class="form-control" id="app.logserver"
@@ -53,7 +44,7 @@
               </div>
               <div class="col-lg">
                 <div class="mb-3">
-                  <label class="form-label">日志级别 <span class="form-help"
+                  <label class="form-label" for="app.loglevel">日志级别 <span class="form-help"
                                                                title="一般情况下请选择INFO，排查问题可选择DEBUG"
                                                                data-bs-toggle="tooltip">?</span></label>
                   <select class="form-select" id="app.loglevel">
@@ -71,10 +62,11 @@
                 </div>
               </div>
             </div>
+            {{ UI.section_heading('访问与账号', '管理登录页面与管理员凭据。') }}
             <div class="row">
               <div class="col-lg">
                 <div class="mb-3">
-                  <label class="form-label required">WEB壁纸来源 <span class="form-help"
+                  <label class="form-label required" for="app.wallpaper">WEB壁纸来源 <span class="form-help"
                                                                title="登录界面壁纸来源：TMDB、Bing，设置为TMDB时需在媒体配置TMDB API Key"
                                                                data-bs-toggle="tooltip">?</span></label>
                   <select class="form-select" id="app.wallpaper">
@@ -90,23 +82,24 @@
               </div>
               <div class="col-lg">
                 <div class="mb-3">
-                  <label class="form-label required">WEB管理用户</label>
+                  <label class="form-label required" for="app.login_user">WEB管理用户</label>
                   <input type="text" value="{{ Config.app.login_user or '' }}" class="form-control" id="app.login_user"
                          placeholder="admin" autocomplete="off">
                 </div>
               </div>
               <div class="col-lg">
                 <div class="mb-3">
-                  <label class="form-label required">WEB管理密码</label>
+                  <label class="form-label required" for="app.login_password">WEB管理密码</label>
                   <input type="password" value="{% if Config.app.login_password %}******{% endif %}" class="form-control"
                          id="app.login_password" placeholder="password" autocomplete="off">
                 </div>
               </div>
             </div>
+            {{ UI.section_heading('网络访问', '设置代理和外网访问地址。') }}
             <div class="row">
               <div class="col-lg">
                 <div class="mb-3">
-                  <label class="form-label">代理服务器 <span class="form-help"
+                  <label class="form-label" for="app.proxies">代理服务器 <span class="form-help"
                                                              title="将使用代理服务器访问 themoviedb、telegram、公开 BT 站等外部网站，站点默认不使用代理，如需使用需在站点维护中开启；配置格式示例：127.0.0.1:7890（HTTP 协议）、socks5://127.0.0.1:8018、socks5h://127.0.0.1:8018（remote DNS）"
                                                              data-bs-toggle="tooltip">?</span></label>
                   <input type="text" value="{{ Proxy or '' }}" class="form-control" id="app.proxies"
@@ -115,7 +108,7 @@
               </div>
               <div class="col-lg">
                 <div class="mb-3">
-                  <label class="form-label">外网访问地址 <span class="form-help"
+                  <label class="form-label" for="app.domain">外网访问地址 <span class="form-help"
                                                                title="使用该地址进行通知点击跳转以及设置Telegram机器人Webhook；需要配置IP地址和端口，如为https则需要加https://前缀；如启用Telegram机器人Webhook，则端口必须为：443, 80, 88, 8443之一，80、443一般运营商会封禁，建议使用88、8443"
                                                                data-bs-toggle="tooltip">?</span></label>
                   <input type="text" value="{{ Config.app.domain or '' }}" class="form-control" id="app.domain"
@@ -126,7 +119,7 @@
             <div class="row">
               <div class="col-lg">
                 <div class="mb-3">
-                  <label class="form-label">User-Agent <span class="form-help"
+                  <label class="form-label" for="app.user_agent">User-Agent <span class="form-help"
                                                              title="如发现被豆瓣、PT站等封堵，请适当修改此项"
                                                              data-bs-toggle="tooltip">?</span></label>
                   <input type="text" value="{{ Config.app.user_agent or '' }}" class="form-control" id="app.user_agent"
@@ -136,7 +129,7 @@
               </div>
             </div>
           </div>
-          <div class="card-footer">
+          <div class="card-footer nt-settings-footer">
             <div class="row align-items-center">
               <div class="col-auto">
                 <a href="javascript:void(0)" class="btn d-none d-sm-inline-block" data-bs-toggle="modal" data-bs-target="#modal-user-script">
@@ -159,15 +152,16 @@
       {% endif %}
       {% if SettingSection == "media" %}
       <div class="col-md-12">
-        <div class="card" id="basic_media">
+        <div class="card nt-settings-card" id="basic_media">
           <div class="card-header">
             <h3 class="card-title"><strong>媒体</strong></h3>
           </div>
           <div class="card-body">
+            {{ UI.section_heading('媒体信息源', '设置 TMDB 连接与匹配方式。') }}
             <div class="row">
               <div class="col-lg">
                 <div class="mb-3">
-                  <label class="form-label required">TMDB API Key <span class="form-help"
+                  <label class="form-label required" for="app.rmt_tmdbkey">TMDB API Key <span class="form-help"
                                                                         title="在themoviedb.org网站申请API Key，该项必须配置，否则所有功能无法正常运行"
                                                                         data-bs-toggle="tooltip">?</span></label>
                   <input type="text" value="{{ Config.app.rmt_tmdbkey or '' }}" class="form-control"
@@ -176,7 +170,7 @@
               </div>
               <div class="col-lg">
                 <div class="mb-3">
-                  <label class="form-label required">TMDB域名 <span class="form-help"
+                  <label class="form-label required" for="app.tmdb_domain">TMDB域名 <span class="form-help"
                                                                     title="如api.themoviedb.org无法访问可偿试使用api.tmdb.org，如均无法访问，则需要修改host或者使用网络代理"
                                                                     data-bs-toggle="tooltip">?</span></label>
                   <select class="form-select" id="app.tmdb_domain">
@@ -191,7 +185,7 @@
               </div>
               <div class="col-lg">
                 <div class="mb-3">
-                  <label class="form-label required">TMDB匹配模式 <span class="form-help"
+                  <label class="form-label required" for="app.rmt_match_mode">TMDB匹配模式 <span class="form-help"
                                                                         title="正常模式下会提升识别成功率，但也可能会导致误识别率增加；严格模式可以降低误识别率，但可能导致很多文件名/种子名中年份不正确的无法被识别（特别是剧集，需要是首播年份）"
                                                                         data-bs-toggle="tooltip">?</span></label>
                   <select class="form-select" id="app.rmt_match_mode">
@@ -203,10 +197,11 @@
                 </div>
               </div>
             </div>
+            {{ UI.section_heading('补充信息源', '配置图片与豆瓣信息服务。') }}
             <div class="row">
               <div class="col-lg">
                 <div class="mb-3">
-                  <label class="form-label">Fanart API Key <span class="form-help"
+                  <label class="form-label" for="app.fanart_api_key">Fanart API Key <span class="form-help"
                                                                       title="可选。用于获取Fanart高清图片；留空时不调用Fanart API"
                                                                       data-bs-toggle="tooltip">?</span></label>
                   <input type="password" value="{% if Config.app.fanart_api_key %}******{% endif %}"
@@ -215,7 +210,7 @@
               </div>
               <div class="col-lg">
                 <div class="mb-3">
-                  <label class="form-label">豆瓣 API Key <span class="form-help"
+                  <label class="form-label" for="app.douban_api_key">豆瓣 API Key <span class="form-help"
                                                                      title="可选。需要与豆瓣 API Secret 同时配置；留空时不调用豆瓣移动端API"
                                                                      data-bs-toggle="tooltip">?</span></label>
                   <input type="password" value="{% if Config.app.douban_api_key %}******{% endif %}"
@@ -224,7 +219,7 @@
               </div>
               <div class="col-lg">
                 <div class="mb-3">
-                  <label class="form-label">豆瓣 API Secret <span class="form-help"
+                  <label class="form-label" for="app.douban_api_secret">豆瓣 API Secret <span class="form-help"
                                                                         title="可选。需要与豆瓣 API Key 同时配置；留空时不调用豆瓣移动端API"
                                                                         data-bs-toggle="tooltip">?</span></label>
                   <input type="password" value="{% if Config.app.douban_api_secret %}******{% endif %}"
@@ -232,10 +227,11 @@
                 </div>
               </div>
             </div>
+            {{ UI.section_heading('分类与下载规则', '管理资源分类和下载优先策略。') }}
             <div class="row">
               <div class="col-lg">
                 <div class="mb-3">
-                  <label class="form-label">二级分类策略 <span class="form-help"
+                  <label class="form-label" for="media.category">二级分类策略 <span class="form-help"
                                                                title="按电影、电视剧、动漫的 TMDB 信息计算二级分类，供下载目录规则匹配；配置文件目录中需要有与策略名同名的.yaml文件，如不需要二级分类可留空"
                                                                data-bs-toggle="tooltip">?</span></label>
                   <input type="text" value="{{ Config.media.category or '' }}" class="form-control" id="media.category"
@@ -244,7 +240,7 @@
               </div>
               <div class="col-lg">
                 <div class="mb-3">
-                  <label class="form-label required">下载优先规则 <span class="form-help"
+                  <label class="form-label required" for="pt.download_order">下载优先规则 <span class="form-help"
                                                                         title="远程搜索下载将按此优先规则选择下载资源，其中站点优先决定于维护的站点优先级或索引器中配置的站点顺序，默认为站点优先"
                                                                         data-bs-toggle="tooltip">?</span></label>
                   <select class="form-select" id="pt.download_order">
@@ -257,7 +253,7 @@
               </div>
               <div class="col-lg">
                 <div class="mb-3">
-                  <label class="form-label">TMDB代理服务地址 <span class="form-help"
+                  <label class="form-label" for="laboratory.tmdb_proxy">TMDB代理服务地址 <span class="form-help"
                                                                       title="可选。留空时直连上方选择的TMDB域名；项目不提供默认代理服务，请填写自行部署或信任的完整HTTP(S)地址"
                                                                       data-bs-toggle="tooltip">?</span></label>
                   <input type="url"
@@ -268,7 +264,7 @@
               </div>
             </div>
           </div>
-          <div class="card-footer">
+          <div class="card-footer nt-settings-footer">
             <div class="row align-items-center">
               <div class="col-auto">
                 <a href="javascript:navmenu('tmdbcache')" class="btn d-none d-sm-inline-block">
@@ -297,7 +293,7 @@
       {% endif %}
       {% if SettingSection == "service" %}
       <div class="col-md-12">
-        <div class="card" id="basic_service">
+        <div class="card nt-settings-card" id="basic_service">
           <div class="card-header">
             <h3 class="card-title"><strong>服务</strong></h3>
           </div>
@@ -305,7 +301,7 @@
             <div class="row">
               <div class="col-xl">
                 <div class="mb-3">
-                  <label class="form-label">OCR服务地址 <span class="form-help"
+                  <label class="form-label" for="app.ocr_server">OCR服务地址 <span class="form-help"
                                                                   title="可选。配置后，自动识别验证码功能会请求该地址下的/captcha/base64接口；留空时不会调用任何外部OCR服务"
                                                                   data-bs-toggle="tooltip">?</span></label>
                   <input type="url" value="{{ Config.app.ocr_server or '' }}" class="form-control"
@@ -316,7 +312,7 @@
             <div class="row">
               <div class="col-xl">
                 <div class="mb-3">
-                  <label class="form-label">搜索并发数 <span class="form-help"
+                  <label class="form-label" for="pt.site_search_concurrency">搜索并发数 <span class="form-help"
                                                                title="单次搜索同时访问的站点数量，范围 1-32；较小的值可降低 NAS 资源和 SQLite 连接压力。"
                                                                data-bs-toggle="tooltip">?</span></label>
                   <input type="number" min="1" max="32" value="{{ Config.pt.site_search_concurrency or 8 }}"
@@ -349,7 +345,7 @@
               </div>
             </div>
           </div>
-          <div class="card-footer">
+          <div class="card-footer nt-settings-footer">
             <div class="row align-items-center">
               <div class="col"></div>
               <div class="col-auto">
@@ -364,7 +360,7 @@
       {% endif %}
       {% if SettingSection == "security" %}
       <div class="col-md-12">
-        <div class="card" id="security">
+        <div class="card nt-settings-card" id="security">
           <div class="card-header">
             <h3 class="card-title"><strong>安全</strong></h3>
           </div>
@@ -372,7 +368,7 @@
             <div class="row">
               <div class="col-12 col-lg">
                 <div class="mb-1">
-                  <label class="form-label">Telegram源地址 <span class="form-help"
+                  <label class="form-label" for="security.telegram_webhook_allow_ip.ipv4">Telegram源地址 <span class="form-help"
                                                                  title="仅接收配置的地址范围内发送的Telegram消息，多个地址段用,号分隔，配置为0.0.0.0/0,::/0则不做限制；使用Telegram WebHook且未做代理转发时推荐IPv4地址设置为：149.154.160.0/20,91.108.4.0/22，关闭Telegram WebHook时推荐IPv4地址设置为：127.0.0.1"
                                                                  data-bs-toggle="tooltip">?</span></label>
                   <input type="text"
@@ -402,7 +398,7 @@
               </div>
               <div class="col-12 col-lg">
                 <div class="mb-3">
-                  <label class="form-label">API密钥 <span class="form-help"
+                  <label class="form-label" for="security.api_key">API密钥 <span class="form-help"
                                                           title="调用受 API Key 保护的接口时，需要在 Authorization 中填入该密钥"
                                                           data-bs-toggle="tooltip">?</span></label>
                   <input type="text" id="security.api_key" class="form-control"
@@ -411,7 +407,7 @@
               </div>
             </div>
           </div>
-          <div class="card-footer">
+          <div class="card-footer nt-settings-footer">
             <div class="row align-items-center">
               <div class="col"></div>
               <div class="col-auto">
@@ -426,7 +422,7 @@
       {% endif %}
       {% if SettingSection == "laboratory" %}
       <div class="col-md-12">
-        <div class="card" id="laboratory">
+        <div class="card nt-settings-card" id="laboratory">
           <div class="card-header">
             <h3 class="card-title"><strong>实验室</strong></h3>
           </div>
@@ -489,7 +485,7 @@
               </div>
             </div>
           </div>
-          <div class="card-footer">
+          <div class="card-footer nt-settings-footer">
             <div class="row align-items-center">
               <div class="col"></div>
               <div class="col-auto">
@@ -553,9 +549,9 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">自定义制作组/字幕组 <span class="form-help" title="无法识别的制作组/字幕组在此添加" data-bs-toggle="tooltip">?</span></h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body nt-form-body">
         <div class='row'>
           <div class="col-lg-12">
             <div class="mb-3">

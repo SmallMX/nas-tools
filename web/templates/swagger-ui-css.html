@@ -1,0 +1,6 @@
+{# Theme the supported Flask-RESTX stylesheet extension point without replacing its API renderer. #}
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="{{ swagger_static('swagger-ui.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/swagger-theme.css') }}">
+<script src="{{ url_for('static', filename='js/demo-theme.min.js') }}" defer></script>

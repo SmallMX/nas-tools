@@ -1,0 +1,25 @@
+{% macro render(code, title, description) %}
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{{ code }} - NAStool</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/tabler.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+</head>
+<body>
+<script src="{{ url_for('static', filename='js/demo-theme.min.js') }}"></script>
+<main class="nt-error-page">
+  <div class="nt-error-card">
+    <div class="d-flex align-items-center justify-content-center gap-3"><span class="nt-brand-mark" aria-hidden="true">NT</span><span class="nt-brand-name">NAS-Tools</span></div>
+    <div class="nt-error-code" aria-hidden="true">{{ code }}</div>
+    <h1>{{ title }}</h1>
+    <p>{{ description }}</p>
+    <a href="/" class="btn btn-primary">返回首页</a>
+  </div>
+</main>
+</body>
+</html>
+{% endmacro %}

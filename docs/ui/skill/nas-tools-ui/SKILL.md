@@ -1,0 +1,26 @@
+---
+name: nas-tools-ui
+description: 为 NAS-Tools 的 Flask/Jinja 和 Lit Web 页面新增、修改或审查 UI，复用本项目设计规范和组件，保持桌面、移动端与深色模式一致。只适用于含 web/templates/navigation.html 的 NAS-Tools 项目，不用于其它产品的界面设计。
+---
+
+# NAS-Tools UI
+
+在 NAS-Tools 仓库根目录工作。先按本次任务读取 `docs/ui/design-system.md`、相关页的 `docs/ui/page-inventory.md` 条目及实际模板。需要设计图时读取 `docs/ui/page-prompts.md` 和 `docs/ui/designs/` 中相关画板；画板中的文字与数据是示例，功能与字段以当前代码为准。
+
+## 设计与实现
+
+- 颜色、间距、字体统一使用 `web/static/css/design-system.css` 的 `--nt-*` tokens。正文14、标题28、分区18；间距4/8/12/16/24/32；容器圆角12、控件8。新增主题色在 token 层同时定义明暗值。
+- 应用外壳为 232px 侧栏、72px 顶栏；小于992px使用导航抽屉，手机内容边距16px，表单单列。表格在自己的容器横向滚动，不让整个页面溢出。不要禁用浏览器缩放。
+- Jinja 页标题调用 `web/templates/macro/ui.html` 的 `page_header`，操作放在 caller；长表单用 `section_heading`。常规状态用 `macro/oops.html`。保留字段标签与输入 id 的关联。
+- Lit 组件使用 light DOM，全局样式可共享。媒体组件复用 `normal-card`、`person-card`、`custom-slide` 与 `card/media-styles.js`。新类使用 `nt-` 前缀并避免污染其它模块。
+- 媒体卡片名、年份常显；资源搜索是独立按钮。链接使用编码过的站内路径，保留新标签页能力。输入法组合输入确认时不要触发搜索。
+- 迁移现有页面时保留 DOM id、data 属性、事件选择器、Jinja 条件、API 字段和权限判断。权限以 `web/permissions.py` 为准，不从视觉导航分组推断。
+- 异步请求须显示加载、空、失败和可恢复操作；切页后旧响应不能写入新页面。不以虚构数据填充生产界面，不新增空操作按钮。
+- 保留真实产品范围：媒体检索、资源搜索、下载、站点与工具；通知渠道和下载器以当前配置注册表为准。设计参考里的播放、收藏、额外统计或过滤项不构成实现要求。
+- 新页面更新路由矩阵与逐页提示词；组件改动更新规范中的对应契约。无需为了统一界面迁移服务端语言或重写稳定的业务接口。
+
+## 验证
+
+按变更范围使用现有检查：Jinja解析、JS语法、`tests/run.py`；若只改文案/样式，避免添加模拟实现的测试。浏览器验证可以用 `scripts/preview_ui.py` 的隔离示例页面，查看桌面、390px手机和深色模式；验证导航、搜索、弹窗与键盘。预览不连接真实外部服务，其结果不能代替真实下载器/站点联调。
+
+交付说明区分 AI 参考图、实际运行截图、已执行检查以及未验证的外部集成。不要将生成图中的示例文字当作准确的接口或产品需求。

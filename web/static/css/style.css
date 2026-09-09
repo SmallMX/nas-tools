@@ -1,7 +1,5 @@
 html {
     --safe-area-inset-top: 0px;
-    --app-sidebar-width: 15rem;
-    --app-header-height: 4rem;
     min-height: calc(100% + env(safe-area-inset-top)  + var(--safe-area-inset-top));
 }
 
@@ -73,7 +71,7 @@ body, .page {
 }
 
 
-@media (max-width: 992px) {
+@media (max-width: 991.98px) {
     .navbar ul.navbar-nav {
       overflow-y: auto;
       max-height: 80vh;
@@ -86,7 +84,7 @@ body, .page {
     overflow-x: hidden !important;
 }
 
-@media (min-width: 993px) {
+@media (min-width: 992px) {
     layout-searchbar.lit-searchbar {
         left: var(--app-sidebar-width) !important;
         width: calc(100% - var(--app-sidebar-width)) !important;
@@ -99,7 +97,7 @@ body, .page {
     }
 }
 
-@media (max-width: 992px) {
+@media (max-width: 991.98px) {
     layout-navbar.lit-navbar {
         width: 0;
         min-height: 0 !important;

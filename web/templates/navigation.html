@@ -14,6 +14,7 @@
   <link href="../static/css/nprogress.css" rel="stylesheet"/>
   <!-- 附加样式 -->
   <link href="../static/css/style.css" rel="stylesheet"/>
+  <link href="/static/css/design-system.css" rel="stylesheet"/>
   <!-- 站点图标 -->
   <style>
   {% for site_name, site_icon in SiteFavicons.items() %}
@@ -26,6 +27,7 @@
   </style>
 </head>
 <body class="layout-fluid">
+<a class="nt-skip-link" href="#page_content">跳转到页面内容</a>
 <div class="page">
   <script src="../static/js/demo-theme.min.js"></script>
   <script>
@@ -86,16 +88,16 @@
       <span>加载导航与页面内容…</span>
     </div>
   </div>
-  <div class="page-wrapper" id="page_content" hidden="">
+  <main class="page-wrapper" id="page_content" tabindex="-1" hidden="">
     {{ OOPS.loading() }}
-  </div>
+  </main>
 </div>
-<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasEnd" aria-labelledby="消息中心">
+<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasEnd" aria-labelledby="offcanvasEndLabel">
   <div class="offcanvas-header">
     <h2 class="offcanvas-title" id="offcanvasEndLabel">消息中心</h2>
-    <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="关闭"></button>
   </div>
-  <div class="offcanvas-body" style="padding:0.5rem 0.5rem;">
+  <div class="offcanvas-body">
     <div class="list-group list-group-flush" id="system-messages">
     </div>
     <div class="mt-3" align="center">
@@ -133,7 +135,7 @@
 <div class="modal modal-blur fade" id="system-confirm-modal" tabindex="-1" role="dialog" aria-hidden="true">
   <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
     <div class="modal-content">
-      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       <div class="modal-status bg-danger"></div>
       <div class="modal-body text-center py-4">
        <span class="mb-2 text-danger">{{ SVG.alert_triangle('icon-lg') }}</span>
@@ -163,7 +165,7 @@
 <div class="modal modal-blur fade" id="system-success-action-modal" tabindex="-1" role="dialog" aria-hidden="true">
   <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
     <div class="modal-content">
-      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       <div class="modal-status bg-success"></div>
       <div class="modal-body text-center py-4">
         <span class="mb-2 text-green">{{ SVG.circle_check('icon-lg') }}</span>
@@ -208,7 +210,7 @@
 <div class="modal modal-blur fade" id="system-success-modal" tabindex="-1" role="dialog" aria-hidden="true">
   <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
     <div class="modal-content">
-      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       <div class="modal-status bg-success"></div>
       <div class="modal-body text-center py-4">
         <span class="mb-2 text-green">{{ SVG.circle_check('icon-lg') }}</span>
@@ -234,7 +236,7 @@
 <div class="modal modal-blur fade" id="system-fail-modal" tabindex="-1" role="dialog" aria-hidden="true">
   <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
     <div class="modal-content">
-      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       <div class="modal-status bg-warning"></div>
       <div class="modal-body text-center py-4">
         <span class="mb-2 text-warning">{{ SVG.alert_triangle('icon-lg') }}</span>
@@ -313,7 +315,7 @@
               </div>
            </div>
         </div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="logging_close_head"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭" id="logging_close_head"></button>
       </div>
       <div id="logging_table" class="table-responsive" style="overflow-y: auto; max-height: 60rem;">
       <table class="table table-vcenter card-table table-hover table-striped">
@@ -387,7 +389,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">高级搜索</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
       <div class="modal-body">
         <div class="row">
@@ -788,7 +790,7 @@
   }
 
   // 刷新下载设置
-  function refresh_downloadsetting_select(obj_id, aync = true, is_default = false) {
+  function refresh_downloadsetting_select(obj_id, aync = true, is_default = false, on_ready = undefined) {
     let default_content = (!is_default) ? "站点设置" : "默认";
     ajax_post("get_download_setting", {}, function (ret) {
       if (ret.code === 0) {
@@ -802,6 +804,7 @@
             downloadsetting.name || ""
           );
         }
+        if (on_ready) on_ready();
       }
     }, aync);
   }
@@ -809,8 +812,9 @@
 
   // 刷新下载框的下载设置及目录选项
   function refresh_search_download_setting_dirs(is_default, site=""){
-    refresh_downloadsetting_select("search_download_setting", false, is_default);
-    refresh_savepath_select("search_download_dir", true, $("#search_download_setting").val(), is_default, site);
+    refresh_downloadsetting_select("search_download_setting", true, is_default, function () {
+      refresh_savepath_select("search_download_dir", true, $("#search_download_setting").val(), is_default, site);
+    });
   }
 
   // 显示下载提示框

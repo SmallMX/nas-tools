@@ -1,189 +1,111 @@
-import { html } from "../../utility/lit-core.min.js";
+import "../../card/media-styles.js";
+import { html, nothing } from "../../utility/lit-core.min.js";
 import { CustomElement } from "../../utility/utility.js";
 
 export class CustomSlide extends CustomElement {
-
   static properties = {
     slide_title: { attribute: "slide-title" },
     slide_click: { attribute: "slide-click" },
+    slide_status: { attribute: "slide-status" },
+    slide_error: { attribute: "slide-error" },
     lazy: { attribute: "lazy" },
-    //slide_scroll: { attribute: "slide-scroll" , reflect: true, type: Number },
     slide_card: { type: Array },
     _disabled: { state: true },
   };
 
   constructor() {
     super();
-    this._disabled = 0;
-    this.slide_title = "加载中..";
+    this._disabled = 3;
+    this.slide_title = "正在加载";
     this.slide_click = "";
-    this.slide_card = Array(20).fill(html`<normal-card-placeholder class="px-2"></normal-card-placeholder>`);
+    this.slide_status = "ready";
+    this.slide_card = [];
   }
 
   render() {
+    const cards = this.slide_card || [];
     return html`
-      <style>
-        .media-slide-hide-scrollbar{
-          overflow-x: scroll!important;
-          overscroll-behavior-x: contain!important;
-          scrollbar-width: none!important;
-          -ms-overflow-style: none!important;
-        }
-        .media-slide-hide-scrollbar::-webkit-scrollbar{
-          display: none;
-        }
-        .media-slide-card-number{
-          position: relative;
-          flex:0 0 auto;
-          max-width: 11rem;
-        }
-      </style>
-      <div class="container-fluid overflow-hidden px-0">
-        <div class="page-header d-print-none">
-          <div class="d-flex justify-content-between">
-            <div class="d-inline-flex">
-              <a class="nav-link ms-2 ${this.slide_card.length === 0 || !this.slide_click ? "disabled" : ""}"
-                 href="#"
-                 aria-disabled=${this.slide_card.length === 0 || !this.slide_click ? "true" : "false"}
-                 @click=${this._openSlide}>
-                <h2 class="my-1">
-                  <strong>${this.slide_card.length == 0 ? "加载中.." : this.slide_title}</strong>
-                </h2>
-                <div class="ms-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="icon-tabler icon-tabler-arrow-up-right-circle" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-                    <circle cx="12" cy="12" r="9"></circle>
-                    <line x1="15" y1="9" x2="9" y2="15"></line>
-                    <polyline points="15 15 15 9 9 9"></polyline>
-                  </svg>
-                </div>
-              </a>
-            </div>
-            <div ?hidden=${this._disabled ==3 } class="col-auto ms-auto d-print-none">
-              <div class="d-inline-flex">
-                <a class="btn btn-sm btn-icon btn-link text-muted border-0 ${this._disabled == 0 ? "disabled" : ""}"
-                   @click=${ () => this._slideNext(false) }>
-                  <svg xmlns="http://www.w3.org/2000/svg" class="btn-icon icon-tabler icon-tabler-chevron-left" width="24" height="24"
-                      viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round"
-                      stroke-linejoin="round">
-                    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-                    <polyline points="15 6 9 12 15 18"></polyline>
-                  </svg>
-                </a>
-                <a class="media-slide-right btn btn-sm btn-icon btn-link border-0 text-muted ${this._disabled == 2 ? "disabled" : ""}"
-                   @click=${ () => this._slideNext(true) }>
-                  <svg xmlns="http://www.w3.org/2000/svg" class="btn-icon icon-tabler icon-tabler-chevron-right" width="24" height="24"
-                      viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round"
-                      stroke-linejoin="round">
-                    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-                    <polyline points="9 6 15 12 9 18"></polyline>
-                  </svg>
-                </a>
-              </div>
-            </div>
+      <section class="nt-slide" aria-label=${this.slide_title}>
+        <header class="nt-slide__header">
+          <h2 class="nt-slide__title">${this.slide_title}</h2>
+          <div class="nt-slide__actions">
+            ${this.slide_click ? html`<button type="button" class="nt-slide__more" @click=${this._openSlide}>查看全部 <span aria-hidden="true">→</span></button>` : nothing}
+            <button type="button" class="nt-slide__arrow" ?hidden=${this._disabled === 3}
+              ?disabled=${this._disabled === 0} aria-label=${`向前浏览${this.slide_title}`} @click=${() => this._slideNext(false)}>‹</button>
+            <button type="button" class="nt-slide__arrow" ?hidden=${this._disabled === 3}
+              ?disabled=${this._disabled === 2} aria-label=${`向后浏览${this.slide_title}`} @click=${() => this._slideNext(true)}>›</button>
           </div>
+        </header>
+        ${this.slide_status === "error" ? html`
+          <div class="nt-media-state" role="status">
+            <p>${this.slide_error || "暂时无法获取内容，请稍后重试。"}</p>
+            <button class="btn btn-outline-primary btn-sm" type="button"
+              @click=${() => this.dispatchEvent(new CustomEvent("retry", { bubbles: true }))}>重新加载</button>
+          </div>` : this.slide_status !== "loading" && !cards.length ? html`
+          <div class="nt-media-state" role="status"><p>暂无内容，稍后再来看看。</p></div>` : nothing}
+        <div class="nt-slide__viewport media-slide-hide-scrollbar" tabindex="0" role="region"
+          aria-label=${`${this.slide_title}，可左右滚动浏览`} aria-busy=${this.slide_status === "loading" ? "true" : "false"}
+          ?hidden=${this.slide_status === "error" || (!cards.length && this.slide_status !== "loading")}
+          @scroll=${this._countDisabled}>
+          <div class="nt-slide__track media-slide-card-number">${cards}</div>
         </div>
-        <div class="media-slide-hide-scrollbar px-2 py-2"
-            @scroll=${ this._countDisabled }>
-          <div class="row row-cards d-flex flex-row flex-nowrap media-slide-card-number justify-content-start">
-            ${this.slide_card}
-          </div>
-        </div>
-      </div>
-    `;
+      </section>`;
+  }
+
+  firstUpdated() {
+    this._scrollbar = this.querySelector(".nt-slide__viewport");
+    this._track = this.querySelector(".nt-slide__track");
+    this._onResize = () => this._countMaxNumber();
+    window.addEventListener("resize", this._onResize);
+    this._resizeObserver = new ResizeObserver(this._onResize);
+    this._resizeObserver.observe(this._scrollbar);
+    this._countMaxNumber();
   }
 
   updated(changedProperties) {
-    // slide数据刷新时触发界面状态改变
-    if (changedProperties.has("slide_card")) {
-      this._countDisabled();
-    }
+    if (changedProperties.has("slide_card") || changedProperties.has("slide_status")) this._countMaxNumber();
   }
 
-  // 绑定事件
-  firstUpdated() {
-    this._scrollbar = this.querySelector("div.media-slide-hide-scrollbar");
-    this._card_number = this.querySelector("div.media-slide-card-number");
-    // 初次获取元素参数
-    this._countMaxNumber();
-    // 窗口大小发生改变时
-    this._countMaxNumber_resize = () => { this._countMaxNumber() }; // 防止无法卸载事件
-    window.addEventListener("resize", this._countMaxNumber_resize);
-  }
-
-  // 卸载事件
   disconnectedCallback() {
-    window.removeEventListener("resize", this._countMaxNumber_resize);
+    window.removeEventListener("resize", this._onResize);
+    this._resizeObserver?.disconnect();
     super.disconnectedCallback();
   }
 
-  _openSlide(event) {
-    event.preventDefault();
-    if (this.slide_card.length === 0 || !this.slide_click) {
-      return;
-    }
-    navmenu(this.slide_click);
+  _openSlide() {
+    if (this.slide_click) navmenu(this.slide_click);
   }
-  
+
   _countMaxNumber() {
-    this._card_width = this._card_number.getBoundingClientRect().width;
-    this._card_max = Math.trunc(this._scrollbar.clientWidth / this._card_width);
-    this._card_current_load_index = 0;
+    if (!this._scrollbar || !this._track) return;
+    const firstCard = this._track.firstElementChild;
+    const width = firstCard?.getBoundingClientRect().width || 176;
+    const gap = Number.parseFloat(getComputedStyle(this._track).columnGap) || 16;
+    this._card_width = width + gap;
+    this._card_max = Math.max(1, Math.floor((this._scrollbar.clientWidth + gap) / this._card_width));
     this._countDisabled();
   }
 
   _countDisabled() {
-    this._card_current = this._scrollbar.scrollLeft == 0 ? 0 : Math.trunc((this._scrollbar.scrollLeft +  this._card_width / 2) /  this._card_width)
-    if (this.slide_card.length * this._card_width <= this._scrollbar.clientWidth){
-      this._disabled = 3;
-    } else if (this._scrollbar.scrollLeft == 0) {
-      this._disabled = 0;
-    } else if (this._scrollbar.scrollLeft >= this._scrollbar.scrollWidth - this._scrollbar.clientWidth - 2){
-      this._disabled = 2;
-    } else {
-      this._disabled = 1;
-    }
-    // 懒加载
+    if (!this._scrollbar || !this._card_width) return;
+    const scrollLeft = this._scrollbar.scrollLeft;
+    const maxLeft = this._scrollbar.scrollWidth - this._scrollbar.clientWidth;
+    this._card_current = Math.max(0, Math.floor(scrollLeft / this._card_width));
+    this._disabled = maxLeft <= 2 ? 3 : scrollLeft <= 2 ? 0 : scrollLeft >= maxLeft - 2 ? 2 : 1;
     if (this.lazy) {
-      if (this._card_current > this._card_current_load_index - this._card_max) {
-        const card_list = this._card_number.querySelectorAll(this.lazy);
-        if (card_list.length > 0) {
-          const show_max = this._card_current + this._card_max + 1;
-          for (let i = this._card_current; i < show_max; i++) {
-            if (i >= card_list.length) {
-              break;
-            }
-            card_list[i].removeAttribute("lazy");
-          }
-          this._card_current_load_index = show_max;
-        }
-      }
+      const cards = this._track.querySelectorAll(this.lazy);
+      const showMax = Math.min(cards.length, this._card_current + this._card_max + 2);
+      for (let i = this._card_current; i < showMax; i++) cards[i].removeAttribute("lazy");
     }
   }
 
   _slideNext(next) {
-    let run_to_left_px;
-    if (next) {
-      const card_index = this._card_current + this._card_max;
-      run_to_left_px = card_index *  this._card_width;
-      if (run_to_left_px >= this._scrollbar.scrollWidth - this._scrollbar.clientWidth) {
-        run_to_left_px = this._scrollbar.scrollWidth - this._scrollbar.clientWidth;
-      }
-    } else {
-      const card_index = this._card_current - this._card_max;
-      run_to_left_px = card_index *  this._card_width;
-      if (run_to_left_px <= 0) {
-        run_to_left_px = 0;
-      }
-    }
-    $(this._scrollbar).animate({
-      scrollLeft: run_to_left_px
-    }, 350, () => {
-      this._scrollbar.scrollLeft = run_to_left_px;
+    if (!this._scrollbar) return;
+    this._scrollbar.scrollBy({
+      left: (next ? 1 : -1) * this._card_max * this._card_width,
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
     });
   }
-
-
 }
 
 window.customElements.define("custom-slide", CustomSlide);
