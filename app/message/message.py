@@ -64,6 +64,23 @@ class Message(object):
             if client.get("interactive"):
                 self._active_interactive_clients[client.get("search_type")] = client
 
+    def reload_runtime_config(self):
+        """刷新 YAML 配置，保留数据库消息渠道与正在运行的接收服务。"""
+        self._domain = Config().get_domain()
+        succeeded = True
+        for active_client in list(self._active_clients or []):
+            client = active_client.get("client")
+            if client:
+                try:
+                    if client.reload_runtime_config() is False:
+                        succeeded = False
+                except Exception as error:
+                    succeeded = False
+                    log.error("【Message】刷新消息客户端 %s 配置失败：%s" % (
+                        active_client.get("name"), type(error).__name__
+                    ))
+        return succeeded
+
     def stop_service(self):
         active_clients = list(self._active_clients or [])
         self._active_clients = []

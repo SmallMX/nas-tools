@@ -22,10 +22,15 @@ class Category:
 
     def init_config(self):
         media = Config().get_config('media')
+        if not media or not media.get('category'):
+            self._category_path = None
+            self._categorys = None
+            self._movie_categorys = None
+            self._tv_categorys = None
+            self._anime_categorys = None
+            return
         if media:
             category = media.get('category')
-            if not category:
-                return
             self._category_path = os.path.join(Config().get_config_path(), "%s.yaml" % category)
             try:
                 if not os.path.exists(self._category_path):

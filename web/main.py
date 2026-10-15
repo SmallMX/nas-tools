@@ -49,21 +49,29 @@ App = Flask(__name__)
 # 配置 JSON 数据返回时支持中文显示，而不是显示一堆 \u4e2d\u6587
 App.json.ensure_ascii = False
 App.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024
-SecurityConfig = Config().get_config("security") or {}
-FlaskSecretKey = SecurityConfig.get("flask_secret_key")
-if not FlaskSecretKey:
-    raise RuntimeError("security.flask_secret_key 未配置，拒绝使用易失 Session 密钥启动")
-App.secret_key = str(FlaskSecretKey)
-CookieSecureConfig = SecurityConfig.get("session_cookie_secure", False)
-CookieSecure = str(CookieSecureConfig).strip().lower() in {"1", "true", "yes", "on"}
-App.config.update(
-    SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=CookieSecure,
-    REMEMBER_COOKIE_HTTPONLY=True,
-    REMEMBER_COOKIE_SAMESITE="Lax",
-    REMEMBER_COOKIE_SECURE=CookieSecure,
-)
+
+
+def configure_security():
+    """应用 Web 安全配置，不重建 Flask 应用或其他服务。"""
+    security = Config().get_config("security") or {}
+    secret_key = security.get("flask_secret_key")
+    if not secret_key:
+        raise RuntimeError("security.flask_secret_key 未配置，拒绝使用易失 Session 密钥启动")
+    cookie_secure = str(security.get("session_cookie_secure", False)).strip().lower() in {
+        "1", "true", "yes", "on"
+    }
+    App.config.update(
+        SECRET_KEY=str(secret_key),
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=cookie_secure,
+        REMEMBER_COOKIE_HTTPONLY=True,
+        REMEMBER_COOKIE_SAMESITE="Lax",
+        REMEMBER_COOKIE_SECURE=cookie_secure,
+    )
+
+
+configure_security()
 # 用户如果勾选了“记住我”，登录状态可以保持 30 天
 App.permanent_session_lifetime = datetime.timedelta(days=30)
 

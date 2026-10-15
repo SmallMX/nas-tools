@@ -28,10 +28,16 @@ class Logger:
 
     def __init__(self, module):
         self.logger = logging.getLogger(module)
+        self._module = module
+        self._handlers = []
+        self._configure()
+
+    def _configure(self):
         self.__config = Config()
         logtype = self.__config.get_config('app').get('logtype') or "console"
         loglevel = self.__config.get_config('app').get('loglevel') or "info"
-        self.logger.setLevel(level=self.__loglevels.get(loglevel))
+        level = self.__loglevels.get(loglevel, logging.INFO)
+        handlers = []
         if logtype == "server":
             logserver = self.__config.get_config('app').get('logserver', '').split(':')
             if logserver:
@@ -43,23 +49,37 @@ class Logger:
                 log_server_handler = logging.handlers.SysLogHandler((logip, logport),
                                                                     logging.handlers.SysLogHandler.LOG_USER)
                 log_server_handler.setFormatter(logging.Formatter('%(filename)s: %(message)s'))
-                self.logger.addHandler(log_server_handler)
+                handlers.append(log_server_handler)
         elif logtype == "file":
             # 记录日志到文件
             logpath = os.environ.get('NASTOOL_LOG') or self.__config.get_config('app').get('logpath') or ""
             if logpath:
                 if not os.path.exists(logpath):
                     os.makedirs(logpath)
-                log_file_handler = RotatingFileHandler(filename=os.path.join(logpath, module + ".txt"),
+                log_file_handler = RotatingFileHandler(filename=os.path.join(logpath, self._module + ".txt"),
                                                        maxBytes=5 * 1024 * 1024,
                                                        backupCount=3,
                                                        encoding='utf-8')
                 log_file_handler.setFormatter(logging.Formatter('%(asctime)s\t%(levelname)s: %(message)s'))
-                self.logger.addHandler(log_file_handler)
+                handlers.append(log_file_handler)
         # 记录日志到终端
         log_console_handler = logging.StreamHandler()
         log_console_handler.setFormatter(logging.Formatter('%(asctime)s\t%(levelname)s: %(message)s'))
-        self.logger.addHandler(log_console_handler)
+        handlers.append(log_console_handler)
+        self.logger.setLevel(level=level)
+        for handler in self._handlers:
+            self.logger.removeHandler(handler)
+            handler.close()
+        for handler in handlers:
+            self.logger.addHandler(handler)
+        self._handlers = handlers
+
+    @classmethod
+    def reload_config(cls):
+        """仅重配已创建的日志输出，保留内存日志队列。"""
+        with lock:
+            for instance in cls.__instance.values():
+                instance._configure()
 
     @staticmethod
     def get_instance(module):
@@ -68,7 +88,8 @@ class Logger:
         if Logger.__instance.get(module):
             return Logger.__instance.get(module)
         with lock:
-            Logger.__instance[module] = Logger(module)
+            if module not in Logger.__instance:
+                Logger.__instance[module] = Logger(module)
         return Logger.__instance.get(module)
 
 

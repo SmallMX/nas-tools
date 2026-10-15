@@ -30,6 +30,12 @@ class Fanart:
     def init_config(self):
         self._images = {}
 
+    @classmethod
+    def reload_runtime_config(cls):
+        """代理变化后重新请求，避免沿用旧代理下缓存的失败结果。"""
+        cls._proxies = Config().get_proxies()
+        cls.__request_fanart.cache_clear()
+
     def __get_fanart_images(self, media_type, queryid):
         if not media_type or not queryid:
             return

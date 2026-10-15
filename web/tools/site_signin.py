@@ -4,6 +4,7 @@ import re
 
 import log
 from app.helper import ThreadHelper
+from app.config_reload import save_config_and_apply
 from app.tools import SiteSignin
 from app.tools.site_signin.config import get_site_signin_config
 from app.tools.site_signin.constants import DEFAULT_RETRY_KEYWORD
@@ -59,9 +60,8 @@ class SiteSigninWebService:
             config["tools"] = {}
         config["tools"]["site_signin"] = normalized
         try:
-            if not Config().save_config(config):
-                raise RuntimeError("配置写入未完成")
-            self._service.init_config()
+            if not save_config_and_apply(config):
+                raise RuntimeError("配置保存或应用未完成")
         except Exception as error:
             log.error(f"【SiteSignin】保存工具配置失败：{type(error).__name__}")
             return {"code": 1, "msg": "工具配置保存失败，请检查系统日志"}

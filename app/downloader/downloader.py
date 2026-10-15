@@ -44,20 +44,10 @@ class Downloader:
         self.message = Message()
         self.media = Media()
         self.sites = Sites()
-        # 下载器配置
-        pt = Config().get_config('pt')
-        self._default_client_type = None
-        self._pt_monitor_only = False
-        self._download_order = None
-        if pt:
-            self._default_client_type = ModuleConf.DOWNLOADER_DICT.get(pt.get('pt_client')) or DownloaderType.QB
-            self._pt_monitor_only = pt.get("pt_monitor_only")
-            self._download_order = pt.get("download_order")
-        # 配置热更新后必须按新配置重建客户端，旧对象仅供已在执行的调用继续使用
+        self.reload_runtime_config()
+        # 全量初始化清除旧客户端；定向热加载仅淘汰配置发生变化的类型。
         with client_lock:
             self.clients = {}
-        # 下载目录配置
-        self._downloaddir = Config().get_config('downloaddir') or []
         # 下载设置
         self._download_setting = {
             "-1": {
@@ -87,6 +77,27 @@ class Downloader:
                 "ratio_limit": download_setting.ratio_limit / 100,
                 "seeding_time_limit": download_setting.seeding_time_limit,
                 "downloader": download_setting.downloader}
+
+    def reload_runtime_config(self):
+        """刷新 YAML 下载选项，保留客户端、数据库设置和正在运行的依赖。"""
+        pt = Config().get_config('pt')
+        self._default_client_type = None
+        self._pt_monitor_only = False
+        self._download_order = None
+        if pt:
+            self._default_client_type = ModuleConf.DOWNLOADER_DICT.get(pt.get('pt_client')) or DownloaderType.QB
+            self._pt_monitor_only = pt.get("pt_monitor_only")
+            self._download_order = pt.get("download_order")
+        self._downloaddir = Config().get_config('downloaddir') or []
+
+    def reset_client(self, downloader_type):
+        """让指定下载器下次访问时重建，已在执行的调用仍可使用旧对象。"""
+        if not isinstance(downloader_type, DownloaderType):
+            downloader_type = ModuleConf.DOWNLOADER_DICT.get(downloader_type) \
+                or self.__get_client_type(downloader_type)
+        if downloader_type:
+            with client_lock:
+                self.clients.pop(downloader_type.value, None)
 
     def __build_class(self, ctype, conf=None):
         for downloader_schema in self._downloader_schema:

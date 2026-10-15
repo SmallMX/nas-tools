@@ -48,11 +48,14 @@ class MetaHelper(object):
         self.init_config()
 
     def init_config(self):
-        laboratory = Config().get_config('laboratory')
-        if laboratory:
-            self._tmdb_cache_expire = laboratory.get("tmdb_cache_expire")
+        self.reload_runtime_config()
         self._meta_path = os.path.join(Config().get_config_path(), 'tmdb.dat')
         self._meta_data = self.__load_meta_data(self._meta_path)
+
+    def reload_runtime_config(self):
+        """刷新过期策略，不覆盖尚未保存的内存媒体缓存。"""
+        laboratory = Config().get_config('laboratory') or {}
+        self._tmdb_cache_expire = laboratory.get("tmdb_cache_expire", False)
 
     def clear_meta_data(self):
         """

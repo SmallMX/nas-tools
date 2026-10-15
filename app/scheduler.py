@@ -2,9 +2,11 @@ import datetime
 import math
 import random
 import traceback
+from threading import RLock
 
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
+from apscheduler.jobstores.base import JobLookupError
 from apscheduler.schedulers.background import BackgroundScheduler
 
 import log
@@ -29,6 +31,11 @@ class Scheduler:
     """
     SCHEDULER = None # 存放真正的 APScheduler 框架对象
     _site_signin_config = None
+    _site_signin_job_id = "site_signin"
+    _site_signin_date_job_id = "site_signin_random"
+    _site_signin_generation = 0
+    _site_signin_dirty = False
+    _config_lock = RLock()
 
     def __init__(self):
         """初始化时读取一遍配置"""
@@ -36,7 +43,93 @@ class Scheduler:
 
     def init_config(self):
         # 从工具配置中读取站点自动签到设置
-        self._site_signin_config = get_site_signin_config()
+        with self._config_lock:
+            self._site_signin_config = get_site_signin_config()
+
+    @staticmethod
+    def _signin_cron(config):
+        return str((config or {}).get('cron') or '').strip()
+
+    def reload_runtime_config(self):
+        """只在执行周期变化时替换签到任务，保留其他任务的运行计划。"""
+        with self._config_lock:
+            config = get_site_signin_config()
+            old_cron = self._signin_cron(self._site_signin_config)
+            signin_cron = self._signin_cron(config)
+            if signin_cron == old_cron and not self._site_signin_dirty:
+                self._site_signin_config = config
+                return True
+
+            self._site_signin_generation += 1
+            if not self.SCHEDULER:
+                self._site_signin_config = config
+                self._site_signin_dirty = False
+                return True
+            # 替换中途失败时，恢复旧配置也必须重建已移除的签到任务。
+            self._site_signin_dirty = True
+            for job_id in (self._site_signin_job_id, self._site_signin_date_job_id):
+                try:
+                    self.SCHEDULER.remove_job(job_id)
+                except JobLookupError:
+                    pass
+            if not self._schedule_site_signin(signin_cron):
+                return False
+            self._site_signin_config = config
+            self._site_signin_dirty = False
+            return True
+
+    def _schedule_site_signin(self, signin_cron):
+        if not signin_cron:
+            return True
+        try:
+            if '-' in signin_cron:
+                start, end = signin_cron.split('-')
+                start_hour, start_minute = self._parse_signin_time(start)
+                end_hour, end_minute = self._parse_signin_time(end)
+                start_total = start_hour * 60 + start_minute
+                end_total = end_hour * 60 + end_minute
+                if start_total > end_total:
+                    raise ValueError("签到时间范围无效")
+                generation = self._site_signin_generation
+
+                def start_random_job():
+                    with self._config_lock:
+                        # 修改周期或停止服务后，已取出的旧回调不能再排入签到任务。
+                        if generation != self._site_signin_generation or not self.SCHEDULER:
+                            return
+                        selected_minute = random.randint(start_total, end_total)
+                        self.start_data_site_signin_job(*divmod(selected_minute, 60))
+
+                self.SCHEDULER.add_job(start_random_job, 'cron',
+                                       id=self._site_signin_job_id, replace_existing=True,
+                                       hour=start_hour, minute=start_minute)
+                log.info("站点自动签到服务时间范围随机模式启动，起始时间于%02d:%02d" % (
+                    start_hour, start_minute))
+            elif ':' in signin_cron:
+                hour, minute = self._parse_signin_time(signin_cron)
+                self.SCHEDULER.add_job(SiteSignin().signin, 'cron',
+                                       id=self._site_signin_job_id, replace_existing=True,
+                                       hour=hour, minute=minute)
+                log.info("站点自动签到服务启动")
+            else:
+                hours = float(signin_cron)
+                if not math.isfinite(hours) or hours <= 0:
+                    raise ValueError("签到间隔必须大于 0 小时")
+                self.SCHEDULER.add_job(SiteSignin().signin, 'interval',
+                                       id=self._site_signin_job_id, replace_existing=True,
+                                       hours=hours)
+                log.info("站点自动签到服务启动")
+        except (TypeError, ValueError) as error:
+            log.info("站点自动签到时间配置格式错误：%s" % str(error))
+            return False
+        return True
+
+    @staticmethod
+    def _parse_signin_time(value):
+        hour, minute = (int(part) for part in value.split(':'))
+        if not (0 <= hour <= 23 and 0 <= minute <= 59):
+            raise ValueError("签到时间无效")
+        return hour, minute
 
     def run_service(self):
         """
@@ -56,78 +149,12 @@ class Scheduler:
         if not self.SCHEDULER:
             return
             
-        # 如果用户配置了自动签到时间，才启动工具的定时任务
-        if self._site_signin_config:
-            # 1. 站点签到任务 (最复杂的逻辑，因为涉及到三种配置模式)
-            signin_cron = str(self._site_signin_config.get('cron') or '').strip()
-            if signin_cron:
-                # 模式 A: 范围随机签到 (例如配置成 08:00-10:00)
-                if '-' in signin_cron:
-                    try:
-                        time_range = signin_cron.split("-")
-                        start_time_range_str = time_range[0]
-                        end_time_range_str = time_range[1]
-                        start_time_range_array = start_time_range_str.split(":")
-                        end_time_range_array = end_time_range_str.split(":")
-                        start_hour = int(start_time_range_array[0])
-                        start_minute = int(start_time_range_array[1])
-                        end_hour = int(end_time_range_array[0])
-                        end_minute = int(end_time_range_array[1])
-                        start_total = start_hour * 60 + start_minute
-                        end_total = end_hour * 60 + end_minute
-                        if not (0 <= start_hour <= 23 and 0 <= end_hour <= 23
-                                and 0 <= start_minute <= 59 and 0 <= end_minute <= 59
-                                and start_total <= end_total):
-                            raise ValueError("签到时间范围无效")
-
-                        def start_random_job():
-                            """
-                            内部函数：这招叫“套娃”。每天到了起始时间（比如8点），这个函数被执行。
-                            它会在 8点 到 10点 之间随机生成一个分钟数，然后再安排一次【一次性延期任务】去执行真正签到。
-                            """
-                            task_time_count = random.randint(start_total, end_total)
-                            self.start_data_site_signin_job(math.floor(task_time_count / 60), task_time_count % 60)
-
-                        # 使用 "cron" (类似 Linux 的 crontab) 语法，每天指定的小时/分钟执行
-                        self.SCHEDULER.add_job(start_random_job,
-                                               "cron",
-                                               hour=start_hour,
-                                               minute=start_minute)
-                        log.info("站点自动签到服务时间范围随机模式启动，起始时间于%s:%s" % (
-                            str(start_hour).rjust(2, '0'), str(start_minute).rjust(2, '0')))
-                    except Exception as e:
-                        log.info("站点自动签到时间 时间范围随机模式 配置格式错误：%s %s" % (signin_cron, str(e)))
-                        
-                # 模式 B: 固定时间签到 (例如配置成 08:30)
-                elif signin_cron.find(':') != -1:
-                    try:
-                        hour = int(signin_cron.split(":")[0])
-                        minute = int(signin_cron.split(":")[1])
-                        if not (0 <= hour <= 23 and 0 <= minute <= 59):
-                            raise ValueError("签到时间无效")
-                    except Exception as e:
-                        log.info("站点自动签到时间 配置格式错误：%s" % str(e))
-                        hour = minute = None
-                    if hour is not None and minute is not None:
-                        self.SCHEDULER.add_job(SiteSignin().signin,
-                                               "cron",
-                                               hour=hour,
-                                               minute=minute)
-                        log.info("站点自动签到服务启动")
-                    
-                # 模式 C: 间隔循环签到 (例如配置成 12，代表每12小时签到一次)
-                else:
-                    try:
-                        hours = float(signin_cron)
-                    except Exception as e:
-                        log.info("站点自动签到时间 配置格式错误：%s" % str(e))
-                        hours = 0
-                    if hours:
-                        # 注意这里参数是 "interval"（间隔模式），上面是 "cron"（定点模式）
-                        self.SCHEDULER.add_job(SiteSignin().signin,
-                                               "interval",
-                                               hours=hours)
-                        log.info("站点自动签到服务启动")
+        with self._config_lock:
+            self._site_signin_generation += 1
+            self._site_signin_dirty = True
+            self._site_signin_dirty = not self._schedule_site_signin(
+                self._signin_cron(self._site_signin_config)
+            )
 
         # 2. 元数据定时保存任务
         # 把内存里的数据定时写进数据库
@@ -160,10 +187,13 @@ class Scheduler:
         停止定时服务：用于重启系统、修改配置后重新加载
         """
         try:
-            if self.SCHEDULER:
-                self.SCHEDULER.remove_all_jobs()
-                self.SCHEDULER.shutdown()
+            with self._config_lock:
+                scheduler = self.SCHEDULER
                 self.SCHEDULER = None
+                self._site_signin_generation += 1
+            if scheduler:
+                scheduler.remove_all_jobs()
+                scheduler.shutdown()
         except Exception as e:
             ExceptionUtils.exception_traceback(e)
 
@@ -189,9 +219,13 @@ class Scheduler:
             return
             
         # 注意此处的类型是 "date"，它意味着：只在这个明确的时间点执行一次就销毁，不会循环。
-        self.SCHEDULER.add_job(SiteSignin().signin,
-                               "date",
-                               run_date=datetime.datetime(year, month, day, hour, minute, second))
+        with self._config_lock:
+            if self.SCHEDULER:
+                self.SCHEDULER.add_job(SiteSignin().signin,
+                                       "date",
+                                       id=self._site_signin_date_job_id,
+                                       replace_existing=True,
+                                       run_date=datetime.datetime(year, month, day, hour, minute, second))
 
 
 # ===== 对外提供快速调用的三个函数 =====

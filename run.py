@@ -1,11 +1,9 @@
 import atexit
 import os
 import sys
-import time
 from threading import Lock
 
 # 从 watchdog 库导入文件系统事件处理器和观察者，用于监控配置文件是否被修改
-from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 # 导入项目内的各个核心模块
@@ -17,13 +15,12 @@ initialize_config()
 
 import log
 from web.main import App
-from app.utils import ConfigLoadCache
-from app.utils.commons import INSTANCES
+from app.config_reload import ConfigFileEventHandler, initialize_config_reload
 from app.db import init_db, remove_db_session
 from app.helper import IndexerHelper, DisplayHelper, ChromeHelper, ThreadHelper
 from app.brushtask import BrushTask
 from app.message import Message
-from app.scheduler import run_scheduler, restart_scheduler, stop_scheduler
+from app.scheduler import run_scheduler, stop_scheduler
 from app.torrentremover import TorrentRemover
 from version import APP_VERSION
 
@@ -105,51 +102,18 @@ def monitor_config():
     """
     global _config_observer
 
-    class _ConfigHandler(FileSystemEventHandler):
-        """
-        内部类：继承自 watchdog 的事件处理器，专门用来处理文件被修改的事件
-        """
-        def __init__(self):
-            FileSystemEventHandler.__init__(self)
-
-        @staticmethod
-        def _reload_config(path):
-            if os.path.basename(path) != "config.yaml":
-                return
-            if ConfigLoadCache.get(path):
-                return
-            ConfigLoadCache.set(path, True)
-
-            log.console("进程 %s 检测到配置文件已修改，正在重新加载..." % os.getpid())
-            time.sleep(1)
-            if not Config().init_config():
-                return
-
-            for instance in INSTANCES.values():
-                if hasattr(instance, "init_config"):
-                    instance.init_config()
-            restart_scheduler()
-
-        def on_modified(self, event):
-            if not event.is_directory:
-                self._reload_config(event.src_path)
-
-        def on_created(self, event):
-            if not event.is_directory:
-                self._reload_config(event.src_path)
-
-        def on_moved(self, event):
-            if not event.is_directory:
-                self._reload_config(event.dest_path)
-
+    reloader = initialize_config_reload()
+    handler = ConfigFileEventHandler(os.environ["NASTOOL_CONFIG"], reloader.reload)
     # 创建一个文件观察者对象
     _config_observer = Observer(timeout=10)
     # 给观察者安排任务，监听 config.yaml 所在的文件夹，且不递归监控子文件夹
-    _config_observer.schedule(_ConfigHandler(), path=Config().get_config_path(), recursive=False)
+    _config_observer.schedule(handler, path=Config().get_config_path(), recursive=False)
     # 设置为守护线程（主线程退出时自动关闭）
     _config_observer.daemon = True
     # 启动观察者后台线程
     _config_observer.start()
+    # 补读基线建立到监听启动之间的修改；同内容不会重复应用。
+    reloader.reload()
 
 
 def shutdown_system():

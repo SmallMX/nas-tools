@@ -32,6 +32,7 @@ class DouBan:
     def init_config(self):
         self.doubanapi = DoubanApi()
         self.doubanweb = DoubanWeb()
+        self.cookie = None
         douban = Config().get_config('douban')
         if douban:
             # Cookie

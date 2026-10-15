@@ -23,6 +23,7 @@ class Telegram(_IMessageClient):
     _webhook = None
     _webhook_url = None
     _webhook_secret = None
+    _webhook_dirty = False
     _telegram_user_ids = []
     _telegram_admin_ids = []
     _domain = None
@@ -34,9 +35,6 @@ class Telegram(_IMessageClient):
     def __init__(self, config):
         self._client_config = config
         self._interactive = config.get("interactive")
-        self._domain = Config().get_domain()
-        if self._domain and self._domain.endswith("/"):
-            self._domain = self._domain[:-1]
         self.init_config()
 
     def init_config(self):
@@ -45,7 +43,7 @@ class Telegram(_IMessageClient):
             self._telegram_token = self._client_config.get('token')
             self._telegram_chat_id = self._client_config.get('chat_id')
             self._webhook = self._client_config.get('webhook')
-            self._webhook_secret = Config().get_config('security').get('telegram_webhook_secret')
+            self._load_runtime_config()
             self._telegram_admin_ids = []
             telegram_admin_ids = self._client_config.get('admin_ids')
             if telegram_admin_ids:
@@ -60,8 +58,7 @@ class Telegram(_IMessageClient):
                 )
             if self._telegram_token and self._telegram_chat_id:
                 if self._webhook:
-                    if self._domain:
-                        self._webhook_url = "%s/telegram" % self._domain
+                    if self._webhook_url:
                         self.__set_bot_webhook()
                     if self._message_proxy_event:
                         self._message_proxy_event.set()
@@ -72,6 +69,41 @@ class Telegram(_IMessageClient):
                         event = Event()
                         self._message_proxy_event = event
                         ThreadHelper().start_thread(self.__start_telegram_message_proxy, [event])
+
+    def _load_runtime_config(self):
+        config = Config()
+        self._domain = (config.get_domain() or '').rstrip('/')
+        self._webhook_secret = config.get_config('security').get('telegram_webhook_secret')
+        self._webhook_url = "%s/telegram" % self._domain if self._webhook and self._domain else None
+
+    def reload_runtime_config(self):
+        """刷新回调地址和密钥，不重启轮询或重置已消费消息的位置。"""
+        previous = (self._domain, self._webhook_url, self._webhook_secret)
+        succeeded = False
+        try:
+            self._load_runtime_config()
+            if not (self._enabled and self._telegram_token and self._telegram_chat_id and self._webhook):
+                succeeded = True
+            elif self._webhook_url and self._webhook_secret:
+                _, previous_url, previous_secret = previous
+                if previous_url == self._webhook_url and previous_secret == self._webhook_secret \
+                        and not self._webhook_dirty:
+                    succeeded = True
+                else:
+                    force = self._webhook_dirty or previous_secret != self._webhook_secret
+                    # 删除旧回调或响应丢失后，远端状态不能再由本地配置相等推断。
+                    self._webhook_dirty = True
+                    succeeded = self.__set_bot_webhook(force=force)
+                    if succeeded:
+                        self._webhook_dirty = False
+            return succeeded
+        except Exception as error:
+            log.error("【Telegram】刷新 Webhook 配置失败：%s" % type(error).__name__)
+            return False
+        finally:
+            if not succeeded:
+                # 注册失败仍保留上次状态，重复保存相同配置时可以继续重试。
+                self._domain, self._webhook_url, self._webhook_secret = previous
 
     @classmethod
     def match(cls, ctype):
@@ -258,21 +290,22 @@ class Telegram(_IMessageClient):
             return True, ""
         return flag, msg
 
-    def __set_bot_webhook(self):
+    def __set_bot_webhook(self, force=False):
         """
         设置Telegram Webhook
         """
-        if not self._webhook_url:
-            return
+        if not self._webhook_url or not self._telegram_token:
+            return False
 
         with _webhook_registration_lock:
-            status = self.__get_bot_webhook()
-            if not status or status == 1:
-                return
-
             if not self._webhook_secret:
                 log.error("【Telegram】Webhook 密钥未初始化，拒绝注册不安全的 Webhook")
-                return
+                return False
+            status = self.__get_bot_webhook()
+            if not status:
+                return False
+            if status == 1 and not force:
+                return True
             if status == 2:
                 self.__del_bot_webhook()
             values = {
@@ -286,10 +319,12 @@ class Telegram(_IMessageClient):
                 response_data = res.json()
                 if response_data.get("ok"):
                     log.info("【Telegram】Webhook 设置成功，地址为：%s" % self._webhook_url)
+                    return True
                 else:
                     log.error("【Telegram】Webhook 设置失败：%s" % response_data.get("description"))
             else:
                 log.error("【Telegram】Webhook 设置失败：网络连接故障！")
+            return False
 
     def __get_bot_webhook(self):
         """

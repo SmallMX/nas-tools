@@ -64,7 +64,8 @@ class ToolRegistryTest(unittest.TestCase):
 
         with patch("app.tools.site_signin.config.Config", return_value=config_manager), \
                 patch("web.tools.site_signin.Config", return_value=config_manager), \
-                patch.object(service._service, "init_config"):
+                patch("app.config_reload.Config", return_value=config_manager), \
+                patch.object(service._service, "init_config") as reload_service:
             response = service.update_config({
                 "cron": "08:00-09:00",
                 "concurrency": "4",
@@ -74,6 +75,7 @@ class ToolRegistryTest(unittest.TestCase):
             })
 
         self.assertEqual(0, response["code"])
+        reload_service.assert_not_called()
         saved = config_manager.save_config.call_args.args[0]
         self.assertNotIn("ptsignin_cron", saved["pt"])
         self.assertEqual(

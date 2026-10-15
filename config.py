@@ -1,5 +1,6 @@
 import copy
 import os
+import stat
 import tempfile
 from threading import Lock, RLock
 
@@ -150,7 +151,9 @@ class Config(object):
                     self._write_config_locked(template_config)
                     print("【Config】config.yaml 配置文件不存在，已将配置文件模板复制到配置目录...")
 
-                os.chmod(self._config_path, 0o600)
+                # 避免读取时反复 chmod 触发新的文件修改事件。
+                if stat.S_IMODE(os.stat(self._config_path).st_mode) != 0o600:
+                    os.chmod(self._config_path, 0o600)
                 with open(self._config_path, mode='r', encoding='utf-8') as config_file:
                     print("正在加载配置：%s" % self._config_path)
                     loaded_config = ruamel.yaml.YAML().load(config_file)

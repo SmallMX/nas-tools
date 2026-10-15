@@ -72,6 +72,15 @@ class ConfigPersistenceTest(unittest.TestCase):
         self.assertEqual(self.original_config, self.config.get_config())
         self.assertEqual("app: [\n", self.config_path.read_text(encoding="utf-8"))
 
+    def test_reading_private_config_does_not_change_file_metadata(self):
+        before = self.config_path.stat()
+
+        self.assertTrue(self.config.init_config())
+
+        after = self.config_path.stat()
+        self.assertEqual(before.st_ctime_ns, after.st_ctime_ns)
+        self.assertEqual(before.st_mtime_ns, after.st_mtime_ns)
+
     def test_initialize_config_removes_retired_feature_keys(self):
         retired_sections = (
             "jackett", "prowlarr", "client115", "aria2", "pikpak",

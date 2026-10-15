@@ -29,8 +29,12 @@ class SiteCookie(object):
         self.dbhelpter = DbHelper()
         self.progress = ProgressHelper()
         self.sites = Sites()
-        self.ocrhelper = OcrHelper()
+        self.reload_runtime_config()
         self.captcha_code = {}
+
+    def reload_runtime_config(self):
+        """刷新 OCR 请求默认头，保留正在等待输入的验证码和进度。"""
+        self.ocrhelper = OcrHelper()
 
     def set_code(self, code, value):
         """

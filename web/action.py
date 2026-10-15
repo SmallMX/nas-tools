@@ -1017,7 +1017,9 @@ class WebAction:
 
         # 保存配置
         if not config_test:
-            Config().save_config(cfg)
+            from app.config_reload import save_config_and_apply
+            if not save_config_and_apply(cfg):
+                return {"code": 1, "msg": "配置保存或应用失败，请检查系统日志"}
 
         return {"code": 0}
 
