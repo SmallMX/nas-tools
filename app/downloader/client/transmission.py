@@ -1,4 +1,3 @@
-import re
 import time
 from datetime import datetime
 
@@ -9,6 +8,7 @@ from app.utils import ExceptionUtils, StringUtils
 from app.utils.types import DownloaderType
 from config import Config
 from app.downloader.client._base import _IDownloadClient
+from app.downloader.removal import TorrentRemovalRules, matches_pattern
 
 
 class Transmission(_IDownloadClient):
@@ -194,94 +194,52 @@ class Transmission(_IDownloadClient):
         except Exception as err:
             ExceptionUtils.exception_traceback(err)
 
-    @staticmethod
-    def __has_required_tags(torrent, required_tags):
-        if not required_tags:
-            return True
-        torrent_tags = getattr(torrent, "labels", None) or []
-        return set(required_tags).issubset(set(torrent_tags))
-
     def get_remove_torrents(self, config=None):
         if not config:
             return []
-        remove_torrents = []
-        remove_torrents_ids = []
         torrents, error_flag = self.get_torrents()
         if error_flag:
             return []
-        tags = config.get("filter_tags")
-        ratio = config.get("ratio")
-        # 做种时间 单位：小时
-        seeding_time = config.get("seeding_time")
-        # 大小 单位：GB
-        size = config.get("size")
-        minsize = size[0]*1024*1024*1024 if size else 0
-        maxsize = size[-1]*1024*1024*1024 if size else 0
-        # 平均上传速度 单位 KB/s
-        upload_avs = config.get("upload_avs")
+        rules = TorrentRemovalRules(config)
         savepath_key = config.get("savepath_key")
         tracker_key = config.get("tracker_key")
         tr_state = config.get("tr_state")
         tr_error_key = config.get("tr_error_key")
-        for torrent in torrents:
+
+        def tags(torrent):
+            return getattr(torrent, "labels", None) or []
+
+        def matches(torrent):
             date_done = torrent.date_done or torrent.date_added
             date_now = int(time.mktime(datetime.now().timetuple()))
-            torrent_seeding_time = date_now - int(time.mktime(date_done.timetuple())) if date_done else 0
-            torrent_uploaded = torrent.ratio * torrent.total_size
-            torrent_upload_avs = torrent_uploaded / torrent_seeding_time if torrent_seeding_time else 0
-            if ratio and torrent.ratio <= ratio:
-                continue
-            if seeding_time and torrent_seeding_time <= seeding_time*3600:
-                continue
-            if size and (torrent.total_size >= maxsize or torrent.total_size <= minsize):
-                continue
-            if upload_avs and torrent_upload_avs >= upload_avs*1024:
-                continue
-            if savepath_key and not re.findall(savepath_key, torrent.download_dir, re.I):
-                continue
-            if tracker_key:
-                if not torrent.trackers:
-                    continue
-                else:
-                    tacker_key_flag = False
-                    for tracker in torrent.trackers:
-                        if re.findall(tracker_key, tracker.get("announce", ""), re.I):
-                            tacker_key_flag = True
-                            break
-                    if not tacker_key_flag:
-                        continue
+            seeding_time = date_now - int(time.mktime(date_done.timetuple())) if date_done else 0
+            # Transmission 保留按分享率推算上传量的口径。
+            uploaded = torrent.ratio * torrent.total_size
+            if not rules.matches_limits(ratio=torrent.ratio, seeding_time=seeding_time,
+                                        size=torrent.total_size, uploaded=uploaded):
+                return False
+            if savepath_key and not matches_pattern(savepath_key, torrent.download_dir):
+                return False
+            if tracker_key and not any(matches_pattern(tracker_key, tracker.get("announce", ""))
+                                       for tracker in (torrent.trackers or [])):
+                return False
             if tr_state and torrent.status not in tr_state:
-                continue
-            if tr_error_key and not re.findall(tr_error_key, torrent.error_string, re.I):
-                continue
-            labels = set(getattr(torrent, "labels", None) or [])
-            if tags and (not labels or not set(tags).issubset(labels)):
-                continue
-            remove_torrents.append({
+                return False
+            if tr_error_key and not matches_pattern(tr_error_key, torrent.error_string):
+                return False
+            return rules.has_required_tags(tags(torrent))
+
+        def describe(torrent, expanded=False):
+            return {
                 "id": torrent.id,
                 "name": torrent.name,
-                "site": torrent.trackers[0].get("sitename"),
+                "site": "" if expanded and not torrent.trackers else torrent.trackers[0].get("sitename"),
                 "size": torrent.total_size
-            })
-            remove_torrents_ids.append(torrent.id)
-        if config.get("samedata") and remove_torrents:
-            remove_torrents_plus = []
-            for remove_torrent in remove_torrents:
-                name = remove_torrent.get("name")
-                size = remove_torrent.get("size")
-                for torrent in torrents:
-                    if not self.__has_required_tags(torrent, tags):
-                        continue
-                    if torrent.name == name and torrent.total_size == size and torrent.id not in remove_torrents_ids:
-                        remove_torrents_plus.append({
-                            "id": torrent.id,
-                            "name": torrent.name,
-                            "site": torrent.trackers[0].get("sitename") if torrent.trackers else "",
-                            "size": torrent.total_size
-                        })
-            remove_torrents_plus += remove_torrents
-            return remove_torrents_plus
-        return remove_torrents
+            }
+
+        return rules.select(torrents, matches=matches, tags=tags,
+                            identity=lambda torrent: (torrent.id, torrent.name, torrent.total_size),
+                            describe=describe)
 
     def add_torrent(self, content,
                     is_paused=False,

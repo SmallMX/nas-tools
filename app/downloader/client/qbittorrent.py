@@ -1,4 +1,3 @@
-import re
 import time
 from datetime import datetime
 from urllib import parse
@@ -8,6 +7,7 @@ from packaging.version import parse as v
 import log
 import qbittorrentapi
 from app.downloader.client._base import _IDownloadClient
+from app.downloader.removal import TorrentRemovalRules, matches_pattern
 from app.utils import ExceptionUtils, StringUtils
 from app.utils.types import DownloaderType
 from config import Config
@@ -141,85 +141,55 @@ class Qbittorrent(_IDownloadClient):
         except Exception as err:
             ExceptionUtils.exception_traceback(err)
 
-    @staticmethod
-    def __has_required_tags(torrent, required_tags):
-        if not required_tags:
-            return True
-        torrent_tags = torrent.get("tags") or []
-        if isinstance(torrent_tags, str):
-            torrent_tags = [tag.strip() for tag in torrent_tags.split(",") if tag.strip()]
-        return set(required_tags).issubset(set(torrent_tags))
-
     def get_remove_torrents(self, config=None):
         if not config:
             return []
-        remove_torrents = []
-        remove_torrents_ids = []
         # qBittorrent Web API 的 tag 参数只接受单个标签，多标签组合在本地严格复核
         torrents, error_flag = self.get_torrents()
         if error_flag:
             return []
-        ratio = config.get("ratio")
-        # 做种时间 单位：小时
-        seeding_time = config.get("seeding_time")
-        # 大小 单位：GB
-        size = config.get("size")
-        minsize = size[0] * 1024 * 1024 * 1024 if size else 0
-        maxsize = size[-1] * 1024 * 1024 * 1024 if size else 0
-        # 平均上传速度 单位 KB/s
-        upload_avs = config.get("upload_avs")
+        rules = TorrentRemovalRules(config)
         savepath_key = config.get("savepath_key")
         tracker_key = config.get("tracker_key")
         qb_state = config.get("qb_state")
         qb_category = config.get("qb_category")
-        for torrent in torrents:
-            if not self.__has_required_tags(torrent, config.get("filter_tags")):
-                continue
+
+        def tags(torrent):
+            values = torrent.get("tags") or []
+            if isinstance(values, str):
+                return [tag.strip() for tag in values.split(",") if tag.strip()]
+            return values
+
+        def matches(torrent):
+            if rules.required_tags and not rules.has_required_tags(tags(torrent)):
+                return False
             date_done = torrent.completion_on if torrent.completion_on > 0 else torrent.added_on
             date_now = int(time.mktime(datetime.now().timetuple()))
-            torrent_seeding_time = date_now - date_done if date_done else 0
-            torrent_upload_avs = torrent.uploaded / torrent_seeding_time if torrent_seeding_time else 0
-            if ratio and torrent.ratio <= ratio:
-                continue
-            if seeding_time and torrent_seeding_time <= seeding_time * 3600:
-                continue
-            if size and (torrent.size >= maxsize or torrent.size <= minsize):
-                continue
-            if upload_avs and torrent_upload_avs >= upload_avs * 1024:
-                continue
-            if savepath_key and not re.findall(savepath_key, torrent.save_path, re.I):
-                continue
-            if tracker_key and not re.findall(tracker_key, torrent.tracker, re.I):
-                continue
+            seeding_time = date_now - date_done if date_done else 0
+            if not rules.matches_limits(ratio=torrent.ratio, seeding_time=seeding_time,
+                                        size=torrent.size, uploaded=torrent.uploaded):
+                return False
+            if savepath_key and not matches_pattern(savepath_key, torrent.save_path):
+                return False
+            if tracker_key and not matches_pattern(tracker_key, torrent.tracker):
+                return False
             if qb_state and torrent.state not in qb_state:
-                continue
+                return False
             if qb_category and torrent.category not in qb_category:
-                continue
-            remove_torrents.append({
+                return False
+            return True
+
+        def describe(torrent, expanded=False):
+            return {
                 "id": torrent.hash,
                 "name": torrent.name,
-                "site": parse.urlparse(torrent.tracker).netloc.split(".")[-2] if torrent.tracker else "",
+                "site": parse.urlparse(torrent.tracker).netloc.split(".")[-2] if expanded or torrent.tracker else "",
                 "size": torrent.size
-            })
-            remove_torrents_ids.append(torrent.hash)
-        if config.get("samedata") and remove_torrents:
-            remove_torrents_plus = []
-            for remove_torrent in remove_torrents:
-                name = remove_torrent.get("name")
-                size = remove_torrent.get("size")
-                for torrent in torrents:
-                    if not self.__has_required_tags(torrent, config.get("filter_tags")):
-                        continue
-                    if torrent.name == name and torrent.size == size and torrent.hash not in remove_torrents_ids:
-                        remove_torrents_plus.append({
-                            "id": torrent.hash,
-                            "name": torrent.name,
-                            "site": parse.urlparse(torrent.tracker).netloc.split(".")[-2],
-                            "size": torrent.size
-                        })
-            remove_torrents_plus += remove_torrents
-            return remove_torrents_plus
-        return remove_torrents
+            }
+
+        return rules.select(torrents, matches=matches, tags=tags,
+                            identity=lambda torrent: (torrent.hash, torrent.name, torrent.size),
+                            describe=describe)
 
     def __get_last_add_torrentid_by_tag(self, tag, status=None):
         """
