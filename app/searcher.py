@@ -1,3 +1,5 @@
+import copy
+
 import log
 from app.helper import DbHelper
 from app.indexer import Indexer
@@ -117,6 +119,10 @@ class Searcher:
                         en_title = Media().get_tmdb_en_title(media_info)
                         if en_title:
                             search_en_name = en_title
+                if search_en_name and not media_info.en_name:
+                    # 仅给当前搜索保留英文名，避免改写缓存中的媒体对象。
+                    media_info = copy.copy(media_info)
+                    media_info.en_name = search_en_name
                 # 两次搜索名称
                 second_search_name = None
                 if Config().get_config("laboratory").get("search_en_title"):

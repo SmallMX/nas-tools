@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import re
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from lxml import etree
 
@@ -26,17 +27,32 @@ class NexusPhpSiteUserInfo(_ISiteUserInfo):
     def _parse_site_page(self, html_text):
         html_text = self._prepare_html_text(html_text)
 
-        user_detail = re.search(r"userdetails.php\?id=(\d+)", html_text)
-        if user_detail and user_detail.group().strip():
+        user_detail = re.search(r"userdetails\.php\?(?:id|uuid)=([0-9A-Za-z_-]+)", html_text)
+        if user_detail and self._has_valid_userid(user_detail.group(1)):
             self._user_detail_page = user_detail.group().strip().lstrip('/')
             self.userid = user_detail.group(1)
-            self._torrent_seeding_page = f"getusertorrentlistajax.php?userid={self.userid}&type=seeding"
+            self._torrent_seeding_page = self._build_torrent_seeding_page()
         else:
             user_detail = re.search(r"(userdetails)", html_text)
             if user_detail and user_detail.group().strip():
                 self._user_detail_page = user_detail.group().strip().lstrip('/')
                 self.userid = None
                 self._torrent_seeding_page = None
+
+    @staticmethod
+    def _is_uuid(user_id):
+        return bool(re.fullmatch(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}",
+                                 str(user_id or "").strip()))
+
+    @classmethod
+    def _has_valid_userid(cls, user_id):
+        return bool(re.fullmatch(r"[0-9]+", str(user_id or "").strip()) or cls._is_uuid(user_id))
+
+    def _build_torrent_seeding_page(self):
+        if not self._has_valid_userid(self.userid):
+            return None
+        user_id_param = "useruuid" if self._is_uuid(self.userid) else "userid"
+        return f"getusertorrentlistajax.php?{user_id_param}={self.userid}&type=seeding"
 
     def _parse_message_unread(self, html_text):
         """
@@ -173,12 +189,26 @@ class NexusPhpSiteUserInfo(_ISiteUserInfo):
         next_page = None
         next_page_text = html.xpath('//a[contains(.//text(), "下一页") or contains(.//text(), "下一頁")]/@href')
         if next_page_text:
-            next_page = next_page_text[-1].strip()
-            # fix up page url
-            if self.userid not in next_page:
-                next_page = f'{next_page}&userid={self.userid}&type=seeding'
+            next_page = self._fixup_next_page_url(next_page_text[-1].strip())
 
         return next_page
+
+    def _fixup_next_page_url(self, next_page):
+        if not next_page:
+            return None
+        parsed_url = urlsplit(next_page)
+        query_params = parse_qsl(parsed_url.query, keep_blank_values=True)
+        if not any(key in ("userid", "useruuid") and value for key, value in query_params):
+            if not self._has_valid_userid(self.userid):
+                return None
+            query_params = [(key, value) for key, value in query_params
+                            if key not in ("userid", "useruuid")]
+            user_id_param = "useruuid" if self._is_uuid(self.userid) else "userid"
+            query_params.append((user_id_param, self.userid))
+        if not any(key == "type" and value for key, value in query_params):
+            query_params = [(key, value) for key, value in query_params if key != "type"]
+            query_params.append(("type", "seeding"))
+        return urlunsplit(parsed_url._replace(query=urlencode(query_params)))
 
     def _parse_user_detail_info(self, html_text):
         """
@@ -249,19 +279,23 @@ class NexusPhpSiteUserInfo(_ISiteUserInfo):
         if seeding_url_text:
             self._torrent_seeding_page = seeding_url_text[0].strip()
         # 从JS调用种获取用户ID
-        seeding_url_text = html.xpath('//a[contains(@href, "javascript: getusertorrentlistajax") '
+        seeding_url_text = html.xpath('//a[contains(@href, "javascript:") '
+                                      'and contains(@href, "getusertorrentlistajax") '
                                       'and contains(@href,"seeding")]/@href')
         csrf_text = html.xpath('//meta[@name="x-csrf"]/@content')
-        if not self._torrent_seeding_page and seeding_url_text:
-            user_js = re.search(r"javascript: getusertorrentlistajax\(\s*'(\d+)", seeding_url_text[0])
-            if user_js and user_js.group(1).strip():
-                self.userid = user_js.group(1).strip()
-                self._torrent_seeding_page = f"getusertorrentlistajax.php?userid={self.userid}&type=seeding"
-        elif seeding_url_text and csrf_text:
+        if seeding_url_text and (not self._torrent_seeding_page or not self._has_valid_userid(self.userid)):
+            user_js = re.search(r"javascript:\s*getusertorrentlistajax\(\s*(['\"])([^'\"]+)\1",
+                                seeding_url_text[0])
+            if user_js and self._has_valid_userid(user_js.group(2)):
+                self.userid = user_js.group(2).strip()
+                self._torrent_seeding_page = self._build_torrent_seeding_page()
+        if seeding_url_text and csrf_text and self._has_valid_userid(self.userid):
             if csrf_text[0].strip():
                 self._torrent_seeding_page \
                     = f"ajax_getusertorrentlist.php"
-                self._torrent_seeding_params = {'userid': self.userid, 'type': 'seeding', 'csrf': csrf_text[0].strip()}
+                user_id_param = "useruuid" if self._is_uuid(self.userid) else "userid"
+                self._torrent_seeding_params = {user_id_param: self.userid, 'type': 'seeding',
+                                               'csrf': csrf_text[0].strip()}
 
         # 分类做种模式
         # 临时屏蔽

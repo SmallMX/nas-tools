@@ -153,6 +153,7 @@ class TorrentSpider(feapder.AirSpider):
 
         # 关键字搜索
         if self.keyword:
+            search_page = int(self.page or 0) + int(self.search.get("start") or 0)
 
             if isinstance(self.keyword, list):
                 # 批量查询
@@ -178,13 +179,14 @@ class TorrentSpider(feapder.AirSpider):
                     indexer_params.pop("search_area")
                 # 变量字典
                 inputs_dict = {
-                    "keyword": search_word
+                    "keyword": search_word,
+                    "page": search_page
                 }
                 # 查询参数
                 params = {
                     "search_mode": search_mode,
                     "search_area": 0,
-                    "page": self.page or 0,
+                    "page": search_page,
                     "notnewword": 1
                 }
                 # 额外参数
@@ -214,8 +216,8 @@ class TorrentSpider(feapder.AirSpider):
             else:
                 # 变量字典
                 inputs_dict = {
-                    "keyword": quote(search_word),
-                    "page": self.page or 0
+                    "keyword": quote(search_word, safe=""),
+                    "page": search_page
                 }
                 # 无额外参数
                 searchurl = self.domain + str(torrentspath).format(**inputs_dict)

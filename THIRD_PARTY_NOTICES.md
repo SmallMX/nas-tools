@@ -15,8 +15,11 @@
 
 - 来源：<https://github.com/jxxghp/MoviePilot>
 - 固定 revision：`96ef431efc535caa4e0cc1203713efea0db74a0c`
+- 现有功能修复参考 revision：`63c8c0d71a12358f92e1e3056b2c79edb2931279`（2026-10-15）
 - 许可证：GNU General Public License v3.0
-- 范围：`config/sites/moviepilot-v2.yml` 以及与该站点定义适配相关的实现
+- 范围：`config/sites/moviepilot-v2.yml` 以及与该站点定义适配相关的实现；Discuz/NexusPHP 用户信息解析、英文站搜索词选择、Telegram 发送兜底、种子有限重试与批次复用、系统配置容错。
+
+2026-10-15 的行为适配参考提交 `5e476e241`、`aeaf473eb`、`067a90859`、`76a4e33e4`、`e9f0c693e`、`dd90883c5`、`6f9c0756c`、`f483e5fe1`。关键词分页参考 `656e2852f` 的问题边界，并针对现有站点维护服务器页码覆盖，未将未知响应视为完整结果集。
 
 MoviePilot 的 GPL-3.0 条款继续适用于对应部分；根据 GPLv3 与 AGPLv3 的兼容条款，组合后的项目整体按 AGPL-3.0-only 提供。
 

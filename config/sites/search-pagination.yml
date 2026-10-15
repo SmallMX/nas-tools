@@ -1,0 +1,28 @@
+# 这些站点由服务器分页；界面的零基页码需转换为站点的一基页码。
+sites:
+  - id: "1337x"
+    search:
+      start: 1
+      paths:
+        - path: "search/{keyword}/{page}/"
+          method: get
+
+  - id: nyaa
+    search:
+      start: 1
+      paths:
+        - path: "?f=0&c=0_0&q={keyword}&p={page}"
+          method: get
+    browse:
+      start: 1
+      path: "?f=0&c=0_0&p={page}"
+
+  - id: acg.rip
+    search:
+      start: 1
+      paths:
+        - path: "page/{page}?term={keyword}"
+          method: get
+    browse:
+      start: 1
+      path: "page/{page}"

@@ -146,6 +146,14 @@ class BuiltinIndexer(_IIndexClient):
         # 计算耗时
         start_time = datetime.datetime.now()
         log.info(f"【{self.index_type}】开始检索Indexer：{indexer.name} ...")
+        # 英文站在本轮使用已有名称，避免中文站命中后不再触发英文重搜。
+        if indexer.language == "en" and StringUtils.is_chinese(key_word) and match_media \
+                and not getattr(match_media, "keyword", None):
+            for name in (getattr(match_media, "en_name", None),
+                         getattr(match_media, "original_title", None)):
+                if isinstance(name, str) and name.strip() and not StringUtils.is_chinese(name):
+                    key_word = name
+                    break
         # 特殊符号处理
         search_word = StringUtils.handler_special_chars(text=key_word,
                                                         replace_word=" ",

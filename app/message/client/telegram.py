@@ -1,5 +1,7 @@
+import re
+from html import escape
 from threading import Event, Lock
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import requests
 
@@ -103,32 +105,40 @@ class Telegram(_IMessageClient):
             if not self._telegram_token or not self._telegram_chat_id:
                 return False, "参数未配置"
 
-            # text中的Markdown特殊字符转义
-            text = text.replace("[", r"\[").replace("_", r"\_").replace("*", r"\*").replace("`", r"\`")
-            # 拼装消息内容
-            titles = str(title).split('\n')
+            # 先保留原文，再转义展示内容，避免纯文本降级时带上格式标记。
+            text = str(text or "")
+            titles = str(title or "").split('\n')
+            title = titles[0]
             if len(titles) > 1:
-                title = titles[0]
                 if not text:
                     text = "\n".join(titles[1:])
                 else:
                     text = "%s\n%s" % ("\n".join(titles[1:]), text)
-            if text:
-                caption = "*%s*\n%s" % (title, text.replace("\n\n", "\n"))
+            text = text.replace("\n\n", "\n")
+            if title and text:
+                plain_caption = "%s\n%s" % (title, text)
+                caption = "<b>%s</b>\n%s" % (escape(title), escape(text))
+            elif text:
+                plain_caption = text
+                caption = escape(text)
             else:
-                caption = title
+                plain_caption = title
+                caption = escape(title)
             if image and url:
-                caption = "%s\n\n[查看详情](%s)" % (caption, url)
+                caption = '%s\n\n<a href="%s">查看详情</a>' % (caption, escape(str(url)))
+                plain_caption = "%s\n\n查看详情：%s" % (plain_caption, url)
             if user_id:
                 chat_id = user_id
             else:
                 chat_id = self._telegram_chat_id
 
-            return self.__send_request(chat_id=chat_id, image=image, caption=caption)
+            return self.__send_request(chat_id=chat_id, image=image, caption=caption,
+                                       plain_caption=plain_caption)
 
         except Exception as msg_e:
-            ExceptionUtils.exception_traceback(msg_e)
-            return False, str(msg_e)
+            message = self._redact_delivery_error(msg_e)
+            log.error("【Telegram】发送消息失败：%s" % message)
+            return False, message
 
     def send_list_msg(self, medias: list, user_id="", title="", **kwargs):
         """
@@ -139,64 +149,113 @@ class Telegram(_IMessageClient):
                 return False, "参数未配置"
             if not title or not isinstance(medias, list):
                 return False, "数据错误"
-            index, image, caption = 1, "", "*%s*" % title
-            for media in medias:
+            image, caption = "", "<b>%s</b>" % escape(str(title))
+            plain_caption = str(title)
+            for index, media in enumerate(medias, start=1):
                 if not image:
                     image = media.get_message_image()
-                if media.get_vote_string():
-                    caption = "%s\n%s. [%s](%s)\n%s，%s" % (caption,
-                                                           index,
-                                                           media.get_title_string(),
-                                                           media.get_detail_url(),
-                                                           media.get_type_string(),
-                                                           media.get_vote_string())
-                else:
-                    caption = "%s\n%s. [%s](%s)\n%s" % (caption,
-                                                        index,
-                                                        media.get_title_string(),
-                                                        media.get_detail_url(),
-                                                        media.get_type_string())
-                index += 1
+                media_title = str(media.get_title_string() or "")
+                detail_url = str(media.get_detail_url() or "")
+                description = str(media.get_type_string() or "")
+                vote = media.get_vote_string()
+                if vote:
+                    description = "%s，%s" % (description, vote)
+                caption = '%s\n%s. <a href="%s">%s</a>\n%s' % (
+                    caption, index, escape(detail_url), escape(media_title), escape(description))
+                plain_caption = "%s\n%s. %s\n%s\n%s" % (
+                    plain_caption, index, media_title, detail_url, description)
 
             if user_id:
                 chat_id = user_id
             else:
                 chat_id = self._telegram_chat_id
 
-            return self.__send_request(chat_id=chat_id, image=image, caption=caption)
+            return self.__send_request(chat_id=chat_id, image=image, caption=caption,
+                                       plain_caption=plain_caption)
 
         except Exception as msg_e:
-            ExceptionUtils.exception_traceback(msg_e)
-            return False, str(msg_e)
+            message = self._redact_delivery_error(msg_e)
+            log.error("【Telegram】发送列表消息失败：%s" % message)
+            return False, message
 
-    def __send_request(self, chat_id="", image="", caption=""):
+    def _redact_delivery_error(self, error):
+        # 请求异常可能带有完整 URL，其中包括令牌、图片签名或消息内容。
+        message = re.sub(r'https?://[^\s<>"\']+', '<redacted-url>', str(error))
+        for secret in (self._telegram_token, self._webhook_secret):
+            if secret:
+                message = message.replace(str(secret), "<redacted>")
+                message = message.replace(quote(str(secret), safe=""), "<redacted>")
+        return message
+
+    @staticmethod
+    def _can_fallback_to_plain(error_code, description, image):
+        if error_code != 400:
+            return False
+        description = description.lower()
+        if "can't parse entities" in description or "can't parse message text" in description:
+            return True
+        return bool(image) and any(reason in description for reason in (
+            "failed to get http url content",
+            "wrong type of the web page content",
+            "wrong file identifier/http url specified",
+            "wrong remote file identifier specified",
+            "photo_invalid",
+            "photo_content_type_invalid",
+            "photo_ext_invalid",
+            "image_process_failed",
+            "photo must be non-empty",
+            "file is too big",
+            "message caption is too long",
+            "media_caption_too_long",
+        ))
+
+    def __send_request(self, chat_id="", image="", caption="", plain_caption=None):
         """
         向Telegram发送报文
         """
         def _res_parse(result):
-            if result:
+            if result is None:
+                return False, "未获取到返回信息", False
+            status_code = result.status_code
+            try:
                 ret_json = result.json()
-                status = ret_json.get("ok")
-                if status:
-                    return True, ""
-                else:
-                    return False, ret_json.get("description")
+            except ValueError:
+                return False, "Telegram 返回非 JSON 响应（HTTP %s）" % status_code, False
+            if not isinstance(ret_json, dict):
+                return False, "Telegram 返回信息格式错误", False
+            if ret_json.get("ok") is True:
+                return True, "", False
+            error_code = ret_json.get("error_code") or status_code
+            description = str(ret_json.get("description") or "未获取到错误描述")
+            if isinstance(error_code, int):
+                message = "Telegram %s: %s" % (error_code, description)
             else:
-                return False, "未获取到返回信息"
+                message = description
+            can_fallback = (status_code == 400
+                            and self._can_fallback_to_plain(error_code, description, image))
+            return False, self._redact_delivery_error(message), can_fallback
 
         proxies = Config().get_proxies()
         if image:
             # 发送图文消息
-            values = {"chat_id": chat_id, "photo": image, "caption": caption, "parse_mode": "Markdown"}
+            values = {"chat_id": chat_id, "photo": image, "caption": caption, "parse_mode": "HTML"}
             sc_url = "https://api.telegram.org/bot%s/sendPhoto?" % self._telegram_token
-            res = RequestUtils(proxies=proxies).get_res(sc_url + urlencode(values))
-            flag, msg = _res_parse(res)
-            return flag, msg
-        # 发送文本消息
-        values = {"chat_id": chat_id, "text": caption, "parse_mode": "Markdown"}
-        sc_url = "https://api.telegram.org/bot%s/sendMessage?" % self._telegram_token
+        else:
+            # 发送文本消息
+            values = {"chat_id": chat_id, "text": caption, "parse_mode": "HTML"}
+            sc_url = "https://api.telegram.org/bot%s/sendMessage?" % self._telegram_token
         res = RequestUtils(proxies=proxies).get_res(sc_url + urlencode(values))
-        flag, msg = _res_parse(res)
+        flag, msg, can_fallback = _res_parse(res)
+        if not flag and can_fallback and plain_caption is not None:
+            log.warn("【Telegram】消息被拒绝，降级为纯文本发送：%s" % msg)
+            # 只对明确未送达的内容错误降级一次；网络超时、认证和限流错误不重发。
+            values = {"chat_id": chat_id, "text": plain_caption}
+            sc_url = "https://api.telegram.org/bot%s/sendMessage?" % self._telegram_token
+            res = RequestUtils(proxies=proxies).get_res(sc_url + urlencode(values))
+            flag, fallback_msg, _ = _res_parse(res)
+            if not flag:
+                return False, "%s；纯文本发送失败：%s" % (msg, fallback_msg)
+            return True, ""
         return flag, msg
 
     def __set_bot_webhook(self):

@@ -1,3 +1,4 @@
+import copy
 import os.path
 import re
 
@@ -86,6 +87,10 @@ def search_medias_for_web(content, ident_flag=True, filters=None, tmdbid=None, m
                         en_title = Media().get_tmdb_en_title(media_info)
                         if en_title:
                             search_en_name = en_title
+                if search_en_name and not media_info.en_name:
+                    # 复用本次已准备的英文名，不改写媒体识别缓存。
+                    media_info = copy.copy(media_info)
+                    media_info.en_name = search_en_name
                 # 两次搜索名称
                 second_search_name = None
                 if Config().get_config("laboratory").get("search_en_title"):

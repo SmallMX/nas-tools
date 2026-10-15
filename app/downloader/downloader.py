@@ -1,3 +1,5 @@
+import hashlib
+import json
 import os
 from threading import Lock
 
@@ -444,6 +446,8 @@ class Downloader:
         return_items = []
         # 返回按季、集数倒序排序的列表
         download_list = self.get_download_list(media_list)
+        # 同一批次的整季检查与选集共用已验证文件，不重复换票或请求站点。
+        torrent_cache = {}
 
         def __record_download(download_item):
             if download_item not in return_items:
@@ -538,7 +542,8 @@ class Downloader:
                                 # 只有一季的可能是命名错误，需要打开种子鉴别，只有实际集数大于等于总集数才下载
                                 torrent_episodes, torrent_path = self.get_torrent_episodes(
                                     url=item.enclosure,
-                                    page_url=item.page_url)
+                                    page_url=item.page_url,
+                                    cache=torrent_cache)
                                 if not torrent_episodes \
                                         or len(torrent_episodes) >= __get_season_episodes(need_tmdbid, item_season[0]):
                                     download_state = __download(download_item=item, torrent_file=torrent_path)
@@ -620,7 +625,8 @@ class Downloader:
                             # 检查种子看是否有需要的集
                             torrent_episodes, torrent_path = self.get_torrent_episodes(
                                 url=item.enclosure,
-                                page_url=item.page_url)
+                                page_url=item.page_url,
+                                cache=torrent_cache)
                             selected_episodes = set(torrent_episodes).intersection(set(need_episodes))
                             if not selected_episodes:
                                 log.info("【Downloader】%s 没有需要的集，跳过..." % item.org_string)
@@ -910,13 +916,26 @@ class Downloader:
             if dict_type.name == type_name or dict_type.value == type_name:
                 return dict_type
 
-    def get_torrent_episodes(self, url, page_url=None):
+    def get_torrent_episodes(self, url, page_url=None, cache=None):
         """
         解析种子文件，获取集数
+        :param cache: 调用批次私有缓存；按原始链接、站点上下文与凭据隔离，失败不缓存
         :return: 集数列表、种子路径
         """
         site_info = self.sites.get_site_attr(
             page_url if Torrent.is_dynamic_download_url(url) else url)
+        cache_key = None
+        if cache is not None:
+            identity = json.dumps(
+                (url, page_url, site_info.get("cookie"), site_info.get("ua"),
+                 site_info.get("referer"), site_info.get("proxy"), site_info.get("apikey")),
+                sort_keys=True,
+                default=str,
+            )
+            cache_key = hashlib.sha256(identity.encode("utf-8")).hexdigest()
+            cached = cache.get(cache_key)
+            if cached and os.path.isfile(cached[1]):
+                return list(cached[0]), cached[1]
         # 保存种子文件
         file_path, _, _, files, retmsg = Torrent().get_torrent_info(
             url=url,
@@ -938,6 +957,8 @@ class Downloader:
             if not meta.begin_episode:
                 continue
             episodes = list(set(episodes).union(set(meta.get_episode_list())))
+        if cache is not None and file_path and not retmsg and os.path.isfile(file_path):
+            cache[cache_key] = (tuple(episodes), file_path)
         return episodes, file_path
 
     def get_download_setting(self, sid=None):

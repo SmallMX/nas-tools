@@ -3,13 +3,22 @@ import json
 import os
 import re
 import tempfile
-from urllib.parse import quote, unquote, urljoin, urlparse
+import time
+from urllib.parse import parse_qsl, quote, unquote, urljoin, urlparse
 
 import requests
 from bencoder import bdecode
 
 from app.utils.http_utils import RequestUtils
 from config import Config
+
+
+class _TransientTorrentError(Exception):
+    """可恢复的取种失败；短时票据只报告错误，不重复消费。"""
+
+    def __init__(self, message, retryable=True):
+        super().__init__(message)
+        self.retryable = retryable
 
 # Trackers列表
 trackers = [
@@ -71,6 +80,8 @@ class Torrent:
         """
         if not url:
             return None, None, "", [], "URL为空"
+        indirect_download = self.is_dynamic_download_url(url)
+        original_url = url
         url, resolve_error = self.resolve_dynamic_download_url(url=url,
                                                                cookie=cookie,
                                                                ua=ua,
@@ -81,13 +92,21 @@ class Torrent:
             return None, None, "", [], resolve_error
         if url.startswith("magnet:"):
             return None, url, "", [], "获取到磁力链接"
+        if indirect_download:
+            api_url = self._dynamic_url_pattern.match(original_url).group(2)
+            if self._download_origin(api_url) != self._download_origin(url):
+                # JSON 换票返回的跨源地址也须遵守 HTTP 重定向的凭据隔离规则。
+                cookie = None
+                ua = self._strip_sensitive_redirect_headers(ua)
+                referer = None
         try:
             # 下载保存种子文件
             file_path, content, errmsg = self.save_torrent_file(url=url,
                                                                 cookie=cookie,
                                                                 ua=ua,
                                                                 referer=referer,
-                                                                proxy=proxy)
+                                                                proxy=proxy,
+                                                                retry=not indirect_download)
             if not file_path:
                 return None, content, "", [], errmsg
             # 解析种子文件
@@ -307,7 +326,71 @@ class Torrent:
         except Exception as err:
             return None, f"获取动态下载地址失败：{err}"
 
-    def save_torrent_file(self, url, cookie=None, ua=None, referer=None, proxy=False):
+    @staticmethod
+    def _is_temporary_download_url(url):
+        """识别常见签名或短时票据参数，避免重复请求消耗一次性凭据。"""
+        temporary_keys = {
+            "ticket", "token", "auth_token", "auth_key", "signature", "sig", "sign",
+            "expires", "expire", "expiry", "timestamp", "ts",
+        }
+        return any(
+            key.lower() in temporary_keys or key.lower().startswith(("x-amz-", "x-oss-"))
+            for key, _ in parse_qsl(urlparse(url).query, keep_blank_values=True)
+        )
+
+    @staticmethod
+    def _rate_limit_message(content):
+        """只提取明确限流语义，不把可能含凭据的服务端原文带入日志。"""
+        if not content or len(content) > 16 * 1024 or not content.lstrip().startswith(b"{"):
+            return None
+        try:
+            payload = json.loads(content)
+        except (ValueError, UnicodeError):
+            return None
+        if not isinstance(payload, dict):
+            return None
+        message = " ".join(
+            value for key in ("message", "msg", "error")
+            if isinstance(value := payload.get(key), str)
+        ).lower()
+        if re.search(r"[当當]天|今天|每天|每日|今日|daily", message) \
+                and re.search(r"下载|下載|download", message) \
+                and re.search(r"最多|上限|限[额額]|次[数數]|limit|quota", message):
+            return "站点每日下载配额已用尽，请稍后重试"
+        if any(word in message for word in (
+                "限流", "流控", "请求太多", "请求过多", "请求频繁", "请求过于频繁",
+                "請求太多", "請求過多", "請求頻繁", "請求過於頻繁",
+                "too many requests", "rate limit", "download quota exceeded")):
+            return "站点限流，请稍后重试"
+        return None
+
+    @classmethod
+    def _read_rate_limit_error(cls, response):
+        """错误响应只读取有界前缀，防止大错误页耗尽内存。"""
+        content = bytearray()
+        try:
+            for chunk in response.iter_content(chunk_size=4096):
+                if not isinstance(chunk, (bytes, bytearray)):
+                    return None
+                if len(content) + len(chunk) > 16 * 1024:
+                    return None
+                content.extend(chunk)
+        except requests.exceptions.RequestException:
+            return None
+        return cls._rate_limit_message(bytes(content))
+
+    def save_torrent_file(self, url, cookie=None, ua=None, referer=None, proxy=False,
+                          retry=True):
+        """普通 GET 瞬时失败最多尝试三次；限流、签名和换票地址不重复请求。"""
+        for attempt in range(3):
+            try:
+                return self._save_torrent_file_once(url, cookie, ua, referer, proxy)
+            except _TransientTorrentError as error:
+                if not retry or not error.retryable or attempt == 2:
+                    return None, None, str(error)
+                time.sleep(attempt + 1)
+
+    def _save_torrent_file_once(self, url, cookie=None, ua=None, referer=None, proxy=False):
         """
         把种子下载到本地
         :return: 种子保存路径，错误信息
@@ -318,6 +401,7 @@ class Torrent:
         if current_hostname is None:
             return None, current_url, "获取到磁力链接"
         current_origin = self._download_origin(current_url)
+        retryable = not self._is_temporary_download_url(current_url)
 
         request_headers = ua
         request_cookie = cookie
@@ -334,7 +418,7 @@ class Torrent:
                 proxies=request_proxies,
             ).get_res(url=current_url, allow_redirects=False, stream=True)
             if req is None:
-                return None, None, "无法打开种子下载链接"
+                raise _TransientTorrentError("无法打开种子下载链接", retryable)
             if req.status_code not in self._REDIRECT_STATUS_CODES:
                 break
             if redirect_count >= self._MAX_REDIRECTS:
@@ -365,9 +449,16 @@ class Torrent:
             current_url = next_url
             current_hostname = next_hostname
             current_origin = next_origin
+            retryable = retryable and not self._is_temporary_download_url(next_url)
             redirect_count += 1
 
-        if req and req.status_code == 200:
+        if req.status_code == 429:
+            retry_after = str((req.headers or {}).get("Retry-After") or "")
+            self._close_response(req)
+            wait = f"，请等待 {retry_after} 秒后重试" if re.fullmatch(r"[0-9]{1,7}", retry_after) else "，请稍后重试"
+            return None, None, "站点限流（HTTP 429）" + wait
+
+        if req.status_code == 200:
             content_length = (getattr(req, "headers", {}) or {}).get("Content-Length")
             try:
                 if content_length is not None and int(content_length) > self._MAX_TORRENT_SIZE:
@@ -387,13 +478,23 @@ class Torrent:
                         return None, None, "种子文件超过 20MB 限制"
                     content_buffer.extend(chunk)
             except requests.exceptions.RequestException:
-                return None, None, "读取种子响应体失败"
+                raise _TransientTorrentError("读取种子响应体失败", retryable) from None
             finally:
                 self._close_response(req)
 
             if not content_buffer:
-                return None, None, "未下载到种子数据"
+                raise _TransientTorrentError("未下载到种子数据", retryable)
+            # requests 会解压内容，压缩响应不可直接与传输字节数比较。
+            if not (req.headers or {}).get("Content-Encoding"):
+                try:
+                    if content_length is not None and len(content_buffer) < int(content_length):
+                        raise _TransientTorrentError("种子响应体未接收完整", retryable)
+                except (TypeError, ValueError):
+                    pass
             file_content = bytes(content_buffer)
+            rate_limit_error = self._rate_limit_message(file_content)
+            if rate_limit_error:
+                return None, None, rate_limit_error
             if file_content.startswith(b"magnet:"):
                 try:
                     magnet = file_content.decode("utf-8").strip()
@@ -426,7 +527,14 @@ class Torrent:
                 raise
         else:
             status_code = req.status_code
-            self._close_response(req)
+            try:
+                rate_limit_error = self._read_rate_limit_error(req)
+            finally:
+                self._close_response(req)
+            if rate_limit_error:
+                return None, None, rate_limit_error
+            if status_code == 408 or 500 <= status_code <= 599:
+                raise _TransientTorrentError(f"下载种子出错，状态码：{status_code}", retryable)
             return None, None, "下载种子出错，状态码：%s" % status_code
 
         return file_path, file_content, ""

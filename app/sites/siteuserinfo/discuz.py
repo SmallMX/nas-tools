@@ -58,12 +58,14 @@ class DiscuzUserInfo(_ISiteUserInfo):
         if join_at_text:
             self.join_at = StringUtils.unify_datetime_str(join_at_text[0].strip())
 
-        # 分享率
-        ratio_text = html.xpath('//li[contains(.//text(), "分享率")]//text()')
-        if ratio_text:
-            ratio_match = re.search(r"\(([\d,.]+)\)", ratio_text[0])
-            if ratio_match and ratio_match.group(1).strip():
-                self.bonus = StringUtils.str_float(ratio_match.group(1))
+        # 分享率可能与其他 PT 指标同处一行，合并子标签文本后按标签取值。
+        ratio_items = html.xpath('//li[contains(., "分享率")]')
+        for ratio_item in ratio_items:
+            ratio_match = re.search(r"分享率\s*[:：]?\s*[（(]?\s*([\d,.]+)",
+                                    ratio_item.xpath('string(.)'))
+            if ratio_match:
+                self.ratio = StringUtils.str_float(ratio_match.group(1))
+                break
 
         # 积分
         bouns_text = html.xpath('//li[em[text()="积分"]]/text()')
