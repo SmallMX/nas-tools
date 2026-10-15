@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 class PermissionRegistryTest(unittest.TestCase):
     def test_all_web_actions_have_permission_rule(self):
         tree = ast.parse((ROOT / "web" / "action.py").read_text(encoding="utf-8"))
-        actions = set()
+        actions = []
         for node in ast.walk(tree):
             if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Dict):
                 continue
@@ -22,14 +22,17 @@ class PermissionRegistryTest(unittest.TestCase):
                     and target.attr == "_actions"
                     for target in node.targets):
                 continue
-            actions.update(
+            actions.extend(
                 key.value
                 for key in node.value.keys
                 if isinstance(key, ast.Constant) and isinstance(key.value, str)
             )
 
-        missing = sorted(actions.difference(CMD_PERMISSIONS))
+        self.assertTrue(actions, "未找到 Web 动作注册表，不能跳过权限覆盖检查")
+        self.assertEqual(len(actions), len(set(actions)), "Web 动作存在重复注册")
+        missing = sorted(set(actions).difference(CMD_PERMISSIONS))
         self.assertEqual([], missing, f"以下 Web 动作缺少权限声明：{missing}")
+        self.assertEqual(set(CMD_PERMISSIONS), set(actions), "权限表和动作注册表必须保持一致")
 
     def test_all_ui_routes_are_public_or_have_permission_rule(self):
         routes = set()

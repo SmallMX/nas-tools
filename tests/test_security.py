@@ -28,6 +28,8 @@ from web.action import (
     validate_configured_site_url,
     validate_site_config_url,
 )
+from web.actions.download import DownloadActions
+from web.actions.system import SystemActions
 from web.main import App
 from web.permissions import API_PREFIX_PERMISSIONS
 from web.routes.system_files import create_sqlite_backup
@@ -310,12 +312,11 @@ class SecurityTest(unittest.TestCase):
         self.assertEqual(1, response["code"])
 
     def test_user_manager_rejects_missing_password_and_reports_real_success(self):
-        action = WebAction.__new__(WebAction)
-        action.dbhelper = MagicMock()
+        action = SystemActions(MagicMock())
         action.dbhelper.is_user_exists.return_value = False
         action.dbhelper.insert_user.return_value = True
 
-        missing_password = action._WebAction__user_manager({
+        missing_password = action.user_manager({
             "oper": "add",
             "name": "reader",
             "pris": ["资源搜索"],
@@ -323,7 +324,7 @@ class SecurityTest(unittest.TestCase):
         self.assertEqual(1, missing_password["code"])
         action.dbhelper.insert_user.assert_not_called()
 
-        success = action._WebAction__user_manager({
+        success = action.user_manager({
             "oper": "add",
             "name": "reader",
             "password": "safe-password",
@@ -427,7 +428,7 @@ class SecurityTest(unittest.TestCase):
         self.assertEqual(200, response.status_code)
         self.assertIn("站点自动签到", response.get_data(as_text=True))
 
-    @patch('web.action.ThreadHelper')
+    @patch('web.actions.download.ThreadHelper')
     @patch('flask_login.utils._get_user')
     @patch('web.backend.user.User.get_user')
     def test_generic_service_runner_does_not_expose_site_signin_tool(
@@ -523,9 +524,9 @@ class SecurityTest(unittest.TestCase):
         self.assertEqual("https://tracker.example:8443/download/file.torrent", redacted)
         self.assertEqual("magnet:<redacted>", StringUtils.redact_url("magnet:?xt=urn:btih:secret"))
 
-    @patch("web.action.RequestUtils")
+    @patch("web.actions.system.RequestUtils")
     def test_network_test_rejects_non_whitelisted_targets(self, request_utils):
-        result = WebAction._WebAction__net_test("127.0.0.1")
+        result = SystemActions.net_test("127.0.0.1")
 
         self.assertFalse(result["res"])
         self.assertIn("不支持", result["msg"])
@@ -676,23 +677,23 @@ class SecurityTest(unittest.TestCase):
         self.assertFalse(is_authorized("user", "/api/v1/user/future-sensitive-action"))
 
     def test_restart_targets_gunicorn_master_only(self):
-        with patch("web.action.os.getppid", return_value=4321), \
-                patch("web.action.os.getpid", return_value=1234):
+        with patch("web.actions.system.os.getppid", return_value=4321), \
+                patch("web.actions.system.os.getpid", return_value=1234):
             self.assertEqual(get_restart_target_pid("gunicorn/23.0.0"), 4321)
             self.assertEqual(get_restart_target_pid("Werkzeug/3.0"), 1234)
-        with patch("web.action.os.getppid", return_value=1), \
-                patch("web.action.os.getpid", return_value=1234):
+        with patch("web.actions.system.os.getppid", return_value=1), \
+                patch("web.actions.system.os.getpid", return_value=1234):
             self.assertEqual(get_restart_target_pid("gunicorn/23.0.0"), 1234)
 
     def test_torrent_controls_report_downloader_failure(self):
-        action = WebAction.__new__(WebAction)
+        action = DownloadActions(MagicMock())
         cases = (
-            ("_WebAction__pt_start", "start_torrents"),
-            ("_WebAction__pt_stop", "stop_torrents"),
-            ("_WebAction__pt_remove", "delete_torrents"),
+            ("pt_start", "start_torrents"),
+            ("pt_stop", "stop_torrents"),
+            ("pt_remove", "delete_torrents"),
         )
         for action_name, downloader_method in cases:
-            with self.subTest(action=action_name), patch("web.action.Downloader") as downloader:
+            with self.subTest(action=action_name), patch("web.actions.download.Downloader") as downloader:
                 method = getattr(downloader.return_value, downloader_method)
                 method.return_value = False
                 self.assertEqual(getattr(action, action_name)({"id": "hash"})["retcode"], 1)
@@ -700,13 +701,13 @@ class SecurityTest(unittest.TestCase):
                 self.assertEqual(getattr(action, action_name)({"id": "hash"})["retcode"], 0)
 
     def test_stored_message_html_is_returned_as_plain_structured_data(self):
-        action = WebAction.__new__(WebAction)
+        action = SystemActions(MagicMock())
         malicious = '<img src=x onerror="alert(1)">Title<br><script>alert(2)</script>'
-        with patch.object(WebAction, "get_system_message", return_value={
+        with patch.object(SystemActions, "get_system_message", return_value={
             "message": [{"level": "INFO", "title": malicious, "content": malicious, "time": "now"}],
             "lst_time": "now",
         }):
-            result = action._WebAction__refresh_message({"lst_time": ""})
+            result = action.refresh_message({"lst_time": ""})
         serialized = json.dumps(result, ensure_ascii=False)
         self.assertNotIn("<script", serialized)
         self.assertNotIn("<img", serialized)
@@ -732,13 +733,12 @@ class SecurityTest(unittest.TestCase):
             )
 
     def test_message_client_failed_upsert_is_not_reported_as_success(self):
-        action = WebAction.__new__(WebAction)
-        action.dbhelper = MagicMock()
+        action = SystemActions(MagicMock())
         action.dbhelper.insert_message_client.return_value = False
         existing = {"config": {"token": "old", "chat_id": "123"}}
-        with patch("web.action.Message") as message:
+        with patch("web.actions.system.Message") as message:
             message.return_value.get_message_client_info.return_value = existing
-            result = action._WebAction__update_message_client({
+            result = action.update_message_client({
                 "cid": 7,
                 "name": "Telegram",
                 "type": "telegram",
@@ -803,10 +803,10 @@ class SecurityTest(unittest.TestCase):
             temp_root.mkdir()
             outside = Path(temp_dir) / "outside.torrent"
             outside.write_bytes(b"torrent")
-            action = WebAction.__new__(WebAction)
-            with patch("web.action.Config") as config, patch("web.action.Downloader") as downloader:
+            action = DownloadActions(MagicMock())
+            with patch("web.actions.download.Config") as config, patch("web.actions.download.Downloader") as downloader:
                 config.return_value.get_temp_path.return_value = str(temp_root)
-                result = action._WebAction__download_torrent({
+                result = action.download_torrent({
                     "files": [{"upload": {"filename": "../outside.torrent"}}],
                     "magnets": ["http://127.0.0.1/private"],
                 })
@@ -824,7 +824,7 @@ class SecurityTest(unittest.TestCase):
             "rssurl": "https://tracker.example/rss",
             "strict_url": "https://tracker.example/",
         }
-        with patch("web.action.Sites") as sites:
+        with patch("web.actions.validation.Sites") as sites:
             sites.return_value.get_sites.return_value = [saved_site]
             self.assertEqual(
                 validate_configured_site_url("Configured", "https://tracker.example/download?id=1"),
@@ -835,9 +835,9 @@ class SecurityTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 validate_configured_site_url("ClientSuppliedName", "https://tracker.example/download")
 
-            action = WebAction.__new__(WebAction)
-            with patch("web.action.Downloader") as downloader:
-                result = action._WebAction__download_link({
+            action = DownloadActions(MagicMock())
+            with patch("web.actions.download.Downloader") as downloader:
+                result = action.download_link({
                     "site": "Configured",
                     "enclosure": "http://127.0.0.1/admin",
                     "title": "malicious",

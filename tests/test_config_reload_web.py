@@ -47,7 +47,7 @@ class WebConfigSaveTest(unittest.TestCase):
         self.config = Mock()
         self.config.get_config.return_value = self.original
         for target, value in (
-                ("web.action.Config", Mock(return_value=self.config)),
+                ("web.actions.system.Config", Mock(return_value=self.config)),
                 ("web.action.DbHelper", Mock()),
                 ("web.action.SiteSigninWebService", Mock())):
             patcher = patch(target, value)
