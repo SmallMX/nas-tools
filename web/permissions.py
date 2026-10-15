@@ -164,7 +164,7 @@ API_PREFIX_PERMISSIONS: tuple[tuple[str, PermissionRule], ...] = (
     ("/api/v1/search/", "资源搜索"),
     ("/api/v1/recommend/", "探索"),
     ("/api/v1/media/", "探索"),
-    ("/api/v1/download/setting/", ("下载管理", "系统设置")),
+    ("/api/v1/download/config/", CMD_PERMISSIONS["get_download_setting"]),
     ("/api/v1/download/", "下载管理"),
     ("/api/v1/service/", "服务"),
     ("/api/v1/brushtask/downloader/", "系统设置"),

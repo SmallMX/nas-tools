@@ -74,7 +74,8 @@
   <layout-navbar id="navbar-menu" hidden
     layout-gopage="{{ GoPage }}"
     layout-appversion="{{ AppVersion }}"
-    layout-userpris='{{ UserPris|tojson|safe }}'>
+    layout-userpris='{{ UserPris|tojson|safe }}'
+    layout-page-permissions='{{ PagePermissions|tojson|safe }}'>
   </layout-navbar>
   <layout-searchbar hidden
       layout-username="{{ UserName }}"

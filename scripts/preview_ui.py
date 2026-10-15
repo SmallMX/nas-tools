@@ -57,6 +57,12 @@ def read_public_ui_definitions():
 
 
 DEFINITIONS = read_public_ui_definitions()
+PAGE_PERMISSIONS = next(
+    ast.literal_eval(node.value)
+    for node in ast.parse((WEB / "permissions.py").read_text()).body
+    if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
+    and node.target.id == "PATH_PERMISSIONS"
+)
 CONFIG = {
     "app": {"logtype": "console", "loglevel": "info", "logpath": "/demo/logs", "logserver": "",
             "wallpaper": "themoviedb", "login_user": "demo", "login_password": "", "domain": "",
@@ -160,7 +166,8 @@ def page_context(page):
     channels = DEFINITIONS["MESSAGE_CONF"]
     context = dict(
         Config=CONFIG, CustomScriptCfg={"css": "", "javascript": ""}, Proxy="",
-        UserPris=PERMISSIONS, UserName="demo", SystemFlag="MacOS", AppVersion="UI Preview",
+        UserPris=PERMISSIONS, PagePermissions=PAGE_PERMISSIONS,
+        UserName="demo", SystemFlag="MacOS", AppVersion="UI Preview",
         SiteFavicons={s["name"]: "/static/img/logo.png" for s in SITES}, SearchSource="tmdb", TMDBFlag=1,
         RestypeDict=DEFINITIONS["TORRENT_SEARCH_PARAMS"]["restype"], PixDict=DEFINITIONS["TORRENT_SEARCH_PARAMS"]["pix"],
         Indexers=SITES, Sites=SITES, CanDownload=True, CanSystemSettings=True, ChromeOk=True,
@@ -264,6 +271,11 @@ def create_preview_app():
         if request.method == "POST": return blocked()
         context = page_context("")
         context["GoPage"] = request.args.get("next", "ranking").lstrip("/")
+        if "permissions" in request.args:
+            context["UserPris"] = [
+                permission for permission in request.args["permissions"].split(",")
+                if permission in PERMISSIONS
+            ]
         return render_template("navigation.html", **context)
 
     @app.get("/preview")

@@ -2,7 +2,7 @@ import { LayoutNavbarButton } from "./button.js"; export { LayoutNavbarButton };
 import { html, nothing } from "../../utility/lit-core.min.js";
 import { CustomElement } from "../../utility/utility.js";
 
-// name: 服务原名
+// name: 导航分组或页面名称；访问权限由后端页面权限表决定
 // page: 导航路径
 // icon: 项目图标
 // : 显示别名 (可选)
@@ -177,7 +177,6 @@ const navbar_list = [
   {
     name: "工具",
     page: "tools",
-    permission: "*",
     relatedPages: ["tools/site-signin"],
     icon: html`
       <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-tool" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -301,6 +300,7 @@ export class LayoutNavbar extends CustomElement {
     layout_gopage: { attribute: "layout-gopage" },
     layout_appversion: { attribute: "layout-appversion"},
     layout_userpris: { attribute: "layout-userpris", type: Array },
+    layout_page_permissions: { attribute: "layout-page-permissions", type: Object },
     _active_name: { state: true},
   };
 
@@ -308,7 +308,8 @@ export class LayoutNavbar extends CustomElement {
     super();
     this.layout_gopage = "";
     this.layout_appversion = "v0.7.0";
-    this.layout_userpris = navbar_list.map((item) => (item.name));
+    this.layout_userpris = [];
+    this.layout_page_permissions = {};
     this._active_name = "";
     this.classList.add("navbar", "navbar-vertical", "navbar-expand-lg", "lit-navbar-fixed", "lit-navbar");
   }
@@ -330,12 +331,16 @@ export class LayoutNavbar extends CustomElement {
   }
 
   _open_default_page() {
+    // 保留按用户权限顺序选择常用首页的行为，分组名不参与权限判断。
+    const entryPages = navbar_list.map((entry) => entry.page ?? entry.list?.[0]?.page);
     const item = this.layout_userpris
-      .map((permission) => navbar_list.find(
-        (entry) => this._required_permissions(entry).includes(permission)
-      ))
-      .find((entry) => entry) ?? navbar_list.find((entry) => this._can_view_item(entry));
-    const page = item?.page ?? item?.list?.[0]?.page;
+      .map((permission) => entryPages.find((page) => {
+        const required = this._page_permissions(page);
+        return required.length === 1 && required[0] === permission;
+      }) ?? entryPages.find((page) => this._page_permissions(page).includes(permission)))
+      .find((page) => page);
+    const page = item ?? navbar_list.flatMap((entry) => entry.list ?? [entry])
+      .find((entry) => this._can_view_page(entry.page))?.page;
     if (page) {
       navmenu(page);
       setTimeout(() => { this.show_collapse(page) }, 200);
@@ -362,16 +367,22 @@ export class LayoutNavbar extends CustomElement {
     this.show_collapse(this._active_name);
   }
 
-  _required_permissions(item) {
-    const permission = item.permission ?? item.name;
-    return Array.isArray(permission) ? permission : [permission];
+  _page_permissions(page) {
+    const permission = this.layout_page_permissions?.[`/${page}`];
+    return Array.isArray(permission) ? permission : permission ? [permission] : [];
   }
 
-  _can_view_item(item) {
-    const permissions = this._required_permissions(item);
+  _can_view_page(page) {
+    const permissions = this._page_permissions(page);
     return permissions.includes("*") || permissions.some(
       (permission) => this.layout_userpris.includes(permission)
     );
+  }
+
+  _can_view_item(item) {
+    return item.list?.length
+      ? item.list.some((child) => this._can_view_page(child.page))
+      : this._can_view_page(item.page);
   }
 
   show_collapse(page) {
@@ -434,7 +445,8 @@ export class LayoutNavbar extends CustomElement {
                         ${item.also??item.name}
                       </button>
                       <div class="accordion-collapse collapse" id="lit-navbar-collapse-${index}">
-                        ${item.list.map((drop) => (this._render_page_item(drop, true)))}
+                        ${item.list.filter((drop) => this._can_view_page(drop.page))
+                          .map((drop) => this._render_page_item(drop, true))}
                       </div>`
                     : this._render_page_item(item, false)
                     } `

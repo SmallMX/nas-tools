@@ -24,6 +24,7 @@ from app.utils.types import *
 from config import Config
 from web.action import WebAction
 from web.apiv1 import apiv1_bp
+from web.permissions import PATH_PERMISSIONS
 from web.routes import system_files_bp, tool_pages_bp
 
 from web.backend.user import User
@@ -256,6 +257,7 @@ def login():
                                GoPage=GoPage,
                                UserName=userinfo.username,
                                UserPris=str(userinfo.pris).split(","),
+                               PagePermissions=PATH_PERMISSIONS,
                                SystemFlag=SystemFlag.value,
                                TMDBFlag=TMDBFlag,
                                AppVersion=WebUtils.get_current_version(),

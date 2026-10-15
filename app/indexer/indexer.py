@@ -6,32 +6,26 @@ from app.helper import ProgressHelper
 from app.indexer.client import BuiltinIndexer
 from app.utils import ExceptionUtils, StringUtils
 from app.utils.commons import singleton
-from app.utils.types import SearchType, IndexerType
+from app.utils.types import SearchType
 from config import Config
 
 
 @singleton
 class Indexer(object):
-    _indexer_schemas = (BuiltinIndexer,)
     _client = None
     progress = None
 
     def __init__(self):
-        log.debug(f"【Indexer】加载索引器：{self._indexer_schemas}")
+        log.debug("【Indexer】加载内置索引器")
         self.init_config()
 
     def init_config(self):
         self.progress = ProgressHelper()
-        self._client = self.__get_client(IndexerType.BUILTIN)
-
-    def __build_class(self, ctype, conf):
-        for indexer_schema in self._indexer_schemas:
-            try:
-                if indexer_schema.match(ctype):
-                    return indexer_schema(conf)
-            except Exception as e:
-                ExceptionUtils.exception_traceback(e)
-        return None
+        try:
+            self._client = BuiltinIndexer()
+        except Exception as e:
+            ExceptionUtils.exception_traceback(e)
+            self._client = None
 
     def get_indexers(self):
         """
@@ -89,9 +83,6 @@ class Indexer(object):
         """
         return BuiltinIndexer().list(index_id=index_id, page=page, keyword=keyword)
 
-    def __get_client(self, ctype: IndexerType, conf=None):
-        return self.__build_class(ctype=ctype.value, conf=conf)
-
     def get_client(self):
         """
         获取当前索引器
@@ -118,15 +109,15 @@ class Indexer(object):
 
         indexers = self.get_indexers()
         if not indexers:
-            log.error(f"【{IndexerType.BUILTIN.value}】没有有效的索引器配置！")
+            log.error("【Indexer】没有有效的索引器配置！")
             return []
         # 计算耗时
         start_time = datetime.datetime.now()
         if filter_args and filter_args.get("site"):
-            log.info(f"【{IndexerType.BUILTIN.value}】开始检索 %s，站点：%s ..." % (key_word, filter_args.get("site")))
+            log.info("【Indexer】开始检索 %s，站点：%s ..." % (key_word, filter_args.get("site")))
             self.progress.update(ptype='search', text="开始检索 %s，站点：%s ..." % (key_word, filter_args.get("site")))
         else:
-            log.info(f"【{IndexerType.BUILTIN.value}】开始并行检索 %s，站点数：%s ..." % (key_word, len(indexers)))
+            log.info("【Indexer】开始并行检索 %s，站点数：%s ..." % (key_word, len(indexers)))
             self.progress.update(ptype='search', text="开始并行检索 %s，站点数：%s ..." % (key_word, len(indexers)))
         try:
             configured_workers = int(
@@ -157,7 +148,7 @@ class Indexer(object):
                     result = future.result()
                 except Exception as error:
                     ExceptionUtils.exception_traceback(error)
-                    log.error(f"【{IndexerType.BUILTIN.value}】站点 {index.name} 检索失败：{error}")
+                    log.error(f"【Indexer】站点 {index.name} 检索失败：{error}")
                     result = []
                 finish_count += 1
                 self.progress.update(
@@ -168,7 +159,7 @@ class Indexer(object):
                     ret_array.extend(result)
         # 计算耗时
         end_time = datetime.datetime.now()
-        log.info(f"【{IndexerType.BUILTIN.value}】所有站点检索完成，有效资源数：%s，总耗时 %s 秒"
+        log.info("【Indexer】所有站点检索完成，有效资源数：%s，总耗时 %s 秒"
                  % (len(ret_array), (end_time - start_time).seconds))
         self.progress.update(ptype='search', text="所有站点检索完成，有效资源数：%s，总耗时 %s 秒"
                                                   % (len(ret_array), (end_time - start_time).seconds),

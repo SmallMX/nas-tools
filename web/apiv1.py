@@ -89,17 +89,6 @@ class ClientResource(Resource):
     method_decorators = [login_required]
 
 
-def Failed():
-    """
-    返回失败报名
-    """
-    return {
-        "code": -1,
-        "success": False,
-        "data": {}
-    }
-
-
 # 举例：这是一个具体的接口定义
 # @user.route('/login') 意思是当访问 /api/v1/user/login 时，会交给下面这个 UserLogin 类来处理
 @user.route('/login')

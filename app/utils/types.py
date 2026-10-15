@@ -32,12 +32,6 @@ class OsType(Enum):
     DOCKER = "Docker"
 
 
-class IndexerType(Enum):
-    BUILTIN = "Indexer"
-
-
-
-
 class BrushDeleteType(Enum):
     NOTDELETE = "不删除"
     SEEDTIME = "做种时间"
