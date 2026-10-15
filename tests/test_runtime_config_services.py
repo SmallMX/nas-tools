@@ -4,7 +4,6 @@ from threading import Event
 from unittest.mock import Mock, patch
 from urllib.parse import parse_qs, urlparse
 
-from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -12,6 +11,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from app.message import Message
 from app.message.client.telegram import Telegram
 from app.scheduler import Scheduler
+from app.scheduler_manager import SchedulerManager
 from app.utils.http_utils import RequestUtils
 from app.utils.types import SearchType
 
@@ -20,24 +20,27 @@ class SchedulerRuntimeConfigTest(unittest.TestCase):
     def setUp(self):
         self.config = self._patch("app.scheduler.get_site_signin_config")
         self.config.return_value = {"cron": "08:00", "notify": True}
-        self._patch("app.scheduler.Config").return_value.get_timezone.return_value = "UTC"
         self._patch("app.scheduler.SiteSignin")
         self._patch("app.scheduler.MetaHelper")
         self._patch("app.scheduler.SiteUserInfo")
         self._patch("app.scheduler.log")
-        self.scheduler = BackgroundScheduler(timezone="UTC")
-        self._patch("app.scheduler.BackgroundScheduler").return_value = self.scheduler
-        # 保留真实 APScheduler 的 job/trigger 操作，不启动线程或执行任务。
-        self._patch_object(self.scheduler, "start")
-        self._patch_object(self.scheduler, "print_jobs")
-        self.shutdown = self._patch_object(self.scheduler, "shutdown")
+        manager = SchedulerManager.__wrapped__(timezone="UTC")
+        group = manager.create_group("system")
+        self.addCleanup(manager.shutdown, wait=True)
+        self._patch("app.scheduler.SchedulerManager").return_value = manager
+        # 使用真实 APScheduler 的 job/trigger 操作，暂停引擎以禁止业务任务执行。
+        manager._scheduler.start(paused=True)
+        self._patch_object(group, "print_jobs")
+        self.shutdown = self._patch_object(manager._scheduler, "shutdown")
         scheduler_class = Scheduler.__closure__[0].cell_contents
         self.service = scheduler_class()
         self.service.run_service()
+        self.scheduler = self.service.SCHEDULER
+        signin_id = self.scheduler.get_job(self.service._site_signin_job_id).id
         self.other_jobs = {
             job.id: (job, getattr(job, "next_run_time", None))
             for job in self.scheduler.get_jobs()
-            if job.id != self.service._site_signin_job_id
+            if job.id != signin_id
         }
 
     def _patch(self, target):
@@ -113,7 +116,7 @@ class SchedulerRuntimeConfigTest(unittest.TestCase):
 
     def test_reload_before_start_only_updates_configuration(self):
         self.service.SCHEDULER = None
-        with patch("app.scheduler.BackgroundScheduler") as create:
+        with patch("app.scheduler.SchedulerManager") as create:
             self._reload("23.5")
 
         create.assert_not_called()

@@ -4,16 +4,15 @@ import re
 import sys
 import time
 from datetime import datetime
+from threading import RLock
 
 import pytz
-from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
-from apscheduler.schedulers.background import BackgroundScheduler
 
 import log
-from app.db import remove_db_session
 from app.downloader.client import Qbittorrent, Transmission
 from app.helper import DbHelper
 from app.message import Message
+from app.scheduler_manager import SchedulerManager
 from app.utils.rss_parser import RssParser
 from app.sites import Sites
 from app.utils import StringUtils, Torrent, ExceptionUtils
@@ -32,6 +31,7 @@ class BrushTask(object):
     sites = None
     dbhelper = None
     _scheduler = None
+    _config_lock = RLock()
     _brush_tasks = []
     _torrents_cache = []
     _downloader_infos = []
@@ -46,72 +46,72 @@ class BrushTask(object):
         初始化刷流配置。
         初学者注意：当系统启动，或者用户在网页上修改了刷流配置后，都会调用这个方法重新排班。
         """
-        self.dbhelper = DbHelper()
-        self.message = Message()
-        self.sites = Sites()
-        # 移除现有任务
-        self.stop_service()
-        # 读取下载器列表
-        downloaders = self.dbhelper.get_user_downloaders()
-        self._downloader_infos = []
-        for downloader_info in downloaders:
-            self._downloader_infos.append(
-                {
-                    "id": downloader_info.id,
-                    "name": downloader_info.name,
-                    "type": downloader_info.type,
-                    "host": downloader_info.host,
-                    "port": downloader_info.port,
-                    "username": downloader_info.username,
-                    "password": downloader_info.password,
-                    "save_dir": downloader_info.save_dir
-                }
-            )
-        # 读取刷流任务列表
-        self._brush_tasks = self.get_brushtask_info()
-        if not self._brush_tasks:
-            return
-        # 启动RSS任务（去各大网站的RSS订阅源拉取最新发布的种子）
-        task_flag = False
-        self._scheduler = BackgroundScheduler(timezone=Config().get_timezone())
-        self._scheduler.add_listener(self.__remove_job_db_session,
-                                     EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
-        # 初学者注意：这里遍历所有开启的刷流任务，为它们设定定时执行器（比如每 10 分钟执行一次 check_task_rss）
-        for task in self._brush_tasks:
-            if task.get("state") == "Y" and task.get("interval") and str(task.get("interval")).isdigit():
-                task_flag = True
-                self._scheduler.add_job(func=self.check_task_rss,
-                                        args=[task.get("id")],
-                                        trigger='interval',
-                                        seconds=int(task.get("interval")) * 60)
-        # 启动删种任务
-        if task_flag:
-            # 如果有刷流任务，就顺便启动一个“打扫战场”的定时任务
-            # 每隔一段时间（BRUSH_REMOVE_TORRENTS_INTERVAL）去下载器里看看，有没有达到分享率或者做种时间的种子，把它们删掉
-            self._scheduler.add_job(func=self.remove_tasks_torrents,
-                                    trigger='interval',
-                                    seconds=BRUSH_REMOVE_TORRENTS_INTERVAL)
-            # 启动
-            self._scheduler.print_jobs()
-            self._scheduler.start()
-            log.info("刷流服务启动")
+        with self._config_lock:
+            self.dbhelper = DbHelper()
+            self.message = Message()
+            self.sites = Sites()
+            self.stop_service()
+            # 读取下载器列表
+            downloaders = self.dbhelper.get_user_downloaders()
+            self._downloader_infos = []
+            for downloader_info in downloaders:
+                self._downloader_infos.append(
+                    {
+                        "id": downloader_info.id,
+                        "name": downloader_info.name,
+                        "type": downloader_info.type,
+                        "host": downloader_info.host,
+                        "port": downloader_info.port,
+                        "username": downloader_info.username,
+                        "password": downloader_info.password,
+                        "save_dir": downloader_info.save_dir
+                    }
+                )
+            self._brush_tasks = self.get_brushtask_info()
+            scheduled_tasks = [
+                task for task in self._brush_tasks
+                if task.get("state") == "Y" and task.get("interval")
+                and str(task.get("interval")).isdigit()
+            ]
+            if not scheduled_tasks:
+                return
+
+            group = SchedulerManager().create_group("brush")
+            self._scheduler = group
+            try:
+                for task in scheduled_tasks:
+                    group.add_job(func=self.check_task_rss,
+                                  args=[task.get("id")],
+                                  id=f"rss:{task.get('id')}",
+                                  trigger='interval',
+                                  seconds=int(task.get("interval")) * 60)
+                # 至少有一个自动刷流任务时，才定期检查刷流种子的清理条件。
+                group.add_job(func=self.remove_tasks_torrents,
+                              id="remove_torrents",
+                              trigger='interval',
+                              seconds=BRUSH_REMOVE_TORRENTS_INTERVAL)
+                group.print_jobs()
+                group.start()
+                log.info("刷流服务启动")
+            except BaseException:
+                self._scheduler = None
+                try:
+                    group.shutdown(wait=False)
+                except Exception as error:
+                    ExceptionUtils.exception_traceback(error)
+                raise
 
     def stop_service(self):
-        """幂等停止刷流调度器，不等待正在运行的任务。"""
-        scheduler = self._scheduler
-        self._scheduler = None
-        if not scheduler:
-            return
-        try:
-            scheduler.remove_all_jobs()
-            if scheduler.running:
+        """幂等停止刷流任务组，不等待正在运行的任务。"""
+        with self._config_lock:
+            scheduler = self._scheduler
+            self._scheduler = None
+            if not scheduler:
+                return
+            try:
                 scheduler.shutdown(wait=False)
-        except Exception as error:
-            ExceptionUtils.exception_traceback(error)
-
-    @staticmethod
-    def __remove_job_db_session(_event):
-        remove_db_session()
+            except Exception as error:
+                ExceptionUtils.exception_traceback(error)
 
     @staticmethod
     def __parse_rule(rule):

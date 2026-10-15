@@ -1,19 +1,15 @@
 import json
-from threading import Lock
-
-from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
-from apscheduler.schedulers.background import BackgroundScheduler
+from threading import Lock, RLock
 
 import log
 from app.conf import ModuleConf
-from app.db import remove_db_session
 from app.db.models import TorrentRemoveTask
 from app.downloader import Downloader
 from app.helper import DbHelper
 from app.message import Message
+from app.scheduler_manager import SchedulerManager
 from app.utils import ExceptionUtils
 from app.utils.commons import singleton
-from config import Config
 
 lock = Lock()
 
@@ -25,68 +21,71 @@ class TorrentRemover(object):
     dbhelper = None
 
     _scheduler = None
+    _config_lock = RLock()
     _remove_tasks = {}
 
     def __init__(self):
         self.init_config()
 
     def init_config(self):
-        self.message = Message()
-        self.downloader = Downloader()
-        self.dbhelper = DbHelper()
-        # 移出现有任务
-        self.stop_service()
-        # 读取任务任务列表
-        removetasks = self.dbhelper.get_torrent_remove_tasks()
-        self._remove_tasks = {}
-        for task in removetasks:
-            config = task.config
-            self._remove_tasks[str(task.id)] = {
-                "id": task.id,
-                "name": task.name,
-                "downloader": task.downloader,
-                "onlynastool": task.onlynastool,
-                "samedata": task.samedata,
-                "action": task.action,
-                "config": json.loads(config) if config else {},
-                "interval": task.interval,
-                "enabled": task.enabled,
-            }
-        if not self._remove_tasks:
-            return
-        # 启动删种任务
-        self._scheduler = BackgroundScheduler(timezone=Config().get_timezone())
-        self._scheduler.add_listener(self.__remove_job_db_session,
-                                     EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
-        remove_flag = False
-        for task in self._remove_tasks.values():
-            if task.get("enabled") and task.get("interval") and task.get("config"):
-                remove_flag = True
-                self._scheduler.add_job(func=self.auto_remove_torrents,
-                                        args=[task.get("id")],
-                                        trigger='interval',
-                                        seconds=int(task.get("interval")) * 60)
-        if remove_flag:
-            self._scheduler.print_jobs()
-            self._scheduler.start()
-            log.info("自动删种服务启动")
+        with self._config_lock:
+            self.message = Message()
+            self.downloader = Downloader()
+            self.dbhelper = DbHelper()
+            self.stop_service()
+            removetasks = self.dbhelper.get_torrent_remove_tasks()
+            self._remove_tasks = {}
+            for task in removetasks:
+                config = task.config
+                self._remove_tasks[str(task.id)] = {
+                    "id": task.id,
+                    "name": task.name,
+                    "downloader": task.downloader,
+                    "onlynastool": task.onlynastool,
+                    "samedata": task.samedata,
+                    "action": task.action,
+                    "config": json.loads(config) if config else {},
+                    "interval": task.interval,
+                    "enabled": task.enabled,
+                }
+            scheduled_tasks = [
+                task for task in self._remove_tasks.values()
+                if task.get("enabled") and task.get("interval") and task.get("config")
+            ]
+            if not scheduled_tasks:
+                return
+
+            group = SchedulerManager().create_group("remover")
+            self._scheduler = group
+            try:
+                for task in scheduled_tasks:
+                    group.add_job(func=self.auto_remove_torrents,
+                                  args=[task.get("id")],
+                                  id=f"remove:{task.get('id')}",
+                                  trigger='interval',
+                                  seconds=int(task.get("interval")) * 60)
+                group.print_jobs()
+                group.start()
+                log.info("自动删种服务启动")
+            except BaseException:
+                self._scheduler = None
+                try:
+                    group.shutdown(wait=False)
+                except Exception as error:
+                    ExceptionUtils.exception_traceback(error)
+                raise
 
     def stop_service(self):
-        """幂等停止自动删种调度器，不等待正在运行的任务。"""
-        scheduler = self._scheduler
-        self._scheduler = None
-        if not scheduler:
-            return
-        try:
-            scheduler.remove_all_jobs()
-            if scheduler.running:
+        """幂等停止自动删种任务组，不等待正在运行的任务。"""
+        with self._config_lock:
+            scheduler = self._scheduler
+            self._scheduler = None
+            if not scheduler:
+                return
+            try:
                 scheduler.shutdown(wait=False)
-        except Exception as error:
-            ExceptionUtils.exception_traceback(error)
-
-    @staticmethod
-    def __remove_job_db_session(_event):
-        remove_db_session()
+            except Exception as error:
+                ExceptionUtils.exception_traceback(error)
 
     def get_torrent_remove_tasks(self, taskid=None):
         """

@@ -438,18 +438,6 @@ class CoreDataSafetyTest(unittest.TestCase):
         db.commit.assert_called_once()
         db.rollback.assert_not_called()
 
-    def test_scheduler_callbacks_remove_worker_database_sessions(self):
-        brush_class = singleton_class(BrushTask)
-        remover_class = singleton_class(TorrentRemover)
-
-        with patch("app.brushtask.remove_db_session") as brush_cleanup, \
-                patch("app.torrentremover.remove_db_session") as remover_cleanup:
-            brush_class._BrushTask__remove_job_db_session(None)
-            remover_class._TorrentRemover__remove_job_db_session(None)
-
-        brush_cleanup.assert_called_once_with()
-        remover_cleanup.assert_called_once_with()
-
     def test_site_userinfo_debug_log_never_contains_cookie_value(self):
         site_class = singleton_class(SiteUserInfo)
         service = site_class.__new__(site_class)

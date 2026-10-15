@@ -4,21 +4,18 @@ import random
 import traceback
 from threading import RLock
 
-from apscheduler.executors.pool import ThreadPoolExecutor
-from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 from apscheduler.jobstores.base import JobLookupError
-from apscheduler.schedulers.background import BackgroundScheduler
 
 import log
-from app.db import remove_db_session
 from app.helper import MetaHelper
+from app.scheduler_manager import SchedulerManager
 from app.sites import SiteUserInfo
 from app.tools import SiteSignin
 from app.tools.site_signin.config import get_site_signin_config
 from app.utils import ExceptionUtils
 from app.utils.commons import singleton
 from config import METAINFO_SAVE_INTERVAL, REFRESH_PT_DATA_INTERVAL, \
-    META_DELETE_UNKNOWN_INTERVAL, REFRESH_WALLPAPER_INTERVAL, Config
+    META_DELETE_UNKNOWN_INTERVAL, REFRESH_WALLPAPER_INTERVAL
 from web.backend.wallpaper import get_login_wallpaper
 
 
@@ -29,7 +26,7 @@ class Scheduler:
     作用：NAS-Tools 是一个后台长期运行的程序，很多活儿不能靠人手工点，需要定时自动干。
     这个类就负责统筹安排：几点签到、几点去扫描下载器、每隔几分钟刷一次流量数据。
     """
-    SCHEDULER = None # 存放真正的 APScheduler 框架对象
+    SCHEDULER = None # 共享调度器中的系统任务组
     _site_signin_config = None
     _site_signin_job_id = "site_signin"
     _site_signin_date_job_id = "site_signin_random"
@@ -132,55 +129,38 @@ class Scheduler:
         return hour, minute
 
     def run_service(self):
-        """
-        核心启动方法：读取配置，把各个定时任务加入到计划表中，最后启动！
-        初学者注意：在 Python 里要想实现定时任务，通常使用第三方库 `APScheduler`。
-        """
-        # 创建一个后台调度器 (BackgroundScheduler)
-        # 给了它一个拥有 20 个工人的线程池 (ThreadPoolExecutor)，保证任务太多时也能并发行执行
-        self.SCHEDULER = BackgroundScheduler(timezone=Config().get_timezone(),
-                                             executors={
-                                                 'default': ThreadPoolExecutor(20)
-                                             })
-        self.SCHEDULER.add_listener(
-            lambda _event: remove_db_session(),
-            EVENT_JOB_EXECUTED | EVENT_JOB_ERROR,
-        )
-        if not self.SCHEDULER:
-            return
-            
+        """注册并启动系统任务组，重复启动不叠加任务或执行池。"""
         with self._config_lock:
-            self._site_signin_generation += 1
-            self._site_signin_dirty = True
-            self._site_signin_dirty = not self._schedule_site_signin(
-                self._signin_cron(self._site_signin_config)
-            )
-
-        # 2. 元数据定时保存任务
-        # 把内存里的数据定时写进数据库
-        self.SCHEDULER.add_job(MetaHelper().save_meta_data, 'interval', seconds=METAINFO_SAVE_INTERVAL)
-
-        # 3. 站点数据（流量上传量、下载量）刷新任务
-        # 注意：next_run_time 表示这个任务启动后 1 分钟马上执行第一次，之后再按照 interval (如6小时) 循环
-        self.SCHEDULER.add_job(SiteUserInfo().refresh_pt_date_now,
-                               'interval',
-                               hours=REFRESH_PT_DATA_INTERVAL,
-                               next_run_time=datetime.datetime.now() + datetime.timedelta(minutes=1))
-
-        # 4. 定时清除未识别的垃圾缓存
-        self.SCHEDULER.add_job(MetaHelper().delete_unknown_meta, 'interval', hours=META_DELETE_UNKNOWN_INTERVAL)
-
-        # 5. 定时去远端服务器拉取 NAS-Tools 登录页面的好看壁纸
-        self.SCHEDULER.add_job(get_login_wallpaper,
-                               'interval',
-                               hours=REFRESH_WALLPAPER_INTERVAL,
-                               next_run_time=datetime.datetime.now())
-
-        # 在日志里把所有排好队的任务打出来看一眼
-        self.SCHEDULER.print_jobs()
-
-        # 最后：正式鸣枪起跑！调度器开始默默在后台按时间表干活。
-        self.SCHEDULER.start()
+            if self.SCHEDULER and self.SCHEDULER.running:
+                return
+            group = SchedulerManager().create_group("system")
+            self.SCHEDULER = group
+            try:
+                self._site_signin_generation += 1
+                self._site_signin_dirty = True
+                self._site_signin_dirty = not self._schedule_site_signin(
+                    self._signin_cron(self._site_signin_config)
+                )
+                group.add_job(MetaHelper().save_meta_data, 'interval',
+                              id="meta_save", seconds=METAINFO_SAVE_INTERVAL)
+                group.add_job(SiteUserInfo().refresh_pt_date_now, 'interval',
+                              id="site_statistics", hours=REFRESH_PT_DATA_INTERVAL,
+                              next_run_time=datetime.datetime.now() + datetime.timedelta(minutes=1))
+                group.add_job(MetaHelper().delete_unknown_meta, 'interval',
+                              id="meta_cleanup", hours=META_DELETE_UNKNOWN_INTERVAL)
+                group.add_job(get_login_wallpaper, 'interval',
+                              id="wallpaper", hours=REFRESH_WALLPAPER_INTERVAL,
+                              next_run_time=datetime.datetime.now())
+                group.print_jobs()
+                group.start()
+            except BaseException:
+                self.SCHEDULER = None
+                self._site_signin_generation += 1
+                try:
+                    group.shutdown(wait=False)
+                except Exception as error:
+                    log.error("【Scheduler】清理启动失败的系统任务组失败：%s" % type(error).__name__)
+                raise
 
     def stop_service(self):
         """
@@ -192,8 +172,7 @@ class Scheduler:
                 self.SCHEDULER = None
                 self._site_signin_generation += 1
             if scheduler:
-                scheduler.remove_all_jobs()
-                scheduler.shutdown()
+                scheduler.shutdown(wait=True)
         except Exception as e:
             ExceptionUtils.exception_traceback(e)
 

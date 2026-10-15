@@ -21,6 +21,7 @@ from app.helper import IndexerHelper, DisplayHelper, ChromeHelper, ThreadHelper
 from app.brushtask import BrushTask
 from app.message import Message
 from app.scheduler import run_scheduler, stop_scheduler
+from app.scheduler_manager import shutdown_schedulers
 from app.torrentremover import TorrentRemover
 from version import APP_VERSION
 
@@ -131,6 +132,7 @@ def shutdown_system():
     stop_scheduler()
     BrushTask().stop_service()
     TorrentRemover().stop_service()
+    shutdown_schedulers()
     Message().stop_service()
     ThreadHelper().shutdown()
     ChromeHelper().quit()
