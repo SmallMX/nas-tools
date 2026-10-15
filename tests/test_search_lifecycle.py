@@ -9,7 +9,10 @@ from web.backend import search_torrents
 class WebSearchLifecycleTest(unittest.TestCase):
     def setUp(self):
         self.progress = self._patch("ProgressHelper").return_value
-        self.searcher = self._patch("Searcher").return_value
+        self.searcher = Searcher.__new__(Searcher)
+        self.searcher.progress = self.progress
+        self.searcher.search_medias = Mock()
+        self._patch("Searcher").return_value = self.searcher
         self.database = self._patch("DbHelper").return_value
         self.media = self._patch("Media").return_value
         self._patch("log")
@@ -77,11 +80,12 @@ class WebSearchLifecycleTest(unittest.TestCase):
         )
         media.get_episode_list.return_value = []
         self.media.get_media_info.return_value = media
-        self._patch("Config").return_value.get_config.return_value = {}
         self.searcher.search_medias.side_effect = [[], RuntimeError("retry failed")]
 
-        with self.assertRaisesRegex(RuntimeError, "retry failed"):
-            search_torrents.search_medias_for_web("Example")
+        with patch("app.searcher.Config") as config:
+            config.return_value.get_config.return_value = {}
+            with self.assertRaisesRegex(RuntimeError, "retry failed"):
+                search_torrents.search_medias_for_web("Example")
 
         self.assertEqual([call("search"), call("search")], self.progress.start.call_args_list)
         self.progress.end.assert_called_once_with("search")

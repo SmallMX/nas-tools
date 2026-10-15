@@ -1,9 +1,13 @@
+import os
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
+from urllib.parse import parse_qs, urlparse
 
 from app.indexer import Indexer
 from app.indexer.client.builtin import BuiltinIndexer
+from app.media import Media
+from app.media.tmdbv3api import Search, TMDb
 from app.searcher import Searcher
 from app.utils.types import MediaType, SearchType
 from web.backend import search_torrents
@@ -116,14 +120,15 @@ class SearchSiteLanguageTest(unittest.TestCase):
 
     @patch.object(search_torrents, "DbHelper")
     @patch.object(search_torrents, "ProgressHelper")
-    @patch.object(search_torrents, "Config")
+    @patch("app.searcher.Config")
+    @patch("app.searcher.Media")
     @patch.object(search_torrents, "Media")
     @patch.object(search_torrents, "Searcher")
     def test_web_first_round_includes_english_sites_after_chinese_match(
-            self, searcher_class, media_service, config, progress, database):
+            self, searcher_class, web_media_service, media_service, config, progress, database):
         searcher_class.return_value = self._prepare_searcher()
         config.return_value.get_config.return_value = {}
-        media_service.return_value.get_media_info.return_value = self.media
+        web_media_service.return_value.get_media_info.return_value = self.media
         media_service.return_value.get_tmdb_en_title.return_value = "Example"
 
         self.assertEqual((0, ""), search_torrents.search_medias_for_web("示例"))
@@ -131,6 +136,87 @@ class SearchSiteLanguageTest(unittest.TestCase):
         media_service.return_value.get_tmdb_en_title.assert_called_once_with(self.media)
         self._assert_both_languages_searched_once()
         self.assertEqual(3, len(database.return_value.insert_search_results.call_args.kwargs["media_items"]))
+
+
+class TmdbTitleLanguageIsolationTest(unittest.TestCase):
+    def setUp(self):
+        environment = patch.dict(os.environ, {
+            TMDb.TMDB_LANGUAGE: "zh-CN",
+            TMDb.TMDB_API_KEY: "test-key",
+            TMDb.TMDB_DOMAIN: "https://tmdb.example/3",
+            TMDb.TMDB_CACHE_ENABLED: "False",
+            TMDb.TMDB_DEBUG_ENABLED: "False",
+        })
+        environment.start()
+        self.addCleanup(environment.stop)
+        self.media_service = Media.__new__(Media)
+        self.media_service.tmdb = TMDb(session=Mock())
+
+    def _assert_followup_search_language(self, expected):
+        session = Mock()
+        session.request.return_value.headers = {}
+        session.request.return_value.json.return_value = {"results": []}
+
+        self.assertEqual([], Search(session=session).movies({"query": "示例"}))
+
+        session.request.assert_called_once()
+        request_url = session.request.call_args.args[1]
+        self.assertEqual([expected], parse_qs(urlparse(request_url).query)["language"])
+
+    def test_english_title_lookup_restores_language_for_followup_search(self):
+        cases = (
+            (MediaType.MOVIE, "title", "Example Movie", "_Media__get_tmdb_movie_detail"),
+            (MediaType.TV, "name", "Example Show", "_Media__get_tmdb_tv_detail"),
+        )
+        for original_language in ("zh", "zh-CN"):
+            for media_type, title_key, title, detail_method in cases:
+                with self.subTest(language=original_language, media_type=media_type):
+                    self.media_service.tmdb.language = original_language
+                    media = SimpleNamespace(type=media_type, tmdb_id=1)
+
+                    def get_detail(tmdb_id, append_to_response):
+                        self.assertEqual("en-US", self.media_service.tmdb.language)
+                        return {title_key: title}
+
+                    with patch.object(self.media_service, detail_method, side_effect=get_detail), \
+                            patch.object(self.media_service, "get_tmdb_info",
+                                         wraps=self.media_service.get_tmdb_info) as get_info:
+                        self.assertEqual(title, self.media_service.get_tmdb_en_title(media))
+                        get_info.assert_called_once_with(
+                            mtype=media_type, tmdbid=1, language="en-US"
+                        )
+
+                    self.assertEqual(original_language, self.media_service.tmdb.language)
+                    self._assert_followup_search_language(original_language)
+
+    def test_failed_english_title_lookup_restores_language_and_preserves_error(self):
+        media = SimpleNamespace(type=MediaType.MOVIE, tmdb_id=1)
+        error = RuntimeError("TMDB detail lookup failed")
+
+        def fail_detail(tmdb_id, append_to_response):
+            self.assertEqual("en-US", self.media_service.tmdb.language)
+            raise error
+
+        for original_language in ("zh", "zh-CN"):
+            with self.subTest(language=original_language):
+                self.media_service.tmdb.language = original_language
+                with patch.object(self.media_service, "_Media__get_tmdb_movie_detail",
+                                  side_effect=fail_detail):
+                    with self.assertRaises(RuntimeError) as raised:
+                        self.media_service.get_tmdb_en_title(media)
+
+                self.assertIs(error, raised.exception)
+                self.assertEqual(original_language, self.media_service.tmdb.language)
+                self._assert_followup_search_language(original_language)
+
+    def test_english_title_without_tmdb_configuration_returns_none(self):
+        self.media_service.tmdb = None
+        media = SimpleNamespace(type=MediaType.MOVIE, tmdb_id=1)
+
+        with patch("app.media.media.log"):
+            self.assertIsNone(self.media_service.get_tmdb_en_title(media))
+
+        self._assert_followup_search_language("zh-CN")
 
 
 if __name__ == "__main__":

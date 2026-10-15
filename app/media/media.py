@@ -1530,9 +1530,15 @@ class Media:
         """
         获取TMDB的英文名称
         """
-        en_info = self.get_tmdb_info(mtype=media_info.type,
-                                     tmdbid=media_info.tmdb_id,
-                                     language="en-US")
+        language = self.tmdb.language if self.tmdb else None
+        try:
+            en_info = self.get_tmdb_info(mtype=media_info.type,
+                                         tmdbid=media_info.tmdb_id,
+                                         language="en-US")
+        finally:
+            # TMDB 语言保存在进程环境中，补查不能改变后续媒体识别的语言。
+            if self.tmdb and language is not None:
+                self.tmdb.language = language
         if en_info:
             return en_info.get("title") if media_info.type == MediaType.MOVIE else en_info.get("name")
         return None
