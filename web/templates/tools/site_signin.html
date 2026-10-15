@@ -215,12 +215,12 @@
       window.clearTimeout(pollTimer);
       if (running || followUpPolls > 0) {
         if (!running) followUpPolls -= 1;
-        pollTimer = window.setTimeout(loadStatus, 2000);
+        pollTimer = NasToolsUI.pageTimeout(loadStatus, 2000);
       }
     }
 
     function loadStatus() {
-      ajax_post("tool_site_signin_status", {}, (ret) => {
+      NasToolsUI.pageAction("tool_site_signin_status", {}, (ret) => {
         if (ret.code !== 0) {
           show_fail_modal(ret.msg || "签到状态加载失败");
           return;
@@ -240,7 +240,7 @@
     function runSignin(force) {
       document.querySelector("#site_signin_retry").disabled = true;
       document.querySelector("#site_signin_force").disabled = true;
-      ajax_post("tool_site_signin_run", {force}, (ret) => {
+      NasToolsUI.pageAction("tool_site_signin_run", {force}, (ret) => {
         if (ret.code !== 0) {
           show_fail_modal(ret.msg || "签到任务启动失败");
           loadStatus();
@@ -248,24 +248,20 @@
         }
         show_success_modal(ret.msg);
         followUpPolls = 5;
-        window.setTimeout(loadStatus, 500);
+        NasToolsUI.pageTimeout(loadStatus, 500);
       });
     }
 
     function saveConfig() {
       const button = document.querySelector("#site_signin_save");
-      button.disabled = true;
-      button.textContent = "保存中...";
       const config = input_select_GetVal("site_signin_settings", "site_signin_");
-      ajax_post("tool_site_signin_config_update", config, (ret) => {
-        button.disabled = false;
-        button.textContent = "保存设置";
+      NasToolsUI.withButton(button, "保存中...", () => NasToolsUI.pageAction("tool_site_signin_config_update", config, (ret) => {
         if (ret.code !== 0) {
           show_fail_modal(ret.msg || "工具设置保存失败");
           return;
         }
         show_success_modal(ret.msg || "工具设置已保存");
-      });
+      }));
     }
 
     document.querySelector("#site_signin_refresh")?.addEventListener("click", loadStatus);

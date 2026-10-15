@@ -100,7 +100,7 @@
       </button>
       <div class="dropdown-menu dropdown-menu-end">
         {% for Option in FieldAttr.options %}
-        <a class="dropdown-item" href='javascript:filter_refresh("{{ FieldId }}", "{{ Option.value }}")' >
+        <a class="dropdown-item" href="#" data-nt-click="recommend-filter" data-nt-args='{{ [FieldId|string, Option.value|string]|tojson }}' >
           {{ Option.name }}
         </a>
         {% endfor %}

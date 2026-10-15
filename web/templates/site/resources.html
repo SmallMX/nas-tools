@@ -3,12 +3,12 @@
 {% call UI.page_header(Title or '站点资源', '浏览站点资源，搜索名称并选择需要下载的种子。', eyebrow='站点资源', count=TotalCount) %}
 <div class="btn-list">
           {% if CanDownload %}
-          <a href="javascript:batch_download()" class="btn btn-primary">
+          <a href="#" data-nt-click="resources-batch-download" class="btn btn-primary">
             {{ SVG.arrow_big_down() }}
             一键下载
           </a>
           {% endif %}
-          <a href="javascript:navmenu('sitelist')" class="btn" title="返回">
+          <a href="/?next=sitelist" data-nt-click="resources-back" class="btn" title="返回">
             {{ SVG.arrow_back_up() }}
             返回
           </a>
@@ -27,7 +27,7 @@
               <div class="ms-auto text-muted">
                 搜索:
                 <div class="ms-2 d-inline-block">
-                  <input id="search_word" value="{{ KeyWord or '' }}" type="text" class="form-control form-control-sm"
+                  <input id="search_word" data-nt-keydown="resources-search" value="{{ KeyWord or '' }}" type="text" class="form-control form-control-sm"
                          aria-label="搜索">
                 </div>
               </div>
@@ -39,7 +39,7 @@
               <tr>
                 <th class="w-1">
                   <input class="form-check-input m-0 align-middle" type="checkbox" aria-label="全选"
-                           onclick="select_SelectALL($(this).prop('checked'), 'resources_item')">
+                           data-nt-change="resources-select-all">
                 </th>
                 <th>标题</th>
                 <th>
@@ -94,7 +94,7 @@
                             <span class="badge text-white bg-blue">{{ (Result.downloadvolumefactor * 100) | int }}%DL</span>
                           {% endif %}
                         {% endif %}
-                        <a class="ms-2 mb-1 resource-name-test" title="名称测试" href="#"
+                        <a class="ms-2 mb-1 resource-name-test" data-nt-click="resources-name-test" title="名称测试" href="#"
                            data-resource-id="{{ loop.index0 }}"
                            data-bs-toggle="tooltip">
                           {{ SVG.text_recognition() }}
@@ -118,7 +118,7 @@
                     <td class="sort-grabs" data-grabs="{{ Result.grabs }}">{{ Result.grabs }}</td>
                     <td>
                       {% if CanDownload %}
-                      <a href="#" class="resource-download" data-resource-id="{{ loop.index0 }}" title="下载">
+                      <a href="#" class="resource-download" data-nt-click="resources-download" data-resource-id="{{ loop.index0 }}" title="下载">
                         {{ SVG.download() }}
                       </a>
                       {% endif %}
@@ -138,19 +138,19 @@
               <p class="m-0 text-muted"></p>
               <ul class="pagination m-0 ms-auto">
                 <li class="page-item {% if CurrentPage == 0 %} disabled {% endif %}">
-                  <a class="page-link" href='javascript:go_pre_page({{ CurrentPage }})' tabindex="-1"
-                     aria-disabled="true">
+                  <a class="page-link" href="#" data-nt-click="resources-previous" data-nt-args='{{ [CurrentPage]|tojson }}' tabindex="-1"
+                     aria-disabled="{{ 'true' if CurrentPage == 0 else 'false' }}">
                     {{ SVG.chevron_left() }}
                   </a>
                 </li>
                 {% for page in PageRange %}
                   <li class="page-item {% if page==CurrentPage %} active {% endif %}">
-                    <a class="page-link" href='javascript:go_page({{ page }})'>{{ page + 1 }}</a>
+                    <a class="page-link" href="#" data-nt-click="resources-page" data-nt-args='{{ [page]|tojson }}'>{{ page + 1 }}</a>
                   </li>
                 {% endfor %}
                 <li class="page-item {% if CurrentPage + 1 >= TotalPage %} disabled {% endif %}">
                   <a class="page-link"
-                     href='{% if CurrentPage < TotalPage %}javascript:go_next_page({{ CurrentPage }}){% else %}javascript:void(0){% endif %}'>
+                     href="#" data-nt-click="{% if CurrentPage < TotalPage %}resources-next{% else %}noop{% endif %}" data-nt-args='{{ [CurrentPage]|tojson }}'>
                     {{ SVG.chevron_right() }}
                   </a>
                 </li>
@@ -163,11 +163,12 @@
   </div>
 </div>
 <script type="text/javascript">
+(() => {
   const resourceSiteId = {{ SiteId|tojson }};
   const resourceSiteTitle = {{ Title|tojson }};
 
   //排序表单
-  tableDataList = new List('site-resources-table', {
+  new List('site-resources-table', {
     sortClass: 'table-sort',
     listClass: 'table-tbody',
     valueNames: ['sort-seeders', 'sort-peers', 'sort-grabs',
@@ -219,8 +220,6 @@
     const seeders = $(`#seeders_${id}`).val();
     const uploadvolumefactor = $(`#uploadvolumefactor_${id}`).val();
     const downloadvolumefactor = $(`#downloadvolumefactor_${id}`).val();
-    if (!batch || current_download === 0) {
-    }
     const params = {
       site: site,
       enclosure: enclosure,
@@ -234,7 +233,7 @@
       uploadvolumefactor: uploadvolumefactor,
       downloadvolumefactor: downloadvolumefactor
     };
-    ajax_post("download_link", params, function (ret) {
+    NasToolsUI.pageAction("download_link", params, function (ret) {
       if (!batch) {
         if (ret.code === 0) {
           show_success_modal(`${title} 添加下载成功！`);
@@ -278,28 +277,28 @@
   //名称测试
   function nametest(id) {
     const title = $(`#title_${id}`).val() || "";
-    media_name_test(title, `testresults_${id}`, function () {
-    });
+    return media_name_test(title, `testresults_${id}`);
   }
 
-  $(document).off("click.resource-name-test", ".resource-name-test").on(
-    "click.resource-name-test", ".resource-name-test", function (event) {
-      event.preventDefault();
-      nametest(this.dataset.resourceId || "");
-    }
-  );
-  $(document).off("click.resource-download", ".resource-download").on(
-    "click.resource-download", ".resource-download", function (event) {
-      event.preventDefault();
-      download_site_resource(this.dataset.resourceId || "");
-    }
-  );
-
-  // 搜索按钮
-  $('#search_word').bind('keypress', function (event) {
-    if (event.keyCode == "13") {
-      go_page({{ CurrentPage|int }});
-    }
+  NasToolsUI.bindActions('#page_content', {
+    click: {
+      'resources-batch-download': () => batch_download(),
+      'resources-back': () => navmenu('sitelist'),
+      'resources-previous': element => go_pre_page(...NasToolsUI.args(element)),
+      'resources-page': element => go_page(...NasToolsUI.args(element)),
+      'resources-next': element => go_next_page(...NasToolsUI.args(element)),
+      'resources-name-test': element => NasToolsUI.withButton(element, null, () => nametest(element.dataset.resourceId || '')),
+      'resources-download': element => download_site_resource(element.dataset.resourceId || ''),
+      noop: () => {}
+    },
+    change: {'resources-select-all': element => select_SelectALL(element.checked, 'resources_item')},
+    keydown: {'resources-search': (element, event) => {
+      if (event.key === 'Enter' && !event.isComposing) {
+        event.preventDefault();
+        go_page({{ CurrentPage|int }});
+      }
+    }}
   });
 
+})();
 </script>

@@ -3,7 +3,7 @@
 {% import 'macro/oops.html' as OOPS %}
 {% call UI.page_header('自动删种', '设置种子清理规则，运行前可预览待处理的种子。', eyebrow='下载管理', count=Count) %}
 <div class="btn-list">
-          <a href="javascript:show_add_torrent_remove_task_modal()" class="btn btn-primary">
+          <a href="#" data-nt-click="add-task" class="btn btn-primary">
             {{ SVG.plus() }}
             新增删种任务
           </a>
@@ -17,7 +17,7 @@
       {% for Id, Attr in TorrentRemoveTasks.items() %}
       <div class="card">
         <div class="card-header">
-          <a href="javascript:$(`#detail_{{ Attr.id }}`).slideToggle()"
+          <a href="#" data-nt-click="toggle-detail" data-nt-args='{{ [Attr.id|string]|tojson }}'
              title="展开/折叠"  data-bs-toggle="tooltip">
             <div>
               {% if Attr.enabled %}
@@ -27,14 +27,14 @@
               {% endif %}
             </div>
           </a>
-          <a href="javascript:$(`#detail_{{ Attr.id }}`).slideToggle()" style="text-decoration-line: none; color: unset"
+          <a href="#" data-nt-click="toggle-detail" data-nt-args='{{ [Attr.id|string]|tojson }}' style="text-decoration-line: none; color: unset"
              title="展开/折叠" data-bs-toggle="tooltip">
             <div class="ms-3">
                 <h3 class="card-title">{{ Attr.name }}</h3>
             </div>
           </a>
           <div class="ms-2 d-none d-sm-block">
-            <a href="javascript:run_torrent_remove_now('{{ Attr.id }}')" class="btn-icon" title="立即运行任务"
+            <a href="#" data-nt-click="run-task" data-nt-args='{{ [Attr.id|string]|tojson }}' class="btn-icon" title="立即运行任务"
               data-bs-toggle="tooltip">
               {{ SVG.bolt('icon-filled') }}
             </a>
@@ -43,33 +43,33 @@
             {{ SVG.dots() }}
           </a>
           <div class="dropdown-menu dropdown-menu-end">
-            <button class="dropdown-item text-info" onclick="run_torrent_remove_now('{{ Attr.id }}')">
+            <button class="dropdown-item text-info" data-nt-click="run-task" data-nt-args='{{ [Attr.id|string]|tojson }}'>
               立即运行
             </button>
-            <button class="dropdown-item" onclick="show_remove_torrents_modal('{{ Attr.id }}')">
+            <button class="dropdown-item" data-nt-click="preview-task" data-nt-args='{{ [Attr.id|string]|tojson }}'>
               预览
             </button>
-            <button class="dropdown-item" onclick="show_edit_torrent_remove_task_modal('{{ Attr.id }}')">
+            <button class="dropdown-item" data-nt-click="edit-task" data-nt-args='{{ [Attr.id|string]|tojson }}'>
               编辑
             </button>
-            <button class="dropdown-item text-danger" onclick='delete_torrent_remove_task({{ Attr.id|tojson }}, {{ Attr.name|tojson }})'>
+            <button class="dropdown-item text-danger" data-nt-click="delete-task" data-nt-args='{{ [Attr.id, Attr.name]|tojson }}'>
               删除
             </button>
           </div>
           <div class="card-actions btn-actions d-none d-sm-block">
-            <a href="javascript:$(`#detail_{{ Attr.id }}`).slideToggle()" class="btn-action"
+            <a href="#" data-nt-click="toggle-detail" data-nt-args='{{ [Attr.id|string]|tojson }}' class="btn-action"
                title="展开/折叠" data-bs-toggle="tooltip">
               {{ SVG.menu_2() }}
             </a>
-            <a href="javascript:show_remove_torrents_modal('{{ Attr.id }}')" class="btn-action"
+            <a href="#" data-nt-click="preview-task" data-nt-args='{{ [Attr.id|string]|tojson }}' class="btn-action"
                title="预览删种" data-bs-toggle="tooltip">
               {{ SVG.eye() }}
             </a>
-            <a href="javascript:show_edit_torrent_remove_task_modal('{{ Attr.id }}')" class="btn-action"
+            <a href="#" data-nt-click="edit-task" data-nt-args='{{ [Attr.id|string]|tojson }}' class="btn-action"
                title="编辑设置" data-bs-toggle="tooltip">
               {{ SVG.edit() }}
             </a>
-            <a href="#" onclick='delete_torrent_remove_task({{ Attr.id|tojson }}, {{ Attr.name|tojson }}); return false' class="btn-action"
+            <a href="#" data-nt-click="delete-task" data-nt-args='{{ [Attr.id, Attr.name]|tojson }}' class="btn-action"
                title="删除设置" data-bs-toggle="tooltip">
               {{ SVG.x() }}
             </a>
@@ -362,7 +362,7 @@
           <div class="col-lg-6">
             <div class="mb-1">
               <label class="form-selectgroup-item" for="downloader_{{ Id }}">
-                <input type="radio" name="downloader" id="downloader_{{ Id }}" value="{{ Id }}" class="form-selectgroup-input" checked>
+                <input type="radio" name="downloader" data-nt-change="change-downloader" id="downloader_{{ Id }}" value="{{ Id }}" class="form-selectgroup-input" checked>
                 <span class="form-selectgroup-label d-flex align-items-center p-3">
                   <span class="me-3">
                     <span class="form-selectgroup-check"></span>
@@ -427,7 +427,7 @@
           取消
         </button>
         <button id="add_or_edit_torrent_remove_task_btn" class="btn btn-primary ms-auto"
-          onclick="add_or_edit_torrent_remove_task()">
+          data-nt-click="save-task">
           保存
         </button>
       </div>
@@ -449,6 +449,8 @@
   </div>
 </div>
 <script type="text/javascript">
+(function () {
+  const {pageAction} = NasToolsUI;
 
   // 显示新增任务
   function show_add_torrent_remove_task_modal(){
@@ -478,7 +480,7 @@
   // 显示编辑任务
   function show_edit_torrent_remove_task_modal(tid){
     $("#torrent_remove_task_id").val(tid);
-    ajax_post("get_torrent_remove_task", { tid: tid }, function (ret) {
+    pageAction("get_torrent_remove_task", { tid: tid }, function (ret) {
       if (ret.code == 0) {
         $("#modal-download-setting-title").val('编辑下载设置');
         $("#name").val(ret.detail.name);
@@ -588,26 +590,23 @@
       tr_state: $("#tr_state").val(),
       tr_error_key: $("#tr_error_key").val(),
     };
-    $("#add_or_edit_torrent_remove_task_btn").text("保存中").attr("disabled", true);
-    ajax_post("update_torrent_remove_task", params, function (ret) {
+    return NasToolsUI.withButton('#add_or_edit_torrent_remove_task_btn', '保存中', () => pageAction("update_torrent_remove_task", params, function (ret) {
       $("#modal-torrent-remove-task").modal('hide');
       if (ret.code == 0) {
-        $("#add_or_edit_torrent_remove_task_btn").text("保存").attr("disabled", false);
         window_history_refresh();
       } else {
         show_fail_modal(ret.msg, function () {
           $("#modal-torrent-remove-task").modal('show');
-          $("#add_or_edit_torrent_remove_task_btn").text("保存").attr("disabled", false);
         });
       }
-    });
+    }));
   }
 
   // 删除任务
   function delete_torrent_remove_task(tid, name){
     show_confirm_modal("删除下载设置 " + name + " ？", function () {
       hide_confirm_modal();
-      ajax_post("delete_torrent_remove_task", { "tid": tid }, function (ret) {
+      pageAction("delete_torrent_remove_task", { "tid": tid }, function (ret) {
         window_history_refresh();
       });
     });
@@ -615,7 +614,7 @@
 
   // 显示满足条件种子
   function show_remove_torrents_modal(tid){
-    ajax_post("get_remove_torrents", { "tid": tid }, function (ret) {
+    pageAction("get_remove_torrents", { "tid": tid }, function (ret) {
       const table = document.getElementById("table-remove-torrents");
       if (ret.code == 0) {
         const torrents = Array.isArray(ret.data) ? ret.data : [];
@@ -666,12 +665,6 @@
     });
   }
 
-  // 单选框事件
-  $('input[type=radio][name=downloader]').change(function () {
-     let use = this.value;
-    show_downloader(use);
-  });
-
   // 删种任务下载器
   function show_downloader(downloader) {
     if (downloader == 'Qb') {
@@ -688,10 +681,24 @@
 
   // 立即运行任务
   function run_torrent_remove_now(tid) {
-    ajax_post("auto_remove_torrents", { "tid": tid }, function (ret) {
+    pageAction("auto_remove_torrents", { "tid": tid }, function (ret) {
       show_success_modal("任务运行完成！", function () {
         window_history_refresh();
       });
     });
   }
+  NasToolsUI.bindActions('#page_content', {
+    click: {
+      'add-task': () => show_add_torrent_remove_task_modal(),
+      'save-task': () => add_or_edit_torrent_remove_task(),
+      'toggle-detail': (element) => $(document.getElementById(`detail_${NasToolsUI.args(element)[0]}`)).slideToggle(),
+      'run-task': (element) => run_torrent_remove_now(...NasToolsUI.args(element)),
+      'preview-task': (element) => show_remove_torrents_modal(...NasToolsUI.args(element)),
+      'edit-task': (element) => show_edit_torrent_remove_task_modal(...NasToolsUI.args(element)),
+      'delete-task': (element) => delete_torrent_remove_task(...NasToolsUI.args(element))
+    },
+    change: {'change-downloader': (element) => show_downloader(element.value)}
+  });
+
+})();
 </script>

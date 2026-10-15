@@ -106,9 +106,6 @@ body, .page {
     }
 }
 
-.page-wrapper-top-off {
-    margin-top: calc(0px - env(safe-area-inset-top) - var(--safe-area-inset-top) - 51px) !important;
-}
 
 #navbar-menu {
     box-shadow: none!important;

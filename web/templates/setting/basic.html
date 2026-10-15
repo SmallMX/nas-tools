@@ -132,16 +132,16 @@
           <div class="card-footer nt-settings-footer">
             <div class="row align-items-center">
               <div class="col-auto">
-                <a href="javascript:void(0)" class="btn d-none d-sm-inline-block" data-bs-toggle="modal" data-bs-target="#modal-user-script">
+                <a href="#" class="btn d-none d-sm-inline-block" data-bs-toggle="modal" data-bs-target="#modal-user-script">
                   自定义 CSS/JavaScript
                 </a>
-                <a href="javascript:void(0)" class="btn d-sm-none btn-icon" data-bs-toggle="modal" data-bs-target="#modal-user-script" title="自定义CSS/JavaScript">
+                <a href="#" class="btn d-sm-none btn-icon" data-bs-toggle="modal" data-bs-target="#modal-user-script" title="自定义CSS/JavaScript">
                   {{ SVG.code_dots() }}
                 </a>
               </div>
               <div class="col"></div>
               <div class="col-auto">
-                <a id="basic_system_btn" href="javascript:save_basic_config('basic_system')" class="btn btn-primary">
+                <a id="basic_system_btn" href="#" data-nt-click="save-basic" data-section="basic_system" class="btn btn-primary">
                   保存
                 </a>
               </div>
@@ -267,22 +267,22 @@
           <div class="card-footer nt-settings-footer">
             <div class="row align-items-center">
               <div class="col-auto">
-                <a href="javascript:navmenu('tmdbcache')" class="btn d-none d-sm-inline-block">
+                <a href="#" data-nt-click="tmdb-cache" class="btn d-none d-sm-inline-block">
                   TMDB缓存
                 </a>
-                <a href="javascript:navmenu('tmdbcache')" class="btn d-sm-none btn-icon" title="TMDB缓存">
+                <a href="#" data-nt-click="tmdb-cache" class="btn d-sm-none btn-icon" title="TMDB缓存">
                   {{ SVG.history('') }}
                 </a>
-                <a href="javascript:void(0)" class="btn d-none d-sm-inline-block" data-bs-toggle="modal" data-bs-target="#modal-release-groups">
+                <a href="#" class="btn d-none d-sm-inline-block" data-bs-toggle="modal" data-bs-target="#modal-release-groups">
                   自定义制作组/字幕组
                 </a>
-                <a href="javascript:void(0)" class="btn d-sm-none btn-icon" data-bs-toggle="modal" data-bs-target="#modal-release-groups" title="自定义制作组/字幕组">
+                <a href="#" class="btn d-sm-none btn-icon" data-bs-toggle="modal" data-bs-target="#modal-release-groups" title="自定义制作组/字幕组">
                   {{ SVG.tex() }}
                 </a>
               </div>
               <div class="col"></div>
               <div class="col-auto">
-                <a id="basic_media_btn" href="javascript:save_basic_config('basic_media')" class="btn btn-primary">
+                <a id="basic_media_btn" href="#" data-nt-click="save-basic" data-section="basic_media" class="btn btn-primary">
                   保存
                 </a>
               </div>
@@ -349,7 +349,7 @@
             <div class="row align-items-center">
               <div class="col"></div>
               <div class="col-auto">
-                <a id="basic_service_btn" href="javascript:save_basic_config('basic_service')" class="btn btn-primary">
+                <a id="basic_service_btn" href="#" data-nt-click="save-basic" data-section="basic_service" class="btn btn-primary">
                   保存
                 </a>
               </div>
@@ -411,7 +411,7 @@
             <div class="row align-items-center">
               <div class="col"></div>
               <div class="col-auto">
-                <a id="security_btn" href="javascript:save_basic_config('security')" class="btn btn-primary">
+                <a id="security_btn" href="#" data-nt-click="save-basic" data-section="security" class="btn btn-primary">
                   保存
                 </a>
               </div>
@@ -489,7 +489,7 @@
             <div class="row align-items-center">
               <div class="col"></div>
               <div class="col-auto">
-                <a id="laboratory_btn" href="javascript:save_basic_config('laboratory')" class="btn btn-primary">
+                <a id="laboratory_btn" href="#" data-nt-click="save-basic" data-section="laboratory" class="btn btn-primary">
                   保存
                 </a>
               </div>
@@ -535,7 +535,7 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-link" data-bs-dismiss="modal">取消</button>
-        <a id="user_script_save_btn" href="javascript:save_user_script()" class="btn btn-primary ms-auto">
+        <a id="user_script_save_btn" href="#" data-nt-click="save-script" class="btn btn-primary ms-auto">
           保存
         </a>
       </div>
@@ -562,7 +562,7 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-link me-auto" data-bs-dismiss="modal">取消</button>
-        <a id="release_groups_save_btn" href="javascript:save_release_groups_config()" class="btn btn-primary">
+        <a id="release_groups_save_btn" href="#" data-nt-click="save-release-groups" class="btn btn-primary">
           保存
         </a>
       </div>
@@ -571,10 +571,12 @@
 </div>
 {% endif %}
 <script type="text/javascript">
+(function () {
+  const {pageAction} = NasToolsUI;
 
   {% if SettingSection == "system" %}
   // CSS编辑器
-  css_editor = ace.edit("user_script_css");
+  const css_editor = ace.edit("user_script_css");
   localStorage.getItem("tablerTheme") === "dark" ? css_editor.setTheme("ace/theme/one_dark") : css_editor.setTheme("ace/theme/xcode");
   css_editor.session.setMode("ace/mode/css");
   css_editor.setOptions({
@@ -582,7 +584,7 @@
     fontSize: "10pt"
   });
   // JavaScript编辑器
-  javascript_editor = ace.edit("user_script_javascript");
+  const javascript_editor = ace.edit("user_script_javascript");
   localStorage.getItem("tablerTheme") === "dark" ? javascript_editor.setTheme("ace/theme/one_dark") : javascript_editor.setTheme("ace/theme/xcode");
   javascript_editor.session.setMode("ace/mode/javascript");
   javascript_editor.setOptions({
@@ -594,28 +596,23 @@
   // 保存基础设置
   function save_basic_config(type, flag=true) {
     let params = input_select_GetVal(type);
-    if (flag) {
-      $("#" + type + "_btn").text("保存中...").attr("disabled", true);
-    }
-    ajax_post("update_config", params, function (ret) {
-      if (flag) {
-        $("#" + type + "_btn").text("保存").attr("disabled", false);
-      }
+    const save = () => pageAction("update_config", params, function (ret) {
       if (ret.code !== 0) {
         show_fail_modal(ret.msg || "配置保存失败");
       }
     });
+    return flag ? NasToolsUI.withButton(document.getElementById(`${type}_btn`), '保存中...', save) : save();
   }
 
   {% if SettingSection == "media" %}
   // 保存自定义制作组/字幕组配置
   function save_release_groups_config(){
     let params = {'laboratory.release_groups': $("#release_groups").val().replace(/;$/g, '')};
-    $("#release_groups_save_btn").text("保存中...").attr("disabled", true);
-    ajax_post("update_config", params, function (ret) {
-      $("#release_groups_save_btn").text("保存").attr("disabled", false);
+    return NasToolsUI.withButton('#release_groups_save_btn', '保存中...', () => {
+      const request = pageAction("update_config", params);
+      $("#modal-release-groups").modal("hide");
+      return request;
     });
-    $("#modal-release-groups").modal("hide");
   }
   {% endif %}
 
@@ -624,12 +621,24 @@
   function save_user_script(){
     let css_text = css_editor.getValue();
     let javascript_text = javascript_editor.getValue();
-    $("#user_script_save_btn").text("保存中...").attr("disabled", true);
-    ajax_post("save_user_script", {css: css_text, javascript: javascript_text}, function (ret) {
-      $("#user_script_save_btn").text("保存").attr("disabled", false);
+    return NasToolsUI.withButton('#user_script_save_btn', '保存中...', () => {
+      const request = pageAction("save_user_script", {css: css_text, javascript: javascript_text});
+      $("#modal-user-script").modal("hide");
+      return request;
     });
-    $("#modal-user-script").modal("hide");
   }
   {% endif %}
 
+  NasToolsUI.bindActions('#page_content', {click: {
+    'save-basic': (element) => save_basic_config(element.dataset.section),
+    'tmdb-cache': () => navmenu('tmdbcache'),
+    {% if SettingSection == "system" %}
+    'save-script': () => save_user_script(),
+    {% endif %}
+    {% if SettingSection == "media" %}
+    'save-release-groups': () => save_release_groups_config(),
+    {% endif %}
+  }});
+
+})();
 </script>

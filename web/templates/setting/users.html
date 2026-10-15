@@ -2,7 +2,7 @@
 {% import 'macro/svg.html' as SVG %}
 {% call UI.page_header('用户管理', '管理账号与功能权限，让每位用户访问所需内容。', eyebrow='系统设置', count=UserCount) %}
 <div class="btn-list">
-          <a href="javascript:show_user_modal()" class="btn btn-primary">
+          <a href="#" data-nt-click="add-user" class="btn btn-primary">
             {{ SVG.plus() }}
             新增用户
           </a>
@@ -43,7 +43,7 @@
                       </div>
                     </td>
                     <td>
-                      <a href="#" onclick='delete_user({{ User.name|tojson }}); return false' title="删除用户">
+                      <a href="#" data-nt-click="delete-user" data-nt-args='{{ [User.name]|tojson }}' title="删除用户">
                         {{ SVG.x() }}
                       </a>
                     </td>
@@ -119,12 +119,14 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-link me-auto" data-bs-dismiss="modal">取消</button>
-        <a href="javascript:add_user()" id="add_user_btn" class="btn btn-primary">确定</a>
+        <a href="#" data-nt-click="save-user" id="add_user_btn" class="btn btn-primary">确定</a>
       </div>
     </div>
   </div>
 </div>
 <script type="text/javascript">
+(function () {
+  const {pageAction} = NasToolsUI;
   // 打开新增窗口
   function show_user_modal() {
     $("#modal-user").modal('show');
@@ -152,19 +154,19 @@
     }
     $("#modal-user").modal('hide');
     const params = {"oper": "add", "name": name, "password": password, "pris": pris};
-    ajax_post("user_manager", params, function (ret) {
+    return NasToolsUI.withButton('#add_user_btn', '保存中...', () => pageAction("user_manager", params, function (ret) {
       if (ret.code === 0) {
         window_history_refresh();
       } else {
         show_fail_modal(ret.msg || ret.message || "新增用户失败");
       }
-    });
+    }));
   }
 
   // 删除用户
   function delete_user(name) {
     const params = {"oper": "del", "name": name};
-    ajax_post("user_manager", params, function (ret) {
+    pageAction("user_manager", params, function (ret) {
       if (ret.code === 0) {
         window_history_refresh();
       } else {
@@ -172,4 +174,11 @@
       }
     });
   }
+  NasToolsUI.bindActions('#page_content', {click: {
+    'add-user': () => show_user_modal(),
+    'save-user': () => add_user(),
+    'delete-user': (element) => delete_user(...NasToolsUI.args(element))
+  }});
+
+})();
 </script>

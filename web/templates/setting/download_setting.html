@@ -2,11 +2,11 @@
 {% import 'macro/svg.html' as SVG %}
 {% call UI.page_header('下载设置', '保存常用的下载参数，为不同站点和资源复用。', eyebrow='系统设置', count=Count) %}
 <div class="btn-list">
-          <a href="javascript:show_add_download_setting_modal()" class="btn btn-primary">
+          <a href="#" data-nt-click="add-setting" class="btn btn-primary">
             {{ SVG.plus() }}
             新增下载设置
           </a>
-          <a href="javascript:navmenu('downloader')" class="btn" title="返回">
+          <a href="#" data-nt-click="back-downloader" class="btn" title="返回">
             {{ SVG.arrow_back_up() }}
             返回
           </a>
@@ -19,20 +19,20 @@
       {% for Id, Attr in DownloadSetting.items() %}
       <div class="card">
         <div class="card-header">
-          <a href="javascript:$('#detail_{{ Attr.id }}').slideToggle()" title="展开/折叠"
+          <a href="#" data-nt-click="toggle-detail" data-nt-args='{{ [Attr.id|string]|tojson }}' title="展开/折叠"
              style="text-decoration-line: none; color: unset" data-bs-toggle="tooltip">
             <h3 class="card-title">{{ Attr.name }}</h3>
           </a>
           {% if DefaultDownloadSetting == Id %}
           <div class="ms-2">
-            <a href="javascript:$('#detail_{{ Attr.id }}').slideToggle()" class="btn-action"
+            <a href="#" data-nt-click="toggle-detail" data-nt-args='{{ [Attr.id|string]|tojson }}' class="btn-action"
                title="展开/折叠" data-bs-toggle="tooltip">
               <span class="text-purple">{{ SVG.star('icon-filled') }}</span>
             </a>
           </div>
           {% else %}
           <div class="ms-2 d-none d-sm-block">
-            <a href="javascript:set_default_download_setting('{{ Attr.id }}')" class="btn-action"
+            <a href="#" data-nt-click="default-setting" data-nt-args='{{ [Attr.id|string]|tojson }}' class="btn-action"
                title="设为默认" data-bs-toggle="tooltip">
               {{ SVG.star() }}
             </a>
@@ -42,27 +42,27 @@
                   {{ SVG.dots() }}
                 </a>
           <div class="dropdown-menu dropdown-menu-end">
-            <button class="dropdown-item text-info" onclick="set_default_download_setting('{{ Attr.id }}')">
+            <button class="dropdown-item text-info" data-nt-click="default-setting" data-nt-args='{{ [Attr.id|string]|tojson }}'>
               设为默认
             </button>
-            <button class="dropdown-item" onclick="show_edit_download_setting_modal('{{ Attr.id }}')">
+            <button class="dropdown-item" data-nt-click="edit-setting" data-nt-args='{{ [Attr.id|string]|tojson }}'>
               编辑
             </button>
-            <button class="dropdown-item text-danger" onclick='delete_download_setting({{ Attr.id|tojson }}, {{ Attr.name|tojson }})'>
+            <button class="dropdown-item text-danger" data-nt-click="delete-setting" data-nt-args='{{ [Attr.id, Attr.name]|tojson }}'>
               删除
             </button>
           </div>
           <div class="card-actions btn-actions d-none d-sm-block">
-            <a href="javascript:$('#detail_{{ Attr.id }}').slideToggle()" class="btn-action ms-1"
+            <a href="#" data-nt-click="toggle-detail" data-nt-args='{{ [Attr.id|string]|tojson }}' class="btn-action ms-1"
                title="展开/折叠" data-bs-toggle="tooltip">
               {{ SVG.menu_2() }}
             </a>
             {% if Attr.id > 0 %}
-            <a href="javascript:show_edit_download_setting_modal('{{ Attr.id }}')" class="btn-action ms-1"
+            <a href="#" data-nt-click="edit-setting" data-nt-args='{{ [Attr.id|string]|tojson }}' class="btn-action ms-1"
                title="编辑设置" data-bs-toggle="tooltip">
               {{ SVG.edit() }}
             </a>
-            <a href="#" onclick='delete_download_setting({{ Attr.id|tojson }}, {{ Attr.name|tojson }}); return false' class="btn-action ms-1"
+            <a href="#" data-nt-click="delete-setting" data-nt-args='{{ [Attr.id, Attr.name]|tojson }}' class="btn-action ms-1"
                title="删除设置" data-bs-toggle="tooltip">
               {{ SVG.x() }}
             </a>
@@ -261,7 +261,7 @@
           取消
         </button>
         <button id="add_or_edit_download_setting_btn" class="btn btn-primary ms-auto"
-          onclick="add_or_edit_download_setting()">
+          data-nt-click="save-setting">
           保存
         </button>
       </div>
@@ -269,6 +269,8 @@
   </div>
 </div>
 <script type="text/javascript">
+(function () {
+  const {pageAction} = NasToolsUI;
   // 显示新增下载设置
   function show_add_download_setting_modal(){
     $("#download_setting_id").val('');
@@ -289,7 +291,7 @@
   // 显示编辑下载设置
   function show_edit_download_setting_modal(sid){
     $("#download_setting_id").val(sid);
-    ajax_post("get_download_setting", { sid: sid }, function (ret) {
+    pageAction("get_download_setting", { sid: sid }, function (ret) {
       if (ret.code == 0) {
         $("#modal-download-setting-title").val('编辑下载设置');
         $("#name").val(ret.data.name);
@@ -363,19 +365,17 @@
       seeding_time_limit: seeding_time_limit,
       downloader: downloader
     };
-    $("#add_or_edit_download_setting_btn").text("保存中").attr("disabled", true);
-    ajax_post("update_download_setting", params, function (ret) {
+    return NasToolsUI.withButton('#add_or_edit_download_setting_btn', '保存中', () => pageAction("update_download_setting", params, function (ret) {
       $("#modal-download-setting").modal('hide');
-      $("#add_or_edit_download_setting_btn").text("保存").attr("disabled", false);
       window_history_refresh();
-    });
+    }));
   }
 
   // 删除下载设置
   function delete_download_setting(sid, name){
     show_confirm_modal("删除下载设置 " + name + " ？", function () {
       hide_confirm_modal();
-      ajax_post("delete_download_setting", { "sid": sid }, function (ret) {
+      pageAction("delete_download_setting", { "sid": sid }, function (ret) {
         window_history_refresh();
       });
     });
@@ -387,9 +387,20 @@
       'key': "DefaultDownloadSetting",
       'value': sid
     };
-    ajax_post("set_system_config", params, function (ret) {
+    pageAction("set_system_config", params, function (ret) {
       window_history_refresh();
     });
   }
 
+  NasToolsUI.bindActions('#page_content', {click: {
+    'add-setting': () => show_add_download_setting_modal(),
+    'back-downloader': () => navmenu('downloader'),
+    'toggle-detail': (element) => $(document.getElementById(`detail_${NasToolsUI.args(element)[0]}`)).slideToggle(),
+    'save-setting': () => add_or_edit_download_setting(),
+    'default-setting': (element) => set_default_download_setting(...NasToolsUI.args(element)),
+    'edit-setting': (element) => show_edit_download_setting_modal(...NasToolsUI.args(element)),
+    'delete-setting': (element) => delete_download_setting(...NasToolsUI.args(element))
+  }});
+
+})();
 </script>

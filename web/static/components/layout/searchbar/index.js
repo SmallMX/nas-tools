@@ -135,7 +135,7 @@ export class LayoutSearchbar extends CustomElement {
               </button>
             </span>
             <span class="input-group-text ">
-              <a href="javascript:show_search_advanced_modal()" class="link-secondary" aria-label="高级搜索" title="高级搜索">
+              <a href="#" @click=${event => { event.preventDefault(); show_search_advanced_modal(); }} class="link-secondary" aria-label="高级搜索" title="高级搜索">
                 <!-- http://tabler-icons.io/i/adjustments -->
                 <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2"
                     stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -178,15 +178,15 @@ export class LayoutSearchbar extends CustomElement {
                 ? html`
                     <a class="dropdown-item" data-bs-toggle="offcanvas" href="#offcanvasEnd" role="button"
                       aria-controls="offcanvasEnd">消息中心</a>
-                    <a class="dropdown-item" href="javascript:show_logging_modal()" role="button">实时日志</a>
+                    <a class="dropdown-item" href="#" @click=${event => { event.preventDefault(); show_logging_modal(); }} role="button">实时日志</a>
                     <div class="dropdown-divider"></div>
                     ${["Docker", "Synology"].includes(this.layout_systemflag)
                     ? html`
-                      <a href="javascript:restart()" class="dropdown-item">重启</a>`
+                      <a href="#" @click=${event => { event.preventDefault(); restart(); }} class="dropdown-item">重启</a>`
                     : nothing }
                   `
                 : nothing }
-                <a href="javascript:logout()" class="dropdown-item">
+                <a href="#" @click=${event => { event.preventDefault(); logout(); }} class="dropdown-item">
                   注销 <span class="text-muted mx-3">${this.layout_username}</span>
                 </a>
               </div>

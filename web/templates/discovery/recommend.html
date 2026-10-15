@@ -22,27 +22,28 @@
     <div class="d-grid gap-3 grid-media-card" id="recommend_content" aria-label="影视列表" aria-busy="false"></div>
     <div class="d-flex flex-column align-items-center gap-3 py-4">
       <p class="text-muted m-0" id="recommend_status" role="status" aria-live="polite"></p>
-      <button type="button" class="btn btn-outline-primary" id="recommend_load_more" hidden>加载更多</button>
+      <button type="button" class="btn btn-outline-primary" id="recommend_load_more" data-nt-click="recommend-load-more" hidden>加载更多</button>
     </div>
   </div>
 </div>
 <script type="text/javascript">
+(() => {
   // 当前页码
-  CurrentPage = {{ (CurrentPage or 1)|tojson }};
+  let CurrentPage = {{ (CurrentPage or 1)|tojson }};
 
   // 类型
   // MOV/TV/BANGUMI/SEARCH/DOWNLOADED/TRENDING/DISCOVER/DOUBANTAG
-  Type = {{ (Type or "")|tojson }};
+  const Type = {{ (Type or "")|tojson }};
 
   // 子类型
-  SubType = {{ (SubType or "")|tojson }};
+  const SubType = {{ (SubType or "")|tojson }};
 
   // 标题
-  Title = {{ (Title or "")|tojson }};
+  const Title = {{ (Title or "")|tojson }};
   $("#recommend_title").text(Title || "发现影视");
 
   // 子标题
-  SubTitle = {{ (SubTitle or "")|tojson }};
+  const SubTitle = {{ (SubTitle or "")|tojson }};
   if (SubTitle) {
     $("#recommend_subtitle").text(SubTitle).show();
   } else {
@@ -50,25 +51,25 @@
   }
 
   // 星期
-  Week = {{ (Week or "")|tojson }};
+  const Week = {{ (Week or "")|tojson }};
 
   // TMDBID
-  TmdbId = {{ (TmdbId or "")|tojson }};
+  const TmdbId = {{ (TmdbId or "")|tojson }};
 
   // 演员ID
-  PersonId = {{ (PersonId or "")|tojson }};
+  const PersonId = {{ (PersonId or "")|tojson }};
 
   // 关键字
-  Keyword = {{ (Keyword or "")|tojson }};
+  const Keyword = {{ (Keyword or "")|tojson }};
 
   // 来源
-  Source = {{ (Source or "")|tojson }};
+  const Source = {{ (Source or "")|tojson }};
 
   // 过滤器
-  Filter = {{ (Filter or "")|tojson }};
+  const Filter = {{ (Filter or "")|tojson }};
 
   // 过滤参数
-  Params = {{ (Params or {})|tojson }};
+  const Params = {{ (Params or {})|tojson }};
 
   // 插入N个占位卡片 代替loading动画
   var page_card_num = 20;
@@ -143,7 +144,7 @@
     loading = true;
     add_loading_card_placeholder();
     update_recommend_status("正在加载影视…", "");
-    ajax_post("get_recommend", {
+    NasToolsUI.pageAction("get_recommend", {
       "type": Type,
       "subtype": SubType,
       "page": CurrentPage,
@@ -193,15 +194,10 @@
 
   function loading_data_max() {
     const currentContainer = document.getElementById("recommend_content");
-    setTimeout(() => {
+    NasToolsUI.pageTimeout(() => {
       if (document.getElementById("recommend_content") === currentContainer && !hasScrollbar()) loading_data();
     }, 200);
   }
-
-  document.getElementById("recommend_load_more")?.addEventListener("click", () => {
-    recommend_failed = false;
-    loading_data();
-  });
 
   if (sessionStorage.CurrentPage && document.querySelector("#recommend_content normal-card")) {
     CurrentPage = Number(sessionStorage.CurrentPage) || 1;
@@ -226,15 +222,20 @@
   }
 
 
-  // 滚动加载事件
-  $(document).ready(function ($) {
-    $(window).scroll(function(){
-      if(getScrollRate() < 0.01){
-        loading_data();
-      }
-    });
-  });
+  NasToolsUI.bindActions('#page_content', {click: {
+    'recommend-filter': element => filter_refresh(...NasToolsUI.args(element)),
+    'recommend-load-more': () => {
+      recommend_failed = false;
+      loading_data();
+    }
+  }});
 
+  // 仅当前媒体列表响应滚动；局部导航不重复叠加处理器。
+  $(window).off('scroll.recommend').on('scroll.recommend', ((container) => () => {
+    if (document.getElementById('recommend_content') === container && getScrollRate() < 0.01) loading_data();
+  })(document.getElementById('recommend_content')));
+
+})();
 </script>
 <template id="no_recommend_template">
 <div class="nt-media-state" role="status">

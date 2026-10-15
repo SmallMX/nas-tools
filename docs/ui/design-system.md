@@ -104,6 +104,24 @@ Jinja 页面使用 [macro/ui.html](../../web/templates/macro/ui.html) 的 `UI.pa
 
 弹窗有明确可访问名称；支持焦点进入、焦点约束和关闭后回到触发控件。已有静态 backdrop 或不可关闭的操作流程保持其行为。仅由用户发起、后端确实支持的动作才提供取消按钮。
 
+## 页面事件与异步请求
+
+局部模板使用 IIFE 保存页面状态，通过 `NasToolsUI.bindActions('#page_content', handlers)` 集中绑定
+`data-nt-click`、`data-nt-change` 等事件；动态数据用 `data-nt-args='{{ values|tojson }}'` 传递，
+不要写内联 `on*` 或 `javascript:` 链接，也不要按属性值动态查找全局函数。复选框和单选框使用 `change`，
+保留原生勾选行为；Lit 组件继续用 `@click` 等事件绑定。
+
+页面请求使用与 `ajax_post` 参数兼容的 `NasToolsUI.pageAction`，网络请求仍由 `NasToolsApi` 发出。
+切页和历史恢复会更新页面版本、清理 `pageTimeout` / `pageInterval`；旧业务请求正常完成，但不再执行旧页面的回调。
+导航请求在写 DOM 前检查版本并取消被替代的片段请求，防止旧 HTML 及脚本覆盖新页面。日志、消息中心等外壳任务保留独立生命周期。
+
+表单先校验，再用 `NasToolsUI.withButton` 包裹返回 Promise 的操作；同一按钮的进行中操作不重复提交，
+成功或失败后恢复捕获的原按钮。响应字段、业务提示、确认弹窗和权限条件由原页面处理，不在通用层推测。
+文件树通过幂等委托绑定支持新增目录行，关闭或切页时清理临时监听器。
+
+静态资源删除前需核对模板、JS 导入、CSS URL、manifest 和 Python 动态配置；Ace 模式／worker／主题、
+PWA 图标与启动图等动态依赖不能仅凭文件名没有直接引用而删除。`tests/test_frontend_assets.py` 检查资源链与事件约定。
+
 ## 响应式
 
 | 视口 | 外壳 | 内容 |

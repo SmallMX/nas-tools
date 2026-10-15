@@ -3,11 +3,11 @@
 {% import 'macro/oops.html' as OOPS %}
 {% call UI.page_header('刷流任务', '管理站点刷流任务与下载、做种和清理规则。', eyebrow='站点管理', count=Count) %}
 <div class="btn-list">
-          <a href="javascript:show_brushtask_modal()" class="btn btn-primary">
+          <a href="#" data-nt-click="brush-add" class="btn btn-primary">
             {{ SVG.plus() }}
             新建任务
           </a>
-          <a href="javascript:navmenu('userdownloader')" class="btn" title="自定义下载器">
+          <a href="/?next=userdownloader" data-nt-click="brush-downloaders" class="btn" title="自定义下载器">
             {{ SVG.apps() }}
             自定义下载器
           </a>
@@ -20,7 +20,7 @@
         {% for Task in Tasks %}
           <div class="card">
             <div class="card-header">
-              <a href="javascript:show_brushtask_detail('{{ Task.id }}')"
+              <a href="#" data-nt-click="brush-details" data-nt-args='{{ [Task.id|string]|tojson }}'
                  title="展开/折叠" data-bs-toggle="tooltip">
                 <div>
                   {% if Task.state == 'Y' %}
@@ -30,14 +30,14 @@
                   {% endif %}
                 </div>
               </a>
-              <a href="javascript:show_brushtask_detail('{{ Task.id }}')" style="text-decoration-line: none; color: unset"
+              <a href="#" data-nt-click="brush-details" data-nt-args='{{ [Task.id|string]|tojson }}' style="text-decoration-line: none; color: unset"
                  title="展开/折叠" data-bs-toggle="tooltip">
                 <div class="ms-3">
                   <h3 class="card-title">{{ Task.name }}</h3>
                 </div>
               </a>
               <div class="ms-2 d-none d-sm-block">
-                <a href="javascript:run_brushtask_now('{{ Task.id }}')" class="btn-icon" title="立即运行任务"
+                <a href="#" data-nt-click="brush-run" data-nt-args='{{ [Task.id|string]|tojson }}' class="btn-icon" title="立即运行任务"
                    data-bs-toggle="tooltip">
                   {{ SVG.bolt('icon-filled') }}
                 </a>
@@ -48,33 +48,33 @@
                 {{ SVG.dots() }}
               </a>
               <div class="dropdown-menu dropdown-menu-end">
-                <button class="dropdown-item text-info" onclick="run_brushtask_now('{{ Task.id }}')">
+                <button class="dropdown-item text-info" data-nt-click="brush-run" data-nt-args='{{ [Task.id|string]|tojson }}'>
                   立即运行
                 </button>
-                <button class="dropdown-item" onclick="show_brushtask_torrents_modal('{{ Task.id }}')">
+                <button class="dropdown-item" data-nt-click="brush-torrents" data-nt-args='{{ [Task.id|string]|tojson }}'>
                   预览
                 </button>
-                <button class="dropdown-item" onclick="edit_brushtask_modal('{{ Task.id }}')">
+                <button class="dropdown-item" data-nt-click="brush-edit" data-nt-args='{{ [Task.id|string]|tojson }}'>
                   编辑
                 </button>
-                <button class="dropdown-item text-danger" onclick='del_brushtask_modal({{ Task.id|tojson }}, {{ Task.name|tojson }})'>
+                <button class="dropdown-item text-danger" data-nt-click="brush-remove" data-nt-args='{{ [Task.id, Task.name]|tojson }}'>
                   删除
                 </button>
               </div>
               <div class="card-actions btn-actions d-none d-sm-block">
-                <a href="javascript:show_brushtask_detail('{{ Task.id }}')" class="btn-action"
+                <a href="#" data-nt-click="brush-details" data-nt-args='{{ [Task.id|string]|tojson }}' class="btn-action"
                    title="展开/折叠" data-bs-toggle="tooltip">
                   {{ SVG.menu_2() }}
                 </a>
-                <a href="javascript:show_brushtask_torrents_modal('{{ Task.id }}')" class="btn-action"
+                <a href="#" data-nt-click="brush-torrents" data-nt-args='{{ [Task.id|string]|tojson }}' class="btn-action"
                    title="查看种子明细" data-bs-toggle="tooltip">
                   {{ SVG.eye() }}
                 </a>
-                <a href="javascript:edit_brushtask_modal('{{ Task.id }}')" class="btn-action"
+                <a href="#" data-nt-click="brush-edit" data-nt-args='{{ [Task.id|string]|tojson }}' class="btn-action"
                   title="编辑任务" data-bs-toggle="tooltip">
                   {{ SVG.edit() }}
                 </a>
-                <a href="#" onclick='del_brushtask_modal({{ Task.id|tojson }}, {{ Task.name|tojson }}); return false' class="btn-action"
+                <a href="#" data-nt-click="brush-remove" data-nt-args='{{ [Task.id, Task.name]|tojson }}' class="btn-action"
                    title="删除任务" data-bs-toggle="tooltip">
                   {{ SVG.x() }}
                 </a>
@@ -217,7 +217,7 @@
           <div class="col-lg-4">
             <div class="mb-3">
               <label class="form-label required" for="brushtask_site">站点</label>
-              <select class="form-select" id="brushtask_site">
+              <select class="form-select" id="brushtask_site" data-nt-change="brush-site">
                 <option value="" selected>请选择</option>
                 {% for site in Sites %}
                   <option value="{{ site.id }}">{{ site.name }}</option>
@@ -360,20 +360,20 @@
                 </button>
                 <input type="hidden" id="brushtask_torrent_size_do">
                 <div class="dropdown-menu" style="">
-                  <a class="dropdown-item" id="brushtask_torrent_size_do_" href="javascript:void(0)"
-                     onclick="filter_item_change('', 'brushtask_torrent_size',$(this))">
+                  <a class="dropdown-item" id="brushtask_torrent_size_do_" href="#"
+                     data-nt-click="brush-filter" data-nt-args='["", "brushtask_torrent_size"]'>
                     全部
                   </a>
-                  <a class="dropdown-item" id="brushtask_torrent_size_do_gt" href="javascript:void(0)"
-                     onclick="filter_item_change('gt', 'brushtask_torrent_size',$(this))">
+                  <a class="dropdown-item" id="brushtask_torrent_size_do_gt" href="#"
+                     data-nt-click="brush-filter" data-nt-args='["gt", "brushtask_torrent_size"]'>
                     大于
                   </a>
-                  <a class="dropdown-item" id="brushtask_torrent_size_do_lt" href="javascript:void(0)"
-                     onclick="filter_item_change('lt', 'brushtask_torrent_size',$(this))">
+                  <a class="dropdown-item" id="brushtask_torrent_size_do_lt" href="#"
+                     data-nt-click="brush-filter" data-nt-args='["lt", "brushtask_torrent_size"]'>
                     小于
                   </a>
-                  <a class="dropdown-item" id="brushtask_torrent_size_do_bw" href="javascript:void(0)"
-                     onclick="filter_item_change('bw', 'brushtask_torrent_size',$(this))">
+                  <a class="dropdown-item" id="brushtask_torrent_size_do_bw" href="#"
+                     data-nt-click="brush-filter" data-nt-args='["bw", "brushtask_torrent_size"]'>
                     介于
                   </a>
                 </div>
@@ -393,20 +393,20 @@
                 </button>
                 <input type="hidden" id="brushtask_peercount_do">
                 <div class="dropdown-menu" style="">
-                  <a class="dropdown-item" id="brushtask_peercount_do_" href="javascript:void(0)"
-                     onclick="filter_item_change('', 'brushtask_peercount',$(this))">
+                  <a class="dropdown-item" id="brushtask_peercount_do_" href="#"
+                     data-nt-click="brush-filter" data-nt-args='["", "brushtask_peercount"]'>
                     全部
                   </a>
-                  <a class="dropdown-item" id="brushtask_peercount_do_gt" href="javascript:void(0)"
-                     onclick="filter_item_change('gt', 'brushtask_peercount',$(this))">
+                  <a class="dropdown-item" id="brushtask_peercount_do_gt" href="#"
+                     data-nt-click="brush-filter" data-nt-args='["gt", "brushtask_peercount"]'>
                     大于
                   </a>
-                  <a class="dropdown-item" id="brushtask_peercount_do_lt" href="javascript:void(0)"
-                     onclick="filter_item_change('lt', 'brushtask_peercount',$(this))">
+                  <a class="dropdown-item" id="brushtask_peercount_do_lt" href="#"
+                     data-nt-click="brush-filter" data-nt-args='["lt", "brushtask_peercount"]'>
                     小于
                   </a>
-                  <a class="dropdown-item" id="brushtask_peercount_do_bw" href="javascript:void(0)"
-                     onclick="filter_item_change('bw', 'brushtask_peercount',$(this))">
+                  <a class="dropdown-item" id="brushtask_peercount_do_bw" href="#"
+                     data-nt-click="brush-filter" data-nt-args='["bw", "brushtask_peercount"]'>
                     介于
                   </a>
                 </div>
@@ -426,12 +426,12 @@
                 </button>
                 <input type="hidden" id="brushtask_pubdate_do">
                 <div class="dropdown-menu" style="">
-                  <a class="dropdown-item" id="brushtask_pubdate_do_" href="javascript:void(0)"
-                     onclick="filter_item_change('', 'brushtask_pubdate',$(this))">
+                  <a class="dropdown-item" id="brushtask_pubdate_do_" href="#"
+                     data-nt-click="brush-filter" data-nt-args='["", "brushtask_pubdate"]'>
                     全部
                   </a>
-                  <a class="dropdown-item" id="brushtask_pubdate_do_lt" href="javascript:void(0)"
-                     onclick="filter_item_change('lt', 'brushtask_pubdate',$(this))">
+                  <a class="dropdown-item" id="brushtask_pubdate_do_lt" href="#"
+                     data-nt-click="brush-filter" data-nt-args='["lt", "brushtask_pubdate"]'>
                     小于
                   </a>
                 </div>
@@ -453,12 +453,12 @@
                 </button>
                 <input type="hidden" id="brushtask_seedtime_do">
                 <div class="dropdown-menu" style="">
-                  <a class="dropdown-item" id="brushtask_seedtime_do_" href="javascript:void(0)"
-                     onclick="filter_item_change('', 'brushtask_seedtime',$(this))">
+                  <a class="dropdown-item" id="brushtask_seedtime_do_" href="#"
+                     data-nt-click="brush-filter" data-nt-args='["", "brushtask_seedtime"]'>
                     忽略
                   </a>
-                  <a class="dropdown-item" id="brushtask_seedtime_do_gt" href="javascript:void(0)"
-                     onclick="filter_item_change('gt', 'brushtask_seedtime',$(this))">
+                  <a class="dropdown-item" id="brushtask_seedtime_do_gt" href="#"
+                     data-nt-click="brush-filter" data-nt-args='["gt", "brushtask_seedtime"]'>
                     大于
                   </a>
                 </div>
@@ -477,12 +477,12 @@
                 </button>
                 <input type="hidden" id="brushtask_seedratio_do">
                 <div class="dropdown-menu" style="">
-                  <a class="dropdown-item" id="brushtask_seedratio_do_" href="javascript:void(0)"
-                     onclick="filter_item_change('', 'brushtask_seedratio',$(this))">
+                  <a class="dropdown-item" id="brushtask_seedratio_do_" href="#"
+                     data-nt-click="brush-filter" data-nt-args='["", "brushtask_seedratio"]'>
                     忽略
                   </a>
-                  <a class="dropdown-item" id="brushtask_seedratio_do_gt" href="javascript:void(0)"
-                     onclick="filter_item_change('gt', 'brushtask_seedratio',$(this))">
+                  <a class="dropdown-item" id="brushtask_seedratio_do_gt" href="#"
+                     data-nt-click="brush-filter" data-nt-args='["gt", "brushtask_seedratio"]'>
                     大于
                   </a>
                 </div>
@@ -501,12 +501,12 @@
                 </button>
                 <input type="hidden" id="brushtask_seedsize_do">
                 <div class="dropdown-menu" style="">
-                  <a class="dropdown-item" id="brushtask_seedsize_do_" href="javascript:void(0)"
-                     onclick="filter_item_change('', 'brushtask_seedsize',$(this))">
+                  <a class="dropdown-item" id="brushtask_seedsize_do_" href="#"
+                     data-nt-click="brush-filter" data-nt-args='["", "brushtask_seedsize"]'>
                     忽略
                   </a>
-                  <a class="dropdown-item" id="brushtask_seedsize_do_gt" href="javascript:void(0)"
-                     onclick="filter_item_change('gt', 'brushtask_seedsize',$(this))">
+                  <a class="dropdown-item" id="brushtask_seedsize_do_gt" href="#"
+                     data-nt-click="brush-filter" data-nt-args='["gt", "brushtask_seedsize"]'>
                     大于
                   </a>
                 </div>
@@ -526,12 +526,12 @@
                 </button>
                 <input type="hidden" id="brushtask_dltime_do">
                 <div class="dropdown-menu" style="">
-                  <a class="dropdown-item" id="brushtask_dltime_do_" href="javascript:void(0)"
-                     onclick="filter_item_change('', 'brushtask_dltime',$(this))">
+                  <a class="dropdown-item" id="brushtask_dltime_do_" href="#"
+                     data-nt-click="brush-filter" data-nt-args='["", "brushtask_dltime"]'>
                     忽略
                   </a>
-                  <a class="dropdown-item" id="brushtask_dltime_do_gt" href="javascript:void(0)"
-                     onclick="filter_item_change('gt', 'brushtask_dltime',$(this))">
+                  <a class="dropdown-item" id="brushtask_dltime_do_gt" href="#"
+                     data-nt-click="brush-filter" data-nt-args='["gt", "brushtask_dltime"]'>
                     大于
                   </a>
                 </div>
@@ -551,12 +551,12 @@
                 </button>
                 <input type="hidden" id="brushtask_avg_upspeed_do">
                 <div class="dropdown-menu" style="">
-                  <a class="dropdown-item" id="brushtask_avg_upspeed_do_" href="javascript:void(0)"
-                     onclick="filter_item_change('', 'brushtask_avg_upspeed',$(this))">
+                  <a class="dropdown-item" id="brushtask_avg_upspeed_do_" href="#"
+                     data-nt-click="brush-filter" data-nt-args='["", "brushtask_avg_upspeed"]'>
                     忽略
                   </a>
-                  <a class="dropdown-item" id="brushtask_avg_upspeed_do_lt" href="javascript:void(0)"
-                     onclick="filter_item_change('lt', 'brushtask_avg_upspeed',$(this))">
+                  <a class="dropdown-item" id="brushtask_avg_upspeed_do_lt" href="#"
+                     data-nt-click="brush-filter" data-nt-args='["lt", "brushtask_avg_upspeed"]'>
                     小于
                   </a>
                 </div>
@@ -575,12 +575,12 @@
                 </button>
                 <input type="hidden" id="brushtask_iatime_do">
                 <div class="dropdown-menu" style="">
-                  <a class="dropdown-item" id="brushtask_iatime_do_" href="javascript:void(0)"
-                     onclick="filter_item_change('', 'brushtask_iatime',$(this))">
+                  <a class="dropdown-item" id="brushtask_iatime_do_" href="#"
+                     data-nt-click="brush-filter" data-nt-args='["", "brushtask_iatime"]'>
                     忽略
                   </a>
-                  <a class="dropdown-item" id="brushtask_iatime_do_gt" href="javascript:void(0)"
-                     onclick="filter_item_change('gt', 'brushtask_iatime',$(this))">
+                  <a class="dropdown-item" id="brushtask_iatime_do_gt" href="#"
+                     data-nt-click="brush-filter" data-nt-args='["gt", "brushtask_iatime"]'>
                     大于
                   </a>
                 </div>
@@ -592,7 +592,7 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-link me-auto" data-bs-dismiss="modal">取消</button>
-        <a href="javascript:add_brushtask_job()" id="brushtask_add_btn" class="btn btn-primary">确定</a>
+        <a href="#" data-nt-click="brush-save" id="brushtask_add_btn" class="btn btn-primary">确定</a>
       </div>
     </div>
   </div>
@@ -612,6 +612,7 @@
   </div>
 </div>
 <script type="text/javascript">
+(() => {
   // 显示新增刷流任务
   function show_brushtask_modal() {
     if (!{{ Sites|length }}) {
@@ -634,7 +635,7 @@
   // 显示编辑刷流任务
   function edit_brushtask_modal(brushid) {
     $("#brushtask_id").val(brushid);
-    ajax_post("brushtask_detail", {"id": brushid}, function (ret) {
+    NasToolsUI.pageAction("brushtask_detail", {"id": brushid}, function (ret) {
       if (ret.code == 0) {
         //赋值
         $("#brushtask_modal_title").text("编辑任务");
@@ -719,7 +720,7 @@
   function del_brushtask_modal(brushid, name) {
     show_confirm_modal("删除刷流任务 " + name + " ？", function () {
       hide_confirm_modal();
-      ajax_post("del_brushtask", {"id": brushid}, function (ret) {
+      NasToolsUI.pageAction("del_brushtask", {"id": brushid}, function (ret) {
         window_history_refresh();
       });
     });
@@ -730,7 +731,7 @@
     if (!site_id) {
       return;
     }
-    ajax_post("get_brush_site_capabilities", {"id": site_id}, function (ret) {
+    NasToolsUI.pageAction("get_brush_site_capabilities", {"id": site_id}, function (ret) {
       $("#brushtask_free").empty().append('<option value="" selected>全部</option>');
       if (ret.site_free) {
         $("#brushtask_free").append('<option value="FREE">免费</option>');
@@ -996,22 +997,15 @@
       brushtask_pubdate: brushtask_pubdate_do + "#" + brushtask_pubdate
     };
 
-    ajax_post("add_brushtask", params, function (ret) {
+    return NasToolsUI.withButton('#brushtask_add_btn', '保存中...', () => NasToolsUI.pageAction("add_brushtask", params, function (ret) {
       $("#modal-brushtask").modal('hide');
       window_history_refresh();
-    });
+    }));
   }
-
-  // 绑定事件
-  $(document).ready(function () {
-    $("#brushtask_site").change(function () {
-      brushtask_site_change($(this).val());
-    });
-  });
 
   //立即运行任务
   function run_brushtask_now(id) {
-    ajax_post("run_brushtask", {"id": id}, function (ret) {
+    return NasToolsUI.pageAction("run_brushtask", {"id": id}, function (ret) {
       show_success_modal("任务运行完成！", function () {
         window_history_refresh();
       });
@@ -1020,7 +1014,7 @@
 
   // 刷流种子下载记录
   function show_brushtask_torrents_modal(id) {
-    ajax_post("list_brushtask_torrents", { "id": id }, function (ret) {
+    NasToolsUI.pageAction("list_brushtask_torrents", { "id": id }, function (ret) {
       const table = document.getElementById("table-brushtask-torrents");
       if (ret.code == 0) {
         const downloads = Array.isArray(ret.data) ? ret.data : [];
@@ -1087,4 +1081,22 @@
     });
   }
 
+  NasToolsUI.bindActions('#page_content', {
+    click: {
+      'brush-add': () => show_brushtask_modal(),
+      'brush-downloaders': () => navmenu('userdownloader'),
+      'brush-details': element => show_brushtask_detail(...NasToolsUI.args(element)),
+      'brush-run': element => NasToolsUI.withButton(element, null, () => run_brushtask_now(...NasToolsUI.args(element))),
+      'brush-torrents': element => show_brushtask_torrents_modal(...NasToolsUI.args(element)),
+      'brush-edit': element => edit_brushtask_modal(...NasToolsUI.args(element)),
+      'brush-remove': element => del_brushtask_modal(...NasToolsUI.args(element)),
+      'brush-filter': element => {
+        const [type, id] = NasToolsUI.args(element);
+        filter_item_change(type, id, $(element));
+      },
+      'brush-save': () => add_brushtask_job()
+    },
+    change: {'brush-site': element => brushtask_site_change(element.value)}
+  });
+})();
 </script>

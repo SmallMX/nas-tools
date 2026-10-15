@@ -8,7 +8,6 @@
   <title>NAStool</title>
   <!-- CSS files -->
   <link href="../static/css/tabler.min.css" rel="stylesheet"/>
-  <link href="../static/css/demo.min.css" rel="stylesheet"/>
   <link href="../static/css/jquery.filetree.css" rel="stylesheet"/>
   <link href="../static/css/dropzone.css" rel="stylesheet"/>
   <link href="../static/css/nprogress.css" rel="stylesheet"/>
@@ -52,10 +51,11 @@
             <p class="empty-title">页面组件没有完成初始化</p>
             <p class="empty-subtitle text-muted">请刷新页面重试；如果问题持续出现，请检查浏览器控制台中的资源加载错误。</p>
             <div class="empty-action">
-              <button class="btn btn-primary" type="button" onclick="window.location.reload()">重新加载</button>
+              <button class="btn btn-primary" type="button" id="app_shell_retry">重新加载</button>
             </div>
           </div>
         </div>`;
+      document.getElementById("app_shell_retry").addEventListener("click", () => window.location.reload());
     };
 
     window.addEventListener("load", function () {
@@ -67,7 +67,8 @@
     });
   </script>
   <!-- 外壳组件单独加载，避免业务页面组件异常时拖垮导航。 -->
-  <script type="module" src="../static/components/layout/index.js" onerror="window.showAppShellError()"></script>
+  <script type="module" src="../static/components/layout/index.js" id="app-layout-module"></script>
+  <script>document.getElementById("app-layout-module").addEventListener("error", window.showAppShellError);</script>
   <script type="module" src="../static/components/lit-index.js"></script>
   <!-- 解决密码填充问题 -->
   <span hidden><input type="text"><input type="password"></span>
@@ -222,7 +223,7 @@
         <div class="w-100">
           <div class="row">
             <div class="col">
-              <a href="javascript:void(0)" id="system_success_modal_btn" class="btn btn-success w-100"
+              <a href="#" id="system_success_modal_btn" class="btn btn-success w-100"
                  data-bs-dismiss="modal">
                 确定
               </a>
@@ -288,11 +289,11 @@
             详情
           </a>
 
-          <a href="javascript:void(0)" class="card-btn" id="system_media_search_btn"
+          <a href="#" class="card-btn" id="system_media_search_btn"
              style="border-left:1px solid var(--tblr-border-color)">
             搜索
           </a>
-          <a href="javascript:void(0)" class="card-btn d-none d-md-block" data-bs-dismiss="modal">
+          <a href="#" class="card-btn d-none d-md-block" data-bs-dismiss="modal">
             关闭
           </a>
         </div>
@@ -309,7 +310,7 @@
         <div class="select_logger">
           <h5 class="modal-title">实时日志</h5>
            <div class="dropdown">
-              <a href='#' class="btn-action" data-bs-toggle="dropdown" aria-expanded="false" onclick="get_logging_source()">
+              <a href='#' class="btn-action" data-bs-toggle="dropdown" aria-expanded="false" data-nt-click="logging-sources">
                 {{ SVG.log_select() }}
               </a>
               <div class="dropdown-menu dropdown-menu-end" id="dropdown-menu-logger">
@@ -332,7 +333,7 @@
       </table>
       </div>
       <div class="modal-footer">
-        <a href="javascript:pause_logging()" class="btn btn-link me-auto" id="logging_stop_btn">
+        <a href="#" data-nt-click="logging-pause" class="btn btn-link me-auto" id="logging_stop_btn">
           暂停
         </a>
         <button type="button" class="btn btn-primary" data-bs-dismiss="modal" id="logging_close_btn">关闭</button>
@@ -352,7 +353,7 @@
           <div class="col-md">
             <div class="form-floating mb-1">
               <select class="form-select" id="search_download_setting" aria-label="下载设置"
-                  onchange="refresh_savepath_select('search_download_dir', true, $(this).val())">
+                  >
               </select>
               <label for="floatingSelect">下载设置</label>
             </div>
@@ -479,7 +480,7 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button onclick="search_media_advanced()" id="search_advanced_btn"
+        <button data-nt-click="search-advanced" id="search_advanced_btn"
                 class="btn btn-primary">开始搜索
         </button>
       </div>
@@ -489,7 +490,6 @@
 <script src="../static/js/libs/list.min.js"></script>
 <script src="../static/js/jquery-3.3.1.min.js"></script>
 <script src="../static/js/tabler.min.js"></script>
-<script src="../static/js/demo.min.js"></script>
 <script src="../static/js/echarts.min.js"></script>
 <script src="../static/js/numeral.min.js"></script>
 <script src="../static/js/jquery.filetree.js"></script>
@@ -500,6 +500,7 @@
 <script src="../static/js/ace.js"></script>
 <script src="../static/js/api-client.js"></script>
 <script src="../static/js/util.js"></script>
+<script src="../static/js/ui-actions.js"></script>
 <!-- 提示弹窗 -->
 <script type="text/javascript">
   // 显示全局加载蒙版
@@ -614,7 +615,7 @@
   function media_search(tmdbid, title, type) {
     const param = {"tmdbid": tmdbid, "search_word": title, "media_type": type};
     show_refresh_process("正在搜索 " + title + " ...", "search");
-    ajax_post("search", param, function (ret) {
+    NasToolsUI.pageAction("search", param, function (ret) {
       hide_refresh_process();
       if (ret.code === 0) {
         const params = new URLSearchParams({s: String(title || "")});
@@ -627,7 +628,7 @@
 
   //显示媒体详情弹窗
   function show_mediainfo_modal(rtype, name, year, mediaid) {
-    ajax_post("media_info", {
+    NasToolsUI.pageAction("media_info", {
       "id": mediaid,
       "title": name,
       "year": year,
@@ -704,17 +705,7 @@
   //搜索
   function search_mediainfo_media(tmdbid, title, typestr) {
     hide_mediainfo_modal();
-    const param = {"tmdbid": tmdbid, "search_word": title, "media_type": typestr};
-    show_refresh_process("正在搜索 " + title + " ...", "search");
-    ajax_post("search", param, function (ret) {
-      hide_refresh_process();
-      if (ret.code === 0) {
-        const params = new URLSearchParams({s: String(title || "")});
-        navmenu(`search?${params.toString()}`);
-      } else {
-        show_fail_modal(ret.msg);
-      }
-    }, true, false);
+    return media_search(tmdbid, title, typestr);
   }
 
   // 刷新搜索站点列表
@@ -728,7 +719,7 @@
   }
 
   function refresh_searchsites_select(obj_id, item_name,aync = true) {
-    ajax_post("get_indexers", {check: true, basic: true}, function (ret) {
+    NasToolsUI.pageAction("get_indexers", {check: true, basic: true}, function (ret) {
       if (ret.code === 0) {
         let searchsites_select = $(`#${obj_id}`);
         SEARCH_SITES_LENGTH = ret.indexers.length;
@@ -758,7 +749,7 @@
 
 
   function refresh_site_options(obj_id, show_all=false) {
-    ajax_post("get_indexers", {check: true, basic: true}, function (ret) {
+    NasToolsUI.pageAction("get_indexers", {check: true, basic: true}, function (ret) {
       if (ret.code === 0) {
         const site_select = $(`#${obj_id}`).empty();
         if (show_all) {
@@ -778,7 +769,7 @@
       savepath_select.empty();
       append_safe_option(savepath_select, "", "自动", true);
     } else {
-      ajax_post("get_download_dirs", {sid: sid, site: site}, function (ret) {
+      NasToolsUI.pageAction("get_download_dirs", {sid: sid, site: site}, function (ret) {
         if (ret.code === 0) {
           savepath_select.empty();
           append_safe_option(savepath_select, "", "自动", true);
@@ -793,7 +784,7 @@
   // 刷新下载设置
   function refresh_downloadsetting_select(obj_id, aync = true, is_default = false, on_ready = undefined) {
     let default_content = (!is_default) ? "站点设置" : "默认";
-    ajax_post("get_download_setting", {}, function (ret) {
+    NasToolsUI.pageAction("get_download_setting", {}, function (ret) {
       if (ret.code === 0) {
         let downloadsetting_select = $(`#${obj_id}`);
         downloadsetting_select.empty();
@@ -828,7 +819,7 @@
     const selectedSite = isDefault ? "" : (site || "");
     const downloadSetting = $("#search_download_setting");
     refresh_search_download_setting_dirs(isDefault, selectedSite);
-    downloadSetting.removeAttr("onchange").off("change.download-modal").on(
+    downloadSetting.off("change.download-modal").on(
       "change.download-modal",
       function () {
         refresh_savepath_select(
@@ -870,7 +861,7 @@
     const dir = $("#search_download_dir").val();
     const setting = $("#search_download_setting").val();
     $("#modal-search-download").modal('hide');
-    ajax_post("download", {"id": id, "dir": dir, "setting": setting}, function (ret) {
+    NasToolsUI.pageAction("download", {"id": id, "dir": dir, "setting": setting}, function (ret) {
       if (ret.retcode === 0) {
         show_success_modal(`${name} 添加下载成功！`);
       } else {
@@ -924,7 +915,7 @@
     const param = {"search_word": keyword, "filters": filters, "unident": true};
     $("#modal-search-advanced").modal("hide");
     show_refresh_process(`正在搜索 ${keyword} ...`, "search");
-    ajax_post("search", param, function (ret) {
+    NasToolsUI.pageAction("search", param, function (ret) {
       hide_refresh_process();
       if (ret.code === 0) {
         const params = new URLSearchParams({s: String(keyword || "")});
@@ -964,6 +955,14 @@
     // Add a new span and load fileTree
     p.after("<div id='fileTree" + r + "' class='fileTree card shadow-sm' style='z-index: 99999'></div>");
     const ft = $('#fileTree' + r);
+    function closeTree() {
+      $(document).off("mouseup.nt-filetree-open", closeOutside);
+      p.off("keydown.nt-filetree-open", closeTree);
+      ft.stop(true).slideUp('fast', () => ft.remove());
+    }
+    function closeOutside(event) {
+      if (!ft.is(event.target) && ft.has(event.target).length === 0) closeTree();
+    }
     ft.fileTree({
           script: 'dirlist',
           root: root,
@@ -975,9 +974,7 @@
             p.val(file);
             p.trigger('change');
             if (close_on_select) {
-              ft.slideUp('fast', function () {
-                ft.remove();
-              });
+              closeTree();
             }
           }
         },
@@ -986,40 +983,25 @@
             p.val(folder);
             p.trigger('change');
             if (close_on_select) {
-              $(ft).slideUp('fast', function () {
-                $(ft).remove();
-              });
+              closeTree();
             }
           }
         });
     // Format fileTree according to parent position, height and width
     ft.css({'left': p.position().left, 'top': (p.position().top + p.outerHeight()), 'width': (p.parent().width())});
-    // close if click elsewhere
-    $(document).mouseup(function (e) {
-      if (!ft.is(e.target) && ft.has(e.target).length === 0) {
-        ft.slideUp('fast', function () {
-          $(ft).remove();
-        });
-      }
-    });
-    // close if parent changed
-    p.bind("keydown", function () {
-      ft.slideUp('fast', function () {
-        $(ft).remove();
-      });
-    });
+    $(document).on("mouseup.nt-filetree-open", closeOutside);
+    p.on("keydown.nt-filetree-open", closeTree);
     // Open fileTree
     ft.slideDown('fast');
   }
 
-  //初始化目录选择控件
+  // 动态目录行也通过同一个委托入口打开，不重复注入内联脚本。
   function init_filetree_element() {
-    $('.filetree-folders-only').each(function () {
-      $(this).attr("onclick", "openFileBrowser(this,$(this).val(),'',true,false);");
-    });
-    $('.filetree-files-only').each(function () {
-      $(this).attr("onclick", "openFileBrowser(this,$(this).val(),'',false,true);");
-    });
+    $(document).off("click.nt-filetree", ".filetree-folders-only, .filetree-files-only")
+      .on("click.nt-filetree", ".filetree-folders-only, .filetree-files-only", function () {
+        const foldersOnly = this.classList.contains("filetree-folders-only");
+        openFileBrowser(this, $(this).val(), '', foldersOnly, !foldersOnly);
+      });
   }
 
   // 名称识别测试
@@ -1027,7 +1009,7 @@
     if (!name) {
       return;
     }
-    ajax_post("name_test", {"name": name}, function (ret) {
+    return NasToolsUI.pageAction("name_test", {"name": name}, function (ret) {
       if (func) {
         func();
       }
@@ -1321,22 +1303,47 @@
     });
   }
 
-  //导航点击
-  function navmenu(page, newflag=false) {
-    if (!newflag) {
-      // 更新当前历史记录
-      window_history();
-    }
-    // 主动点击时清除页码, 刷新页面也需要清除
-    sessionStorage.removeItem("CurrentPage");
+  let page_navigation_request = null;
 
+  function begin_page_navigation() {
+    const version = NasToolsUI.beginPage();
+    $(document).off("mouseup.nt-filetree-open");
+    $(".filetree-folders-only, .filetree-files-only").off("keydown.nt-filetree-open");
+    $(".fileTree").remove();
+    const previous = page_navigation_request;
+    page_navigation_request = null;
+    previous?.abort();
+    return version;
+  }
+
+  // 只允许最后一次导航写入 DOM 和历史，过时片段中的脚本也不会执行。
+  function navmenu(page, newflag=false) {
+    if (!newflag) window_history();
+    sessionStorage.removeItem("CurrentPage");
+    const version = begin_page_navigation();
     document.querySelector("#navbar-menu")?.update_active?.(page);
     $(window).unbind('scroll');
     page = page.replaceAll(" ", "%20");
     NProgress.start();
-    $("#page_content").load(page, {}, function (response, status, xhr) {
-      NProgress.done();
-      if (status === "error") {
+    page_navigation_request = $.ajax({url: page, type: "POST", data: {}, dataType: "html"})
+      .done(function (response) {
+        if (version !== NasToolsUI.pageVersion) return;
+        $("#page_content").html(response);
+        if (version !== NasToolsUI.pageVersion) return;
+        if ($("#page_content").find("title").first().text() === "登录 - NAStool") {
+          window.location.reload();
+          return;
+        }
+        fresh_tooltip();
+        init_filetree_element();
+        if (page !== CURRENT_PAGE_URI) {
+          $(window).scrollTop(0);
+          CURRENT_PAGE_URI = page;
+        }
+        window_history(!newflag);
+      })
+      .fail(function (xhr, status) {
+        if (version !== NasToolsUI.pageVersion || status === "abort") return;
         $("#page_content").html(`
           <div class="container-xl py-5">
             <div class="empty app-page-load-error">
@@ -1348,24 +1355,14 @@
               </div>
             </div>
           </div>`);
-        $("#page_load_retry").off("click").on("click", function () {
-          navmenu(page, true);
-        });
-        return;
-      }
-      if ($("#page_content").find("title").first().text() === "登录 - NAStool") {
-        window.location.reload();
-      } else {
-        fresh_tooltip();
-        init_filetree_element();
-      }
-      if (page !== CURRENT_PAGE_URI) {
-        $(window).scrollTop(0);
-        CURRENT_PAGE_URI = page;
-      }
-      // 并记录当前历史记录
-      window_history(!newflag);
-    });
+        $("#page_load_retry").one("click", () => navmenu(page, true));
+      })
+      .always(function () {
+        if (version === NasToolsUI.pageVersion) {
+          page_navigation_request = null;
+          NProgress.done();
+        }
+      });
   }
 
 </script>
@@ -1380,6 +1377,7 @@
   $(document).ready(function () {
     window.addEventListener('popstate', function(e) {
         if (e.state) {
+          begin_page_navigation();
           // 开始还原页面
           if (e.state.CurrentPage) {
             sessionStorage.CurrentPage = e.state.CurrentPage;
@@ -1424,8 +1422,15 @@
     // 更新菜单高度
     updateMenuListHeight()
 
+    NasToolsUI.bindActions(document, {click: {
+      "logging-sources": () => get_logging_source(),
+      "logging-pause": () => pause_logging(),
+      "search-advanced": () => search_media_advanced(),
+    }});
+
     // 初始化季列表
     init_season_list();
+    init_filetree_element();
 
     // 初始化DropZone
     torrent_dropzone = new Dropzone("#torrent_files");

@@ -3,11 +3,11 @@
 {% import 'macro/form.html' as FORM %}
 {% call UI.page_header('消息通知', '配置通知渠道，选择需要接收的事件与交互方式。', eyebrow='系统设置') %}
 <div class="btn-list">
-          <a href="javascript:show_add_message_client_modal()" class="btn btn-primary">
+          <a href="#" data-nt-click="add-client" class="btn btn-primary">
             {{ SVG.plus() }}
             新增消息通知
           </a>
-          <a href="javascript:show_send_custom_message_modal()" class="btn btn-outline-primary">
+          <a href="#" data-nt-click="show-custom-message" class="btn btn-outline-primary">
             {{ SVG.send() }}
             发送自定义消息
           </a>
@@ -66,22 +66,22 @@
                       <label class="form-check form-switch">
                         <input class="form-check-input" type="checkbox" {% if Attr.interactive == 1 %}
                                checked {% endif %}
-                               onclick='check_message_client("interactive", {{ Id|tojson }}, this.checked, {{ Attr.type|tojson }})'>
+                               data-nt-change="check-client" data-nt-args='{{ ["interactive", Id, Attr.type]|tojson }}'>
                       </label>
                     {% endif %}
                   </td>
                   <td>
                     <label class="form-check form-switch">
                       <input class="form-check-input" type="checkbox" {% if Attr.enabled == 1 %} checked {% endif %}
-                             onclick='check_message_client("enable", {{ Id|tojson }}, this.checked, {{ Attr.type|tojson }})'>
+                             data-nt-change="check-client" data-nt-args='{{ ["enable", Id, Attr.type]|tojson }}'>
                     </label>
                   </td>
                   <td>
                     <div class="d-flex">
-                      <a href="#" onclick='show_edit_message_client_modal({{ Id|tojson }}); return false' title="编辑消息服务">
+                      <a href="#" data-nt-click="edit-client" data-nt-args='{{ [Id]|tojson }}' title="编辑消息服务">
                         {{ SVG.edit() }}
                       </a>
-                      <a href="#" onclick='delete_message_client({{ Id|tojson }}, {{ Attr.name|tojson }}); return false' title="删除消息服务"
+                      <a href="#" data-nt-click="delete-client" data-nt-args='{{ [Id, Attr.name]|tojson }}' title="删除消息服务"
                          class="ms-2">
                         {{ SVG.x() }}
                       </a>
@@ -143,7 +143,7 @@
             <div class="col-lg-4">
               <div class="mb-1">
                 <label class="form-selectgroup-item" for="type_{{ Id }}">
-                  <input type="radio" name="client_type" id="type_{{ Id }}" value="{{ Id }}"
+                  <input type="radio" name="client_type" data-nt-change="client-type" id="type_{{ Id }}" value="{{ Id }}"
                          class="form-selectgroup-input" checked>
                   <span class="form-selectgroup-label d-flex align-items-center p-3">
                   <span class="me-3">
@@ -168,7 +168,7 @@
         <details>
           <summary class="summary">
             推送设置
-            <a href="javascript:void(0)" class="ms-2" onclick="select_btn_SelectALL(this, 'message_switchs')">全选</a>
+            <a href="#" data-nt-click="select-all-switches" class="ms-2">全选</a>
           </summary>
           <div class="row mt-2">
             <div class="form-selectgroup">
@@ -183,11 +183,11 @@
         </details>
       </div>
       <div class="modal-footer">
-        <button onclick="add_or_edit_or_test_message_client('test')" id="test_message_client_btn"
+        <button data-nt-click="test-client" id="test_message_client_btn"
            class="btn me-auto">
           测试
         </button>
-        <button onclick="add_or_edit_or_test_message_client('save')" id="add_or_edit_message_client_btn"
+        <button data-nt-click="save-client" id="add_or_edit_message_client_btn"
            class="btn btn-primary">
           确定
         </button>
@@ -226,7 +226,7 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-link me-auto" data-bs-dismiss="modal">取消</button>
-        <button id="send_custom_message_btn" onclick="send_custom_message()" class="btn btn-primary">
+        <button id="send_custom_message_btn" data-nt-click="send-custom-message" class="btn btn-primary">
           发送
         </button>
       </div>
@@ -234,6 +234,8 @@
   </div>
 </div>
 <script type="text/javascript">
+(function () {
+  const {pageAction} = NasToolsUI;
 
   // 恢复输入项为默认值
   function reset_message_config_fields() {
@@ -271,7 +273,7 @@
   function show_edit_message_client_modal(cid) {
     $("#client_id").val(cid);
     $("#client_modal_title").text("编辑消息通知");
-    ajax_post("get_message_client", {cid: cid}, function (ret) {
+    pageAction("get_message_client", {cid: cid}, function (ret) {
       if (ret.code == 0) {
         $("#client_name").val(ret.detail.name);
         $("#client_enabled").val(ret.detail.enabled);
@@ -355,20 +357,17 @@
       interactive: interactive
     };
     if (action === "save") {
-      $("#add_or_edit_message_client_btn").text("保存中").attr("disabled", true);
-      ajax_post("update_message_client", params, function (ret) {
+      return NasToolsUI.withButton('#add_or_edit_message_client_btn', '保存中', () => pageAction("update_message_client", params, function (ret) {
         $("#modal-message-client").modal('hide');
-        $("#add_or_edit_message_client_btn").attr("disabled", false);
         window_history_refresh();
-      });
+      }));
     } else if (action === "test") {
-      $("#test_message_client_btn").text("测试中").attr("disabled", true);
-      ajax_post("test_message_client", params, function (ret) {
-        if (ret.code === 0) {
-          $("#test_message_client_btn").text("测试成功").attr("disabled", false);
-        } else {
-          $("#test_message_client_btn").text("测试失败！").attr("disabled", false);
-        }
+      const button = document.getElementById('test_message_client_btn');
+      let resultText;
+      return NasToolsUI.withButton(button, '测试中', () => pageAction("test_message_client", params, function (ret) {
+        resultText = ret.code === 0 ? '测试成功' : '测试失败！';
+      })).then(() => {
+        if (resultText !== undefined && button.isConnected) button.textContent = resultText;
       });
     }
   }
@@ -376,7 +375,7 @@
 
   // 打开推送设置框
   function check_message_client(flag, cid, checked, type) {
-    ajax_post("check_message_client", {flag: flag, cid: cid, checked: checked, type: type}, function (ret) {
+    pageAction("check_message_client", {flag: flag, cid: cid, checked: checked, type: type}, function (ret) {
       if (ret.code === 0) {
         window_history_refresh();
       }
@@ -387,17 +386,11 @@
   function delete_message_client(cid, name) {
     show_confirm_modal("删除消息服务 " + name + " ？", function () {
       hide_confirm_modal();
-      ajax_post("delete_message_client", {"cid": cid}, function (ret) {
+      pageAction("delete_message_client", {"cid": cid}, function (ret) {
         window_history_refresh();
       });
     });
   }
-
-  // 单选框事件
-  $('input[type=radio][name=client_type]').change(function () {
-    let type = this.value;
-    show_client_type(type);
-  });
 
   // 消息服务端类型
   function show_client_type(type) {
@@ -429,7 +422,6 @@
 
   // 发送自定义消息
   function send_custom_message(){
-    $("#send_custom_message_btn").text("发送中").attr("disabled", true);
     let title = $("#custom_message_title").val();
     if (!title) {
       $("#custom_message_title").addClass("is-invalid");
@@ -442,12 +434,32 @@
       text: $("#custom_message_text").val(),
       image: $("#custom_message_image").val()
     };
-    ajax_post("send_custom_message", params, function (ret) {
+    return NasToolsUI.withButton('#send_custom_message_btn', '发送中', () => pageAction("send_custom_message", params, function (ret) {
       if (ret.code === 0) {
         $("#modal-send-custom-message").modal("hide");
         show_success_modal("自定义消息已发送");
-        $("#send_custom_message_btn").text("发送").attr("disabled", false);
       }
-    });
+    }));
   }
+  NasToolsUI.bindActions('#page_content', {
+    click: {
+      'add-client': () => show_add_message_client_modal(),
+      'show-custom-message': () => show_send_custom_message_modal(),
+      'edit-client': (element) => show_edit_message_client_modal(...NasToolsUI.args(element)),
+      'delete-client': (element) => delete_message_client(...NasToolsUI.args(element)),
+      'select-all-switches': (element) => select_btn_SelectALL(element, 'message_switchs'),
+      'test-client': () => add_or_edit_or_test_message_client('test'),
+      'save-client': () => add_or_edit_or_test_message_client('save'),
+      'send-custom-message': () => send_custom_message()
+    },
+    change: {
+      'check-client': (element) => {
+        const [flag, cid, type] = NasToolsUI.args(element);
+        return check_message_client(flag, cid, element.checked, type);
+      },
+      'client-type': (element) => show_client_type(element.value)
+    }
+  });
+
+})();
 </script>

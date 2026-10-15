@@ -11,7 +11,7 @@
           {% set item_loop_index = loop.index0 %}
           <div class="card nt-search-result">
             <div class="ribbon g-cyan d-md-none">
-              <a class="text-white" href="javascript:show_search_filter_modal('{{ Item.key }}')">
+              <a class="text-white" href="#" data-nt-click="search-filter-modal" data-nt-args='{{ [Item.key|string]|tojson }}'>
                 筛选
               </a>
             </div>
@@ -38,7 +38,7 @@
                     {% for filter_season in Item.filter.season %}
                     <label class="form-selectgroup-item">
                       <input type="checkbox" name="filter_season" value="{{ filter_season }}" class="form-selectgroup-input"
-                        onclick="filter_medias(this, '{{ Item.key }}')">
+                        data-nt-change="search-filter" data-nt-args='{{ [Item.key|string, false]|tojson }}'>
                       <span class="form-selectgroup-label">{{ filter_season }}</span>
                     </label>
                     {% endfor %}
@@ -49,7 +49,7 @@
                     {% for filter_site in Item.filter.site %}
                     <label class="form-selectgroup-item">
                       <input type="checkbox" name="filter_site" value="{{ filter_site }}" class="form-selectgroup-input"
-                        onclick="filter_medias(this, '{{ Item.key }}')">
+                        data-nt-change="search-filter" data-nt-args='{{ [Item.key|string, false]|tojson }}'>
                       <span class="form-selectgroup-label">{{ filter_site }}</span>
                     </label>
                     {% endfor %}
@@ -59,7 +59,7 @@
                     {% for filter_free in Item.filter.free %}
                     <label class="form-selectgroup-item">
                       <input type="checkbox" name="filter_free" value="{{ filter_free.value }}" class="form-selectgroup-input"
-                        onclick="filter_medias(this, '{{ Item.key }}')">
+                        data-nt-change="search-filter" data-nt-args='{{ [Item.key|string, false]|tojson }}'>
                       <span class="form-selectgroup-label">{{ filter_free.name }}</span>
                     </label>
                     {% endfor %}
@@ -70,14 +70,14 @@
                     {% for filter_video in Item.filter.video %}
                     <label class="form-selectgroup-item">
                       <input type="checkbox" name="filter_video" value="{{ filter_video }}" class="form-selectgroup-input"
-                        onclick="filter_medias(this, '{{ Item.key }}')">
+                        data-nt-change="search-filter" data-nt-args='{{ [Item.key|string, false]|tojson }}'>
                       <span class="form-selectgroup-label">{{ filter_video }}</span>
                     </label>
                     {% endfor %}
                   </div>
                   {% endif %}
                   <div class="mt-3">
-                    <button class="btn w-100" onclick="reset_filter(this, '{{ Item.key }}')">
+                    <button class="btn w-100" data-nt-click="search-reset" data-nt-args='{{ [Item.key|string, false]|tojson }}'>
                       重置
                     </button>
                   </div>
@@ -124,7 +124,7 @@
                   {% set season_panel_id = 'search_se_accordion_%s_%s'|format(item_loop_index, season_loop_index) %}
                   {% if SE_key != 'MOV' %}
                     <a href="#"
-                      class="search_results_season_{{ Item.key }} search-season-toggle"
+                      class="search_results_season_{{ Item.key }} search-season-toggle" data-nt-click="search-season"
                       data-season="{{ SE_key }}"
                       data-target-id="{{ season_panel_id }}">
                       <div class="row mt-2">
@@ -188,7 +188,7 @@
                                     </div>
                                     <div class="col">
                                       {% if "下载管理" in UserPris %}
-                                      <a href="#" class="search-download-action"
+                                      <a href="#" class="search-download-action" data-nt-click="search-download"
                                          data-torrent-id="{{ torrent.id }}"
                                          data-torrent-title="【{{ torrent.site }}】{{ torrent.torrent_name }}"
                                          data-torrent-site="{{ torrent.site }}">{{ torrent.torrent_name }}</a>
@@ -229,7 +229,7 @@
                                     </div>
                                     {% if "下载管理" in UserPris %}
                                     <div class="col-auto ms-2 d-none d-md-inline-block">
-                                      <a href="#" class="link-secondary search-download-action" title="下载"
+                                      <a href="#" class="link-secondary search-download-action" data-nt-click="search-download" title="下载"
                                          data-torrent-id="{{ torrent.id }}"
                                          data-torrent-title="【{{ torrent.site }}】{{ torrent.torrent_name }}"
                                          data-torrent-site="{{ torrent.site }}">
@@ -299,7 +299,7 @@
               {% for filter_season in Item.filter.season %}
               <label class="form-selectgroup-item">
                 <input type="checkbox" name="filter_season" value="{{ filter_season }}" class="form-selectgroup-input"
-                  onclick="filter_medias(this, '{{ Item.key }}', true)">
+                  data-nt-change="search-filter" data-nt-args='{{ [Item.key|string, true]|tojson }}'>
                 <span class="form-selectgroup-label">{{ filter_season }}</span>
               </label>
               {% endfor %}
@@ -310,7 +310,7 @@
               {% for filter_site in Item.filter.site %}
               <label class="form-selectgroup-item">
                 <input type="checkbox" name="filter_site" value="{{ filter_site }}" class="form-selectgroup-input"
-                  onclick="filter_medias(this, '{{ Item.key }}', true)">
+                  data-nt-change="search-filter" data-nt-args='{{ [Item.key|string, true]|tojson }}'>
                 <span class="form-selectgroup-label">{{ filter_site }}</span>
               </label>
               {% endfor %}
@@ -320,7 +320,7 @@
               {% for filter_free in Item.filter.free %}
               <label class="form-selectgroup-item">
                 <input type="checkbox" name="filter_free" value="{{ filter_free.value }}" class="form-selectgroup-input"
-                  onclick="filter_medias(this, '{{ Item.key }}', true)">
+                  data-nt-change="search-filter" data-nt-args='{{ [Item.key|string, true]|tojson }}'>
                 <span class="form-selectgroup-label">{{ filter_free.name }}</span>
               </label>
               {% endfor %}
@@ -331,7 +331,7 @@
               {% for filter_video in Item.filter.video %}
               <label class="form-selectgroup-item">
                 <input type="checkbox" name="filter_video" value="{{ filter_video }}" class="form-selectgroup-input"
-                  onclick="filter_medias(this, '{{ Item.key }}', true)">
+                  data-nt-change="search-filter" data-nt-args='{{ [Item.key|string, true]|tojson }}'>
                 <span class="form-selectgroup-label">{{ filter_video }}</span>
               </label>
               {% endfor %}
@@ -341,7 +341,7 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn me-auto" onclick="reset_filter(this, '{{ Item.key }}', true)">重置</button>
+        <button type="button" class="btn me-auto" data-nt-click="search-reset" data-nt-args='{{ [Item.key|string, true]|tojson }}'>重置</button>
         <button type="button" class="btn btn-primary" data-bs-dismiss="modal">确定</button>
       </div>
     </div>
@@ -350,31 +350,7 @@
 {% endfor %}
 
 <script type="text/javascript">
-
-  $(document).off("click.search-season", ".search-season-toggle").on(
-    "click.search-season",
-    ".search-season-toggle",
-    function (event) {
-      event.preventDefault();
-      const target = document.getElementById(this.dataset.targetId || "");
-      if (target) {
-        $(target).slideToggle();
-      }
-    }
-  );
-
-  $(document).off("click.search-download", ".search-download-action").on(
-    "click.search-download",
-    ".search-download-action",
-    function (event) {
-      event.preventDefault();
-      show_download_modal(
-        this.dataset.torrentId || "",
-        this.dataset.torrentTitle || "",
-        this.dataset.torrentSite || ""
-      );
-    }
-  );
+(() => {
 
   // 计算各分组的种子数量
   function sub_group_total(torrent) {
@@ -395,13 +371,7 @@
   }
 
   // 执行过滤
-  function filter_do(key, modal) {
-    let filter_obj;
-    if (modal) {
-      filter_obj = `#search_results_filter_${key}_modal`;
-    } else {
-      filter_obj = `#search_results_filter_${key}`;
-    }
+  function filter_do(key) {
     let torrent_obj = `#search_results_accordion_${key}`;
     let season_obj = `.search_results_season_${key}`;
     // 全部显示
@@ -502,7 +472,7 @@
     btn_obj.prop("checked", status);
 
     // 开始过滤
-    filter_do(key, modal);
+    filter_do(key);
   }
 
   // 重置过滤条件
@@ -521,7 +491,7 @@
   function reset_filter(obj, key, modal) {
     filter_reset()
     // 开始过滤
-    filter_do(key, modal);
+    filter_do(key);
   }
 
   // 显示过滤器弹窗
@@ -529,4 +499,18 @@
     $(`#search-filter-modal-${key}`).modal("show");
   }
 
+  NasToolsUI.bindActions('#page_content', {
+    click: {
+      'search-filter-modal': element => show_search_filter_modal(...NasToolsUI.args(element)),
+      'search-reset': element => reset_filter(element, ...NasToolsUI.args(element)),
+      'search-season': element => {
+        const target = document.getElementById(element.dataset.targetId || '');
+        if (target) $(target).slideToggle();
+      },
+      'search-download': element => show_download_modal(
+        element.dataset.torrentId || '', element.dataset.torrentTitle || '', element.dataset.torrentSite || '')
+    },
+    change: {'search-filter': element => filter_medias(element, ...NasToolsUI.args(element))}
+  });
+})();
 </script>

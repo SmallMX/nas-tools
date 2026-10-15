@@ -8,8 +8,8 @@
       <div class="d-grid gap-3 grid-info-card">
         {% for Site in Sites %}
         <a class="card card-link-pop nt-resource-card"
-           href='javascript:void(0)'
-           onclick='open_site_resources(this, "resources?site=" + encodeURIComponent({{ Site.id|tojson }}) + "&title=" + encodeURIComponent({{ Site.name|tojson }}))'>
+           href="#"
+           data-nt-click="site-resources" data-nt-args='{{ [Site.id, Site.name]|tojson }}'>
           <div class="card-body">
             <div class="row">
               <div class="col-auto">
@@ -30,8 +30,16 @@
 {{ OOPS.nodatafound('没有站点', '没有找到任何站点，请正确维护站点信息。') }}
 {% endif %}
 <script type="text/javascript">
+(() => {
   function open_site_resources(self, url) {
     $(self).addClass("card-inactive");
     navmenu(url);
   }
+  NasToolsUI.bindActions('#page_content', {click: {
+    'site-resources': element => {
+      const [id, name] = NasToolsUI.args(element);
+      open_site_resources(element, 'resources?site=' + encodeURIComponent(id) + '&title=' + encodeURIComponent(name));
+    }
+  }});
+})();
 </script>

@@ -10,7 +10,7 @@ function ajax_post(cmd, params, handler, aync=true, show_progress=true) {
     return window.NasToolsApi.postAction(cmd, params, {showProgress: show_progress}).then((data) => {
         handler?.(data);
         return data;
-    }).catch((error) => {
+    }, (error) => {
         const failure = {code: -99, msg: error.message || "网络错误"};
         handler?.(failure);
         return failure;
@@ -19,85 +19,77 @@ function ajax_post(cmd, params, handler, aync=true, show_progress=true) {
 
 // 备份文件下载
 function ajax_backup(handler) {
-    const downloadURL = "/backup";
-    let xhr = new XMLHttpRequest()
-    xhr.open('POST', downloadURL, true);
-    xhr.responseType = 'arraybuffer';
-    xhr.onload = function () {
-        if (this.status === 401) {
-            window.dispatchEvent(new CustomEvent("nastool:auth-expired"));
-        }
-        if (this.status === 200) {
-            let type = xhr.getResponseHeader('Content-Type')
-            let fileName = xhr.getResponseHeader('Content-Disposition')
-                .split(';')[1]
-                .split('=')[1]
-                .replace(/\"/g, '')
-
-            let blob = new Blob([this.response], {type: type})
-            if (typeof window.navigator.msSaveBlob !== 'undefined') {
-                /*
-                 * IE workaround for "HTML7007: One or more blob URLs were revoked by closing
-                 * the blob for which they were created. These URLs will no longer resolve as
-                 * the data backing the URL has been freed."
-                 */
-                window.navigator.msSaveBlob(blob, fileName);
-            } else {
-                let URL = window.URL || window.webkitURL;
-                let objectUrl = URL.createObjectURL(blob);
-                if (fileName) {
-                    const a = document.createElement('a');
-                    // safari doesn't support this yet
-                    if (typeof a.download === 'undefined') {
-                        window.location = objectUrl
-                    } else {
-                        a.href = objectUrl;
-                        a.download = fileName;
-                        document.body.appendChild(a);
-                        a.click();
-                        a.remove();
-                        URL.revokeObjectURL(objectUrl);
-                    }
-                } else {
-                    window.location = objectUrl;
-                }
+    return new Promise((resolve, reject) => {
+        let finished = false;
+        function finish() {
+            if (finished) return;
+            finished = true;
+            try {
+                handler?.();
+                resolve();
+            } catch (error) {
+                reject(error);
             }
         }
-        if (handler) {
-            handler();
-        }
-    };
-    xhr.send();
-}
+        const downloadURL = "/backup";
+        let xhr = new XMLHttpRequest()
+        xhr.open('POST', downloadURL, true);
+        xhr.responseType = 'arraybuffer';
+        xhr.timeout = 120000;
+        xhr.onload = function () {
+            try {
+                if (this.status === 401) {
+                    window.dispatchEvent(new CustomEvent("nastool:auth-expired"));
+                }
+                if (this.status === 200) {
+                    let type = xhr.getResponseHeader('Content-Type')
+                    let fileName = xhr.getResponseHeader('Content-Disposition')
+                    .split(';')[1]
+                    .split('=')[1]
+                    .replace(/\"/g, '')
 
-// 获取链接参数
-function getQueryVariable(variable) {
-    const query = window.location.search.substring(1);
-    const vars = query.split("&");
-    for (let i = 0; i < vars.length; i++) {
-        const pair = vars[i].split("=");
-        if (pair[0] == variable) {
-            return pair[1];
-        }
-    }
-    return false;
-}
-
-// 鼠标提示等待
-function make_cursor_busy() {
-    const body = document.querySelector("body");
-    body.style.cursor = "wait";
-}
-
-// 鼠标取消等待
-function cancel_cursor_busy() {
-    const body = document.querySelector("body");
-    body.style.cursor = "default";
-}
-
-// 是否触摸屏设备
-function is_touch_device() {
-    return 'ontouchstart' in window;
+                    let blob = new Blob([this.response], {type: type})
+                    if (typeof window.navigator.msSaveBlob !== 'undefined') {
+                        /*
+                        * IE workaround for "HTML7007: One or more blob URLs were revoked by closing
+                        * the blob for which they were created. These URLs will no longer resolve as
+                        * the data backing the URL has been freed."
+                        */
+                        window.navigator.msSaveBlob(blob, fileName);
+                    } else {
+                        let URL = window.URL || window.webkitURL;
+                        let objectUrl = URL.createObjectURL(blob);
+                        if (fileName) {
+                            const a = document.createElement('a');
+                            // safari doesn't support this yet
+                            if (typeof a.download === 'undefined') {
+                                window.location = objectUrl
+                            } else {
+                                a.href = objectUrl;
+                                a.download = fileName;
+                                document.body.appendChild(a);
+                                a.click();
+                                a.remove();
+                                URL.revokeObjectURL(objectUrl);
+                            }
+                        } else {
+                            window.location = objectUrl;
+                        }
+                    }
+                }
+                if (this.status !== 200) show_fail_modal("备份下载失败，请稍后重试");
+            } catch (error) {
+                show_fail_modal("备份下载失败，请稍后重试");
+            } finally {
+                finish();
+            }
+        };
+        xhr.onerror = xhr.ontimeout = function () {
+            show_fail_modal("备份下载失败，请检查连接后重试");
+            finish();
+        };
+        xhr.send();
+    });
 }
 
 // replaceAll浏览器兼容
@@ -200,28 +192,6 @@ function input_select_GetVal(id, prefix=null) {
 }
 
 /**
- * 对象数组排序，针对纯英文、数字或纯中文的排序
- * @param: objArr 需要排序的对象数组
- * @param: sortKey  需要进行排序的键
- * @param: sortType asc升序(默认)  desc 降序
- **/
-function dictArraySorting(objArr,sortKey,sortType="asc") {
-    return objArr.sort(function (obj1, obj2) {
-        let val1 = obj1[sortKey];
-        let val2 = obj2[sortKey];
-        if (!isNaN(Number(val1)) && !isNaN(Number(val2))) {
-            val1 = Number(val1);
-            val2 = Number(val2);
-        }
-        if (sortType === "asc") {
-            return val1 - val2;
-        } else if (sortType === "desc") {
-            return val2 - val1;
-        }
-    })
-}
-
-/**
  * bytes转换为size
  * @param: bytes 字节数
  **/
@@ -246,14 +216,6 @@ function bytesToSize(bytes) {
         size = (bytes / (1024 * 1024 * 1024 * 1024 * 1024)).toFixed(2) + ' PB'
     }
     return size
-}
-
-/**
- * 暂停
- * @param: ms 暂停毫秒数
- **/
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // 计算滚动条相对于页面底部的距离比例

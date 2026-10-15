@@ -35,11 +35,6 @@ export class Golbal {
     }
   }
 
-  // 是否触摸屏设备
-  static is_touch_device() {
-    return "ontouchstart" in window;
-  }
-
   // 构造站内导航地址，确保动态参数不会被解释为脚本或额外查询参数
   static build_nav_path(path, params = {}) {
     const searchParams = new URLSearchParams();
@@ -65,14 +60,6 @@ export class Golbal {
     }
   }
 
-  static convert_mediaid(tmdbid) {
-    if (typeof(tmdbid) === "number") {
-      tmdbid = tmdbid + "";
-    }
-    return tmdbid
-  }
-
-
   // 保存额外的页面数据
   static save_page_data(name, value) {
     const extra = window.history.state?.extra ?? {};
@@ -92,10 +79,10 @@ export class Golbal {
     if (ret) {
       func(ret);
     } else {
-      const page = window.history.state?.page;
+      const version = window.NasToolsUI.pageVersion;
       ajax_post(api, data, (ret) => {
         // 页面已经变化, 丢弃该请求
-        if (page !== window.history.state?.page) {
+        if (version !== window.NasToolsUI.pageVersion) {
           //console.log("丢弃:", api + name, ret);
           return
         }

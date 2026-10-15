@@ -3,11 +3,11 @@
 {% import 'macro/form.html' as FORM %}
 {% call UI.page_header('下载器', '连接下载客户端，配置保存目录和默认下载参数。', eyebrow='系统设置') %}
 <div class="btn-list">
-          <a href="javascript:show_downloaddir_modal()" class="btn btn-primary">
+          <a href="#" data-nt-click="show-directories" class="btn btn-primary">
             {{ SVG.folders() }}
             下载目录
           </a>
-          <a href="javascript:navmenu('download_setting')" class="btn">
+          <a href="#" data-nt-click="download-settings" class="btn">
             {{ SVG.settings() }}
             下载设置
           </a>
@@ -48,10 +48,10 @@
       {{ FORM.gen_form_config_elements(Type, Config, Downloader.config) }}
       </div>
       <div class="modal-footer">
-        <button onclick="test_downloader_config('{{ Type }}')" id="{{ Type }}_test_btn" class="btn me-auto">
+        <button data-nt-click="test-downloader" data-nt-args='{{ [Type]|tojson }}' id="{{ Type }}_test_btn" class="btn me-auto">
           测试
         </button>
-        <button onclick="save_downloader_config('{{ Type }}')" id="{{ Type }}_save_btn"
+        <button data-nt-click="save-downloader" data-nt-args='{{ [Type]|tojson }}' id="{{ Type }}_save_btn"
            class="btn btn-primary">
           确定
         </button>
@@ -79,7 +79,7 @@
                 <div class="row" id="dirdiv_{{ loop.index0 }}">
                   <div class="col-12 col-lg-2 mb-1">
                     <select class="form-select" name="dir_type" id="dir_type_{{ loop.index0 }}"
-                            onchange="get_categories(this)">
+                            data-nt-change="get-categories">
                       <option value="" {% if not attr.type %}selected{% endif %}>全部</option>
                       <option value="电影" {% if attr.type=='电影' %}selected{% endif %}>电影</option>
                       <option value="电视剧" {% if attr.type=='电视剧' %}selected{% endif %}>电视剧</option>
@@ -105,7 +105,7 @@
                            placeholder="分类标签" autocomplete="off">
                   </div>
                   <div class="col-12 col-lg-1 mb-1 mt-2">
-                    <a href="javascript:del_downloaddir('{{ loop.index0 }}')" class="btn-icon text-red" title="删除下载目录">
+                    <a href="#" data-nt-click="delete-directory" data-nt-args='{{ [loop.index0|string]|tojson }}' class="btn-icon text-red" title="删除下载目录">
                       {{ SVG.circle_minus() }}
                     </a>
                   </div>
@@ -114,7 +114,7 @@
             {% else %}
               <div class="row" id="dirdiv_0">
                 <div class="col-12 col-lg-2 mb-1">
-                  <select class="form-select" name="dir_type" id="dir_type_0" onchange="get_categories(this)">
+                  <select class="form-select" name="dir_type" id="dir_type_0" data-nt-change="get-categories">
                     <option value="" selected>全部</option>
                     <option value="电影">电影</option>
                     <option value="电视剧">电视剧</option>
@@ -140,7 +140,7 @@
                          autocomplete="off">
                 </div>
                 <div class="col-12 col-lg-1 mb-1 mt-2">
-                  <a href="javascript:del_downloaddir('0')" class="btn-icon text-red" title="删除目录">
+                  <a href="#" data-nt-click="delete-directory" data-directory-id="0" class="btn-icon text-red" title="删除目录">
                     {{ SVG.circle_minus() }}
                   </a>
                 </div>
@@ -148,7 +148,7 @@
             {% endif %}
             <div class="row" id="dirdiv_add">
               <div class="mt-2">
-                <a href="javascript:add_downloaddir()" class="btn-icon" title="增加目录">
+                <a href="#" data-nt-click="add-directory" class="btn-icon" title="增加目录">
                   {{ SVG.folder_plus() }}
                 </a>
               </div>
@@ -158,50 +158,52 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-link me-auto" data-bs-dismiss="modal">取消</button>
-        <a href="javascript:save_downloaddir_config()" id="downloaddir_save_btn" class="btn btn-primary">确定</a>
+        <a href="#" data-nt-click="save-directories" id="downloaddir_save_btn" class="btn btn-primary">确定</a>
       </div>
     </div>
   </div>
 </div>
 <script type="text/javascript">
-  // 当前处理的类型
-  var currType = "";
-
+(function () {
+  const {pageAction} = NasToolsUI;
   // 保存配置
   function save_config(type, func, test) {
-    currType = type;
     const params = input_select_GetVal(`modal-${type}`)
     params["test"] = test || false;
     params['pt.pt_client'] = type;
-    ajax_post("update_config", params, func);
+    return pageAction("update_config", params, func);
   }
 
   //保存配置、关闭和刷新页面
   function save_downloader_config(type) {
-    $("#modal-" + type).modal('hide');
-    save_config(type, function (ret) {
-      window_history_refresh();
+    return NasToolsUI.withButton(document.getElementById(`${type}_save_btn`), '保存中...', () => {
+      $("#modal-" + type).modal('hide');
+      return save_config(type, function (ret) {
+        window_history_refresh();
+      });
     });
   }
 
   //保存配置和测试配置
   function test_downloader_config(type) {
-    $("#" + type + "_test_btn").text("测试中...").attr("disabled", true);
-    save_config(type, function (ret) {
+    const button = document.getElementById(`${type}_test_btn`);
+    let resultText;
+    return NasToolsUI.withButton(button, '测试中...', async () => {
+      let active = false;
+      await save_config(type, () => { active = true; }, true);
+      if (!active) return;
       let command;
       {% for Type, Downloader in DownloaderConf.items() %}
-      if (currType === "{{ Type }}") {
+      if (type === "{{ Type }}") {
         command = "{{ Downloader.test_command }}";
       }
       {% endfor %}
-      ajax_post("test_connection", {"command": command}, function (ret) {
-        if (ret.code === 0) {
-          $("#" + currType + "_test_btn").text("测试成功").attr("disabled", false);
-        } else {
-          $("#" + currType + "_test_btn").text("测试失败！").attr("disabled", false);
-        }
+      return pageAction("test_connection", {"command": command}, function (ret) {
+        resultText = ret.code === 0 ? '测试成功' : '测试失败！';
       });
-    }, true);
+    }).then(() => {
+      if (resultText !== undefined && button.isConnected) button.textContent = resultText;
+    });
   }
 
   //显示下载目录配置
@@ -221,7 +223,6 @@
 
   //保存下载目录配置
   function save_downloaddir_config() {
-    $("#modal-downloaddir").modal('hide');
     let download_dir = [];
     $("[name='save_path']").each(function () {
       let save_path = $(this).val();
@@ -237,8 +238,11 @@
         "label": label
       });
     });
-    ajax_post("update_config", {downloaddir: download_dir}, function () {
-      window_history_refresh();
+    return NasToolsUI.withButton('#downloaddir_save_btn', '保存中...', () => {
+      $("#modal-downloaddir").modal('hide');
+      return pageAction("update_config", {downloaddir: download_dir}, function () {
+        window_history_refresh();
+      });
     });
   }
 
@@ -265,7 +269,7 @@
           .append('<option value="" selected>全部</option>');
       return;
     }
-    ajax_post("get_categories", {"type": $(obj).val(), "id": id, "value": value}, function (ret) {
+    pageAction("get_categories", {"type": $(obj).val(), "id": id, "value": value}, function (ret) {
       $("#dir_subtype_value_" + ret.id).empty()
           .append('<option value="" selected>全部</option>');
       if (ret.category) {
@@ -291,16 +295,28 @@
     let html = $("#dirdiv_template").text();
     $("#dirdiv_add").before(html.replaceAll('{DIRDIV_LEVEL}', CURRENT_DIRDIV_LEVEL));
     CURRENT_DIRDIV_LEVEL = CURRENT_DIRDIV_LEVEL + 1;
-    $('.filetree-folders-only').each(function () {
-      $(this).attr("onclick", "openFileBrowser(this,$(this).val(),'',true,false);");
-    });
+    init_filetree_element();
   }
 
+  NasToolsUI.bindActions('#page_content', {
+    click: {
+      'show-directories': () => show_downloaddir_modal(),
+      'download-settings': () => navmenu('download_setting'),
+      'test-downloader': (element) => test_downloader_config(...NasToolsUI.args(element)),
+      'save-downloader': (element) => save_downloader_config(...NasToolsUI.args(element)),
+      'delete-directory': (element) => del_downloaddir(element.dataset.directoryId ?? NasToolsUI.args(element)[0]),
+      'add-directory': () => add_downloaddir(),
+      'save-directories': () => save_downloaddir_config()
+    },
+    change: {'get-categories': (element) => get_categories(element)}
+  });
+
+})();
 </script>
 <script id="dirdiv_template" type="text/html">
 <div class="row" id="dirdiv_{DIRDIV_LEVEL}">
   <div class="col-12 col-lg-2 mb-1">
-    <select class="form-select" name="dir_type" id="dir_type_{DIRDIV_LEVEL}" onchange="get_categories(this)">
+    <select class="form-select" name="dir_type" id="dir_type_{DIRDIV_LEVEL}" data-nt-change="get-categories">
       <option value="" selected>全部</option>
       <option value="电影">电影</option>
       <option value="电视剧">电视剧</option>
@@ -323,7 +339,7 @@
     <input type="text" value="" name="path_label" class="form-control" placeholder="分类标签" autocomplete="off">
   </div>
   <div class="col-12 col-lg-1 mb-1 mt-2">
-    <a href="javascript:del_downloaddir('{DIRDIV_LEVEL}')" class="btn-icon text-red" title="删除目录">
+    <a href="#" data-nt-click="delete-directory" data-directory-id="{DIRDIV_LEVEL}" class="btn-icon text-red" title="删除目录">
       {{ SVG.circle_minus() }}
     </a>
   </div>

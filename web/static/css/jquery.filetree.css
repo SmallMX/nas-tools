@@ -54,8 +54,8 @@ UL.jqueryFileTree A:hover{background:#90b5e2;}
 .jqueryFileTree LI.ext_psd{background:url(../img/filetree/psd.png) left top no-repeat;}
 .jqueryFileTree LI.ext_pl{background:url(../img/filetree/script.png) left top no-repeat;}
 .jqueryFileTree LI.ext_py{background:url(../img/filetree/script.png) left top no-repeat;}
-.jqueryFileTree LI.ext_qcow{background:url(../img/filetree/disk-image.png) left top no-repeat;}
-.jqueryFileTree LI.ext_qcow2{background:url(../img/filetree/disk-image.png) left top no-repeat;}
+.jqueryFileTree LI.ext_qcow{background:url(../img/filetree/application.png) left top no-repeat;}
+.jqueryFileTree LI.ext_qcow2{background:url(../img/filetree/application.png) left top no-repeat;}
 .jqueryFileTree LI.ext_rb{background:url(../img/filetree/ruby.png) left top no-repeat;}
 .jqueryFileTree LI.ext_rbx{background:url(../img/filetree/ruby.png) left top no-repeat;}
 .jqueryFileTree LI.ext_rhtml{background:url(../img/filetree/ruby.png) left top no-repeat;}

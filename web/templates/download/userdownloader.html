@@ -2,11 +2,11 @@
 {% import 'macro/svg.html' as SVG %}
 {% call UI.page_header('自定义下载器', '管理供刷流任务使用的下载器连接与保存目录。', eyebrow='刷流任务', count=Count) %}
 <div class="btn-list">
-          <a href="javascript:show_add_downloader_modal()" class="btn btn-primary">
+          <a href="#" data-nt-click="add-downloader" class="btn btn-primary">
             {{ SVG.plus() }}
             新增下载器
           </a>
-          <a href="javascript:navmenu('brushtask')" class="btn" title="返回">
+          <a href="#" data-nt-click="back-brush" class="btn" title="返回">
             {{ SVG.arrow_back_up() }}
             返回
           </a>
@@ -44,11 +44,11 @@
                     <td>{{ Downloader.host }}:{{ Downloader.port }}</td>
                     <td>
                       <div class="d-flex">
-                        <a href="javascript:show_edit_downloader_modal('{{ Downloader.id }}')" class="btn-action ms-1"
+                        <a href="#" data-nt-click="edit-downloader" data-nt-args='{{ [Downloader.id|string]|tojson }}' class="btn-action ms-1"
                            title="编辑下载器">
                           {{ SVG.edit() }}
                         </a>
-                        <a href="javascript:delete_downloader('{{ Downloader.id }}')" class="btn-action ms-1"
+                        <a href="#" data-nt-click="delete-downloader" data-nt-args='{{ [Downloader.id|string]|tojson }}' class="btn-action ms-1"
                            title="删除下载器">
                           {{ SVG.x() }}
                         </a>
@@ -135,15 +135,17 @@
         </div>
       </div>
       <div class="modal-footer">
-        <a href="javascript:test_downloader_config()" id="dl_test_btn" class="btn me-auto">
+        <a href="#" data-nt-click="test-downloader" id="dl_test_btn" class="btn me-auto">
           测试
         </a>
-        <a href="javascript:add_or_edit_downloader()" id="dl_save_btn" class="btn btn-primary">确定</a>
+        <a href="#" data-nt-click="save-downloader" id="dl_save_btn" class="btn btn-primary">确定</a>
       </div>
     </div>
   </div>
 </div>
 <script type="text/javascript">
+(function () {
+  const {pageAction} = NasToolsUI;
   // 打开新增窗口
   function show_add_downloader_modal() {
     $("#downloader_modal_title").text("新增下载器");
@@ -156,8 +158,6 @@
   function add_or_edit_downloader(test) {
     if (!test) {
       test = "";
-    } else {
-      $("#dl_test_btn").text("测试中...");
     }
     const dl_id = $("#dl_id").val();
     const dl_name = $("#dl_name").val();
@@ -199,17 +199,17 @@
       password: $("#dl_password").val(),
       save_dir: dl_save_dir
     };
-    ajax_post("add_downloader", params, function (ret) {
+    const button = document.getElementById(test ? 'dl_test_btn' : 'dl_save_btn');
+    let resultText;
+    return NasToolsUI.withButton(button, test ? '测试中...' : '保存中...', () => pageAction("add_downloader", params, function (ret) {
       if (test) {
-        if (ret.code == 0) {
-          $("#dl_test_btn").text("测试成功");
-        } else {
-          $("#dl_test_btn").text("测试失败！");
-        }
+        resultText = ret.code == 0 ? '测试成功' : '测试失败！';
       } else {
         $("#modal-add-downloader").modal('hide');
         window_history_refresh();
       }
+    })).then(() => {
+      if (resultText !== undefined && button.isConnected) button.textContent = resultText;
     });
   }
 
@@ -218,7 +218,7 @@
     show_ask_modal("是否确认删除该下载器？ ", function () {
       hide_ask_modal();
       const params = {"id": id};
-      ajax_post("delete_downloader", params, function (ret) {
+      pageAction("delete_downloader", params, function (ret) {
         window_history_refresh();
       });
     });
@@ -229,7 +229,7 @@
     $("#downloader_modal_title").text("编辑下载器");
     $("#dl_test_btn").text("测试");
     $("#dl_id").val(id);
-    ajax_post("get_downloader", {"id": id}, function (ret) {
+    pageAction("get_downloader", {"id": id}, function (ret) {
       if (ret.code == 0) {
         $("#dl_name").val(ret.info.name);
         $("#dl_type").val(ret.info.type);
@@ -243,8 +243,14 @@
     });
   }
 
-  // 测试下载器
-  function test_downloader_config() {
-    add_or_edit_downloader(true);
-  }
+  NasToolsUI.bindActions('#page_content', {click: {
+    'add-downloader': () => show_add_downloader_modal(),
+    'back-brush': () => navmenu('brushtask'),
+    'test-downloader': () => add_or_edit_downloader(true),
+    'save-downloader': () => add_or_edit_downloader(),
+    'edit-downloader': (element) => show_edit_downloader_modal(...NasToolsUI.args(element)),
+    'delete-downloader': (element) => delete_downloader(...NasToolsUI.args(element))
+  }});
+
+})();
 </script>

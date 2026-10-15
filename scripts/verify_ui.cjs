@@ -10,7 +10,7 @@ const origin = process.env.UI_PREVIEW_URL || "http://127.0.0.1:5108";
 if (!["127.0.0.1", "localhost"].includes(new URL(origin).hostname)) {
   throw new Error("UI verification is restricted to a local preview server.");
 }
-const output = path.resolve(__dirname, "../docs/ui/verification");
+const output = process.env.UI_VERIFY_OUTPUT ? path.resolve(process.env.UI_VERIFY_OUTPUT) : path.resolve(__dirname, "../docs/ui/verification");
 const imageDirectory = path.join(output, "pages");
 fs.mkdirSync(imageDirectory, { recursive: true });
 const systemChrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
@@ -26,6 +26,8 @@ function screenshotName(route) {
 }
 
 async function settlePage(page) {
+  // 截图前停用平滑滚动，避免固定导航在滚动动画途中产生位置差异。
+  await page.addStyleTag({ content: "html, body { scroll-behavior: auto !important; }" });
   await page.evaluate(() => document.fonts.ready);
   // Trigger the real lazy-loading observers before taking a full-page image.
   for (let top = 0; top < await page.evaluate(() => document.documentElement.scrollHeight); top += 800) {
@@ -51,6 +53,7 @@ async function settlePage(page) {
     await index.close();
     for (const route of routes) {
       const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, colorScheme: "light" });
+      await page.route("**/*", route => new URL(route.request().url()).origin === new URL(origin).origin ? route.continue() : route.abort());
       const errors = [];
       page.on("pageerror", error => errors.push(error.message));
       const result = { route: route.url, title: route.title, errors, overflow: null, screenshot: `pages/${screenshotName(route.url)}.png` };

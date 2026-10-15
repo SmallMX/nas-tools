@@ -22,6 +22,7 @@
         }, timeoutMs);
         const abortRequest = () => controller.abort();
         signal?.addEventListener("abort", abortRequest, {once: true});
+        if (signal?.aborted) controller.abort();
 
         if (showProgress) NProgress.start();
         try {

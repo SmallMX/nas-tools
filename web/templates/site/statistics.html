@@ -122,13 +122,13 @@
                 <div class="col-auto ms-auto d-print-none">
                   <div class="btn-list">
                     <button id="btn-history-one-week" class="btn btn-ghost-primary active btn-site-history"
-                            onclick="show_site_history(this, 7)">最近一周
+                            data-nt-click="statistics-history" data-nt-args='[7]'>最近一周
                     </button>
                     <button id="btn-history-one-month" class="btn btn-ghost-primary btn-site-history"
-                            onclick="show_site_history(this, 30)">最近一月
+                            data-nt-click="statistics-history" data-nt-args='[30]'>最近一月
                     </button>
                     <button id="btn-history-one-year" class="btn btn-ghost-primary btn-site-history"
-                            onclick="show_site_history(this, 365)">最近一年
+                            data-nt-click="statistics-history" data-nt-args='[365]'>最近一年
                     </button>
                   </div>
                 </div>
@@ -144,7 +144,7 @@
                 <h3 class="card-title">站点数据</h3>
                 {% if SiteUserStatistics | count > 0 %}
                 <div class="ms-auto">
-                <a href="javascript:show_statistics_pic_setting_moadl()" class="btn-icon">
+                <a href="#" data-nt-click="statistics-picture-settings" class="btn-icon">
                   {{ SVG.share() }}
                 </a>
                 </div>
@@ -152,8 +152,8 @@
                 <div class="ms-3 text-muted">
                   共 {{ SiteUserStatistics | count }} 条记录
                 </div>
-                <a href="javascript:void(0)" class="btn-icon ms-3"
-                {% if SiteUserStatistics | count> 0 %}onclick="navmenu('statistics?refresh_force=1')"{% endif %}>
+                <a href="#" class="btn-icon ms-3"
+                data-nt-click="{% if SiteUserStatistics | count> 0 %}statistics-refresh{% else %}noop{% endif %}">
                   {{ SVG.refresh() }}
                 </a>
               </div>
@@ -199,7 +199,7 @@
                           {% else %}
                             <span class="badge bg-success me-2"></span>
                           {% endif %}
-                          <span onclick='navmenu("statistics?refresh_site=" + encodeURIComponent({{ item.site|tojson }}))' title="点击刷新站点数据"
+                          <span data-nt-click="statistics-refresh-site" data-nt-args='{{ [item.site]|tojson }}' title="点击刷新站点数据"
                                class="avatar avatar-sm rounded me-2 siteicon-{{ item.site|hash }}" width="24"
                                 height="24" alt="" style="cursor:pointer"></span>
                           <div class="flex-fill">
@@ -231,10 +231,10 @@
                           {{ '%.2f' | format(item.ratio) }}{% endif %}
                       </td>
                       <td class="sort-seeding" data-seeding="{{ item.seeding }}"><a
-                              href="#" onclick='show_site_seeding_info({{ item.site|tojson }}); return false'
+                              href="#" data-nt-click="statistics-seeding" data-nt-args='{{ [item.site]|tojson }}'
                               aria-label="seeding_info">{{ item.seeding }}</a></td>
                       <td class="sort-size" data-size="{{ item.seeding_size }}"><a
-                              href="#" onclick='show_site_seeding_info({{ item.site|tojson }}); return false'
+                              href="#" data-nt-click="statistics-seeding" data-nt-args='{{ [item.site]|tojson }}'
                               aria-label="seeding_info">{{ item.seeding_size | filesizeformat(true) }}</a></td>
                       <td class="sort-bonus" data-bouns="{{ item.bonus }}">{{ item.bonus }}</td>
                       <td class="sort-jtime">
@@ -244,7 +244,7 @@
                         <span class="d-none d-lg-block">{{ item.update_at }}</span>
                       </td>
                       <td class="activity">
-                        <a href="#" onclick='show_site_activity({{ item.site|tojson }}); return false' class="btn-icon"
+                        <a href="#" data-nt-click="statistics-activity" data-nt-args='{{ [item.site]|tojson }}' class="btn-icon"
                            aria-label="activity">
                           {{ SVG.activity() }}
                         </a>
@@ -308,7 +308,7 @@
             <div class="mb-3">
               <div class="btn-list">
                 <label class="form-label">分享站点</label>
-                <a href="javascript:void(0)" class="ms-auto" onclick="select_btn_SelectALL(this, 'statistic_sites')">全选</a>
+                <a href="#" class="ms-auto" data-nt-click="statistics-select-all">全选</a>
               </div>
               <div class="form-selectgroup">
               {% for item in SiteUserStatistics %}
@@ -363,7 +363,7 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-link me-auto" data-bs-dismiss="modal">取消</button>
-          <a id="statistics_photo_generate_btn" href="javascript:gen_and_save_statistics_pic()" class="btn btn-primary">
+          <a id="statistics_photo_generate_btn" href="#" data-nt-click="statistics-picture-generate" class="btn btn-primary">
             生成图片
           </a>
         </div>
@@ -373,8 +373,10 @@
   </div>
   <script src="{{ url_for('static', filename='js/ui-charts.js') }}"></script>
   <script type="text/javascript">
+(() => {
+    let chart_site_activity, chart_seeding_info;
     var statistics_chart_theme = NasToolsCharts.theme();
-    $('#site-activity').off('shown.bs.modal').on('shown.bs.modal', function (e) {
+    $('#site-activity').off('shown.bs.modal.statistics').on('shown.bs.modal.statistics', function (e) {
       let site_name = $('#site-activity-name').val();
 
       // 单站点历史数据图
@@ -384,7 +386,7 @@
       chart_site_activity = NasToolsCharts.create($('#site-activity-chart')[0], 350);
       NasToolsCharts.loading(chart_site_activity);
 
-      ajax_post("get_site_activity", {"name": site_name}, function (ret) {
+      NasToolsUI.pageAction("get_site_activity", {"name": site_name}, function (ret) {
             if (chart_site_activity.isDisposed()) return;
             chart_site_activity.hideLoading();
             if (ret.code == 0) {
@@ -605,7 +607,7 @@
       $('#site-seeding-info').modal("show");
     }
 
-    $('#site-seeding-info').off('shown.bs.modal').on('shown.bs.modal', function (e) {
+    $('#site-seeding-info').off('shown.bs.modal.statistics').on('shown.bs.modal.statistics', function (e) {
       let site_name = $('#site-seeding-info-name').val();
       // 做种散点图
       if (typeof (chart_seeding_info) != 'undefined' && !chart_seeding_info.isDisposed()) {
@@ -614,7 +616,7 @@
       chart_seeding_info = NasToolsCharts.create($('#site-seeding-info-chart')[0], 350);
       NasToolsCharts.loading(chart_seeding_info);
 
-      ajax_post("get_site_seeding_info", {"name": site_name}, function (ret) {
+      NasToolsUI.pageAction("get_site_seeding_info", {"name": site_name}, function (ret) {
             if (chart_seeding_info.isDisposed()) return;
             chart_seeding_info.hideLoading();
             if (ret.code == 0) {
@@ -667,19 +669,16 @@
     });
 
     // 容器变化由共享 ResizeObserver 处理，兼顾侧栏、断点与弹窗尺寸。
-    if (typeof (pie_ul) != 'undefined' && !pie_ul.isDisposed()) pie_ul.dispose();
-    pie_ul = NasToolsCharts.create($('#chart-recent-upload')[0], 280);
-    if (typeof (pie_dl) != 'undefined' && !pie_dl.isDisposed()) pie_dl.dispose();
-    pie_dl = NasToolsCharts.create($('#chart-recent-download')[0], 280);
-    if (typeof (chart_history) != 'undefined' && !chart_history.isDisposed()) chart_history.dispose();
-    chart_history = NasToolsCharts.create($('#chart-site-history')[0], 350);
+    const pie_ul = NasToolsCharts.create($('#chart-recent-upload')[0], 280);
+    const pie_dl = NasToolsCharts.create($('#chart-recent-download')[0], 280);
+    const chart_history = NasToolsCharts.create($('#chart-site-history')[0], 350);
 
     function show_site_history(obj, days) {
       $('.btn-site-history').removeClass('active');
       $(obj).addClass('active');
       NasToolsCharts.loading(chart_history);
 
-      ajax_post("get_site_history", {"days": days}, function (ret) {
+      NasToolsUI.pageAction("get_site_history", {"days": days}, function (ret) {
             if (chart_history.isDisposed()) return;
             chart_history.hideLoading();
             if (ret.code == 0) {
@@ -755,11 +754,11 @@
     }
 
     // 当前一周数据
-    $('#btn-history-one-week').trigger('click');
+    show_site_history(document.getElementById('btn-history-one-week'), 7);
 
     NasToolsCharts.loading(pie_dl);
     NasToolsCharts.loading(pie_ul);
-    ajax_post("get_site_history", {"days": 1}, function (ret) {
+    NasToolsUI.pageAction("get_site_history", {"days": 1}, function (ret) {
           if (pie_dl.isDisposed()) return;
           pie_dl.hideLoading();
           if (pie_ul.isDisposed()) return;
@@ -776,7 +775,7 @@
         }
     );
 
-    tableDataList = new List('table-site-user-data', {
+    new List('table-site-user-data', {
       sortClass: 'table-sort',
       listClass: 'table-tbody',
       valueNames: ['sort-name', 'sort-bonus', 'sort-jtime', 'sort-rtime',
@@ -834,7 +833,7 @@
         "encoding": "DICT",
         "site_hash": "Y"
       };
-      ajax_post("get_site_user_statistics", params, function(ret){
+      NasToolsUI.pageAction("get_site_user_statistics", params, function(ret){
         let statistics = Array.isArray(ret.data) ? ret.data : [];
         let total_upload = 0;
         let total_download = 0;
@@ -894,7 +893,19 @@
       });
     }
 
-  </script>
+    NasToolsUI.bindActions('#page_content', {click: {
+      'statistics-history': element => show_site_history(element, ...NasToolsUI.args(element)),
+      'statistics-picture-settings': () => show_statistics_pic_setting_moadl(),
+      'statistics-refresh': () => navmenu('statistics?refresh_force=1'),
+      'statistics-refresh-site': element => navmenu('statistics?refresh_site=' + encodeURIComponent(NasToolsUI.args(element)[0])),
+      'statistics-seeding': element => show_site_seeding_info(...NasToolsUI.args(element)),
+      'statistics-activity': element => show_site_activity(...NasToolsUI.args(element)),
+      'statistics-select-all': element => select_btn_SelectALL(element, 'statistic_sites'),
+      'statistics-picture-generate': () => gen_and_save_statistics_pic(),
+      noop: () => {}
+    }});
+})();
+</script>
   <template id="statistics_pic_table_template">
     <div class="container-xl" style="padding: 0.25rem;">
       <div class="row row-cards mb-3">

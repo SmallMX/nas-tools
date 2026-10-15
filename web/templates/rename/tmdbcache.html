@@ -2,7 +2,7 @@
 {% import 'macro/svg.html' as SVG %}
 {% call UI.page_header('TMDB 缓存', '检查媒体识别结果，修正匹配信息与维护缓存。', eyebrow='系统设置', count=TotalCount) %}
 <div class="btn-list">
-          <a href="javascript:clear_tmdb_cache()" class="btn btn-danger">
+          <a href="#" data-nt-click="tmdbcache-clear" class="btn btn-danger">
             {{ SVG.eraser() }}
             清空TMDB缓存
           </a>
@@ -80,7 +80,7 @@
                       {% if TmdbCache[1].poster_path %}
                         <img class="rounded shadow-sm w-5"
                             src="https://image.tmdb.org/t/p/w500{{ TmdbCache[1].poster_path }}"
-                            onerror="this.src='../static/img/no-image.png'" alt=""
+                            data-image-fallback="../static/img/no-image.png" alt=""
                             style="min-width: 50px"/>
                       {% endif %}
                     </td>
@@ -91,12 +91,12 @@
                           {{ SVG.dots_vertical() }}
                         </a>
                         <div class="dropdown-menu dropdown-menu-end">
-                          <a class="dropdown-item tmdbcache-modify" href="#"
+                          <a data-nt-click="tmdbcache-edit" class="dropdown-item tmdbcache-modify" href="#"
                              data-cache-key="{{ TmdbCache[2] }}"
                              data-cache-title="{{ TmdbCache[1].title }}">
                             修改
                           </a>
-                          <a class="dropdown-item text-danger tmdbcache-delete" href="#"
+                          <a data-nt-click="tmdbcache-delete" class="dropdown-item text-danger tmdbcache-delete" href="#"
                              data-cache-key="{{ TmdbCache[0] }}">
                             删除
                           </a>
@@ -118,18 +118,18 @@
               <p class="m-0 text-muted">当前页 <span>{{ Count }}</span> 条</p>
               <ul class="pagination m-0 ms-auto">
                 <li class="page-item {% if CurrentPage==1 %} disabled {% endif %}">
-                  <a class="page-link tmdbcache-page" href="#" data-page="{{ CurrentPage - 1 }}"
+                  <a data-nt-click="tmdbcache-page" class="page-link tmdbcache-page" href="#" data-page="{{ CurrentPage - 1 }}"
                      tabindex="-1" aria-disabled="true">
                     {{ SVG.chevron_left() }}
                   </a>
                 </li>
                 {% for page in PageRange %}
                   <li class="page-item {% if page==CurrentPage %} active {% endif %}">
-                    <a class="page-link tmdbcache-page" href="#" data-page="{{ page }}">{{ page }}</a>
+                    <a data-nt-click="tmdbcache-page" class="page-link tmdbcache-page" href="#" data-page="{{ page }}">{{ page }}</a>
                   </li>
                 {% endfor %}
                 <li class="page-item {% if CurrentPage >= TotalPage %} disabled {% endif %}">
-                  <a class="page-link tmdbcache-page" href="#"
+                  <a data-nt-click="tmdbcache-page" class="page-link tmdbcache-page" href="#"
                      data-page="{% if CurrentPage < TotalPage %}{{ CurrentPage + 1 }}{% endif %}">
                     {{ SVG.chevron_right() }}
                   </a>
@@ -178,12 +178,13 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-link me-auto" data-bs-dismiss="modal">取消</button>
-        <a href="javascript:modify_title()" id="tmdbcache_modify_btn" class="btn btn-primary">确定</a>
+        <a href="#" data-nt-click="tmdbcache-save" id="tmdbcache_modify_btn" class="btn btn-primary">确定</a>
       </div>
     </div>
   </div>
 </div>
 <script type="text/javascript">
+(() => {
   const tmdbcacheSearch = {{ Search|tojson }};
 
   function go_tmdbcache_page(page) {
@@ -194,24 +195,16 @@
     navmenu(`tmdbcache?${params.toString()}`);
   }
 
-  $(document).off("click.tmdbcache-modify", ".tmdbcache-modify").on(
-    "click.tmdbcache-modify", ".tmdbcache-modify", function (event) {
-      event.preventDefault();
-      show_modify(this.dataset.cacheKey || "", this.dataset.cacheTitle || "");
-    }
-  );
-  $(document).off("click.tmdbcache-delete", ".tmdbcache-delete").on(
-    "click.tmdbcache-delete", ".tmdbcache-delete", function (event) {
-      event.preventDefault();
-      manual_delete(this.dataset.cacheKey || "");
-    }
-  );
-  $(document).off("click.tmdbcache-page", ".tmdbcache-page").on(
-    "click.tmdbcache-page", ".tmdbcache-page", function (event) {
-      event.preventDefault();
-      go_tmdbcache_page(this.dataset.page || "");
-    }
-  );
+  NasToolsUI.bindActions("#page_content", {click: {
+    "tmdbcache-clear": () => clear_tmdb_cache(),
+    "tmdbcache-save": () => modify_title(),
+    "tmdbcache-edit": (element) => show_modify(element.dataset.cacheKey || "", element.dataset.cacheTitle || ""),
+    "tmdbcache-delete": (element) => manual_delete(element.dataset.cacheKey || ""),
+    "tmdbcache-page": (element) => go_tmdbcache_page(element.dataset.page || ""),
+  }});
+  $("#page_content img[data-image-fallback]").one("error", function () {
+    this.src = this.dataset.imageFallback;
+  });
 
   // 显示修改
   function show_modify(key, title) {
@@ -234,7 +227,7 @@
       $("#tmdbcache_title").removeClass("is-invalid");
     }
     $("#modal-tmdbcache-modify").modal('hide');
-    ajax_post("modify_tmdb_cache", {"key": key, "title": title}, function () {
+    NasToolsUI.pageAction("modify_tmdb_cache", {"key": key, "title": title}, function () {
       window_history_refresh();
     });
   }
@@ -243,7 +236,7 @@
   function clear_tmdb_cache() {
     show_confirm_modal("清空TMDB缓存后，将会增加TMDB API的请求次数，增加搜索响应时间，但是可以一次性解决TMDB改名后本地缓存未更新的问题，是否确认？", function () {
       hide_confirm_modal();
-      ajax_post("clear_tmdb_cache", {}, function (ret) {
+      NasToolsUI.pageAction("clear_tmdb_cache", {}, function (ret) {
         show_success_modal("TMDB缓存清理完成！");
         window_history_refresh();
       });
@@ -254,7 +247,7 @@
   function manual_delete(key) {
     show_confirm_modal(key + " 对应的缓存TMDB条目将被删除，是否确认？", function () {
       hide_confirm_modal();
-      ajax_post("delete_tmdb_cache", {"cache_key": key}, function () {
+      NasToolsUI.pageAction("delete_tmdb_cache", {"cache_key": key}, function () {
         window_history_refresh();
       });
     });
@@ -262,11 +255,12 @@
 
   // 搜索按钮
   $('#search_word').bind('keypress', function (event) {
-    if (event.keyCode == "13") {
+    if (event.key === "Enter" && !event.originalEvent?.isComposing) {
       let keyword = $("#search_word").val();
       const params = new URLSearchParams({s: keyword || ""});
       navmenu(`tmdbcache?${params.toString()}`);
     }
   });
 
+})();
 </script>
