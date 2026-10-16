@@ -140,7 +140,12 @@ URL、磁链、文件路径和配置输入规则集中在 `validation.py`，原 
 Web 与 API 的既有响应字段、HTTP 路由及权限检查入口不变；模块归属不决定权限，跨领域授权仍由
 `web/permissions.py` 声明。回归检查同时核对动作全集、重复注册和权限覆盖，避免拆分后漏检。
 
-`web/main.py` 的页面蓝图拆分继续作为后续阶段，保持现有 URL。
+`web/main.py` 继续装配同一个 Flask 应用，保留登录、`/do`、Telegram Webhook、健康检查、
+错误响应、模板过滤器和全局安全钩子。28 个业务页面迁入 `web/routes/` 的 `search_pages.py`、
+`download_pages.py`、`site_pages.py`、`settings_pages.py`，与已有工具及文件操作蓝图显式注册。
+页面 URL、GET / POST、查询字符串取值、模板及上下文字段保持不变；页面使用标准 Blueprint endpoint 命名空间，
+登录与静态资源 endpoint 保持原名。权限仍按请求路径判定，统计刷新等副作用只在鉴权通过后执行。
+Session 权限辅助函数移至 `web.security` 供页面复用，`web.main` 保留其原导入入口；它与 API 身份判断分别保持原语义。
 
 ### Web 组件化
 

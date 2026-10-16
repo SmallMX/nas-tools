@@ -120,6 +120,20 @@ def is_authorized(username: str, path: str, cmd: str = None) -> bool:
     return False
 
 
+def current_user_can(permission):
+    """返回当前 Session 用户是否具备指定权限，管理员始终允许。"""
+    from flask_login import current_user
+    from web.backend.user import User
+
+    if not current_user.is_authenticated:
+        return False
+    user_info = User().get_user(current_user.username)
+    if not user_info:
+        return False
+    permissions = set(str(user_info.pris).split(",")) if user_info.pris else set()
+    return user_info.id == 0 or permission in permissions
+
+
 def request_has_permission(permission):
     """检查当前 Session 或 API 用户是否具备指定权限。"""
     from flask_login import current_user
