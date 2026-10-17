@@ -388,41 +388,44 @@
   </div>
 </div>
 <div class="modal modal-blur fade" id="modal-cookiecloud" tabindex="-1" role="dialog" aria-hidden="true"
-     data-bs-backdrop="static" data-bs-keyboard="false">
+     aria-labelledby="cookiecloud_modal_title" data-bs-backdrop="static" data-bs-keyboard="false">
   <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="cookieua_modal_title">CookieCloud数据同步</h5>
-        <input type="hidden" id="cookieua_siteid">
+        <h5 class="modal-title" id="cookiecloud_modal_title">CookieCloud数据同步</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
       <div class="modal-body nt-form-body">
         <div class="row">
-          <div class="col-lg">
+          <div class="col-12">
             <div class="mb-3">
               <label class="form-label required" for="cookiecloud_server">服务器地址 <span class="form-help"
                                                               title="请填写自行部署或信任的CookieCloud服务，项目不提供默认公共服务器；可参考CookieCloud项目文档搭建私有服务"
                                                               data-bs-toggle="tooltip">?</span></label>
               <input type="url" value="{{ CookieCloudCfg.server }}" id="cookiecloud_server" class="form-control" placeholder="https://cookiecloud.example.com">
+              <div class="invalid-feedback">请填写有效的 HTTP 或 HTTPS 服务器地址。</div>
             </div>
           </div>
-          <div class="col-lg">
+          <div class="col-md-6">
             <div class="mb-3">
               <label class="form-label required" for="cookiecloud_key">用户KEY <span class="form-help"
                                                               title="在浏览器CookieCloud插件中获取，请勿对外泄露"
                                                               data-bs-toggle="tooltip">?</span></label>
-              <input type="password" value="" id="cookiecloud_key" class="form-control" placeholder="每次同步时重新输入" autocomplete="new-password">
+              <input type="password" value="" id="cookiecloud_key" class="form-control" placeholder="{% if CookieCloudCfg.key_configured %}已保存，留空沿用{% else %}填写浏览器插件中的用户 KEY{% endif %}" data-configured="{{ 'true' if CookieCloudCfg.key_configured else 'false' }}" autocomplete="new-password">
+              <div class="invalid-feedback">首次配置或更换服务器时，请填写用户 KEY。</div>
             </div>
           </div>
-          <div class="col-lg">
+          <div class="col-md-6">
             <div class="mb-3">
               <label class="form-label required" for="cookiecloud_password">端对端加密密码 <span class="form-help"
                                                               title="在浏览器CookieCloud插件中获取，请勿对外泄露"
                                                               data-bs-toggle="tooltip">?</span></label>
-              <input type="password" value="" id="cookiecloud_password" class="form-control" placeholder="每次同步时重新输入" autocomplete="new-password">
+              <input type="password" value="" id="cookiecloud_password" class="form-control" placeholder="{% if CookieCloudCfg.password_configured %}已保存，留空沿用{% else %}填写浏览器插件中的加密密码{% endif %}" data-configured="{{ 'true' if CookieCloudCfg.password_configured else 'false' }}" autocomplete="new-password">
+              <div class="invalid-feedback">首次配置或更换服务器时，请填写加密密码。</div>
             </div>
           </div>
         </div>
+        <p class="text-muted mb-0">已保存的凭据可留空直接同步；填写的新配置会保存供后续使用。更换服务器时需重新填写 KEY 和密码。也可在<a href="#" data-nt-click="site-cookie-settings">服务设置</a>中管理配置。</p>
       </div>
       <div class="modal-footer">
         <button class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">
@@ -736,35 +739,41 @@
 
   // 同步CookieCloud中的站点Cookie数据
   function sync_site_cookiecloud(){
-    const server = $("#cookiecloud_server").val();
-    const key = $("#cookiecloud_key").val();
-    const password = $("#cookiecloud_password").val();
-    if (!server) {
+    const serverInput = document.getElementById('cookiecloud_server');
+    const keyInput = document.getElementById('cookiecloud_key');
+    const passwordInput = document.getElementById('cookiecloud_password');
+    const server = serverInput.value.trim().replace(/\/+$/, '');
+    const savedServer = serverInput.defaultValue.trim().replace(/\/+$/, '');
+    const serverChanged = server !== savedServer;
+    const key = keyInput.value.trim();
+    const password = passwordInput.value;
+    if (!is_safe_http_url(server)) {
       $("#cookiecloud_server").addClass("is-invalid");
       return;
     }else{
       $("#cookiecloud_server").removeClass("is-invalid");
     }
-    if (!key) {
+    if (!key && (serverChanged || keyInput.dataset.configured !== 'true')) {
       $("#cookiecloud_key").addClass("is-invalid");
       return;
     }else{
       $("#cookiecloud_key").removeClass("is-invalid");
     }
-    if (!password) {
+    if (!password && (serverChanged || passwordInput.dataset.configured !== 'true')) {
       $("#cookiecloud_password").addClass("is-invalid");
       return;
     }else{
       $("#cookiecloud_password").removeClass("is-invalid");
     }
-    return NasToolsUI.withButton('#cookiecloud_syncbtn', '正在同步...', () => NasToolsUI.pageAction("cookiecloud_sync", { server: server, key: key, password: password }, function (ret) {
+    const params = !serverChanged && !key && !password ? {} : { server, key, password };
+    return NasToolsUI.withButton('#cookiecloud_syncbtn', '正在同步...', () => NasToolsUI.pageAction("cookiecloud_sync", params, function (ret) {
       $("#modal-cookiecloud").modal("hide");
       if (ret.code === 0) {
         show_success_modal(ret.msg, function (){
           window_history_refresh();
         });
       } else {
-        show_fail_modal(ret.msg, function(){
+        show_fail_modal(ret.msg || 'CookieCloud 同步失败，请检查配置后重试。', function(){
           $("#modal-cookiecloud").modal("show");
         });
       }
@@ -876,6 +885,10 @@
       'site-remove': element => remove_site(...NasToolsUI.args(element)),
       'site-cookie-update': () => update_site_cookie_ua(),
       'site-cookie-sync': () => sync_site_cookiecloud(),
+      'site-cookie-settings': () => {
+        $('#modal-cookiecloud').modal('hide');
+        navmenu('service_setting');
+      },
       'site-captcha-submit': () => submit_captcha_code(),
       'site-save': () => add_or_edit_site(),
       'site-close': () => close_or_del(),

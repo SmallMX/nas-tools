@@ -142,6 +142,15 @@ def render_basic_setting(section, title):
         proxy = context["Config"].get("app", {}).get("proxies", {}).get("http")
         context["Proxy"] = proxy.replace("http://", "") if proxy else None
         context["CustomScriptCfg"] = SystemConfig().get_system_config("CustomScript")
+    elif section == "service":
+        cookie_cloud_cfg = SystemConfig().get_system_config("CookieCloud") or {}
+        context["CookieCloudCfg"] = {
+            "server": cookie_cloud_cfg.get("server") or "",
+            "key": "",
+            "password": "",
+            "key_configured": bool(cookie_cloud_cfg.get("key")),
+            "password_configured": bool(cookie_cloud_cfg.get("password")),
+        }
     return render_template("setting/basic.html", **context)
 
 

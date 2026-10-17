@@ -108,6 +108,7 @@ class WebAction:
             "get_site_user_statistics": self.get_site_user_statistics,
             "send_custom_message": self.send_custom_message,
             "cookiecloud_sync": self._sites.cookiecloud_sync,
+            "cookiecloud_save": self._sites.cookiecloud_save,
             "media_detail": self.media_detail,
             "media_similar": self._search.media_similar,
             "media_recommendations": self._search.media_recommendations,

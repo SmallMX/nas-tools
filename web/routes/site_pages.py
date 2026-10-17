@@ -25,11 +25,13 @@ def sites():
     ChromeOk = ChromeHelper().get_status()
     cookie_cloud_cfg = SystemConfig().get_system_config('CookieCloud') or {}
     cookie_user_info_cfg = SystemConfig().get_system_config('CookieUserInfo') or {}
-    # 长期凭据不回填到 HTML；需要执行敏感操作时由管理员重新输入。
+    # 长期凭据不回填到 HTML；仅告知前端是否可复用服务端保存的配置。
     CookieCloudCfg = {
         "server": cookie_cloud_cfg.get("server") or "",
         "key": "",
         "password": "",
+        "key_configured": bool(cookie_cloud_cfg.get("key")),
+        "password_configured": bool(cookie_cloud_cfg.get("password")),
     }
     CookieUserInfoCfg = {
         "username": cookie_user_info_cfg.get("username") or "",

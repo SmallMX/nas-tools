@@ -1,6 +1,7 @@
 {% import 'macro/ui.html' as UI %}
 {% import 'macro/svg.html' as SVG %}
-{{ UI.page_header(SettingTitle, {'system': '配置访问方式、账号与日志，保持系统稳定运行。', 'media': '管理媒体信息来源与识别规则。', 'service': '设置识别服务与搜索、下载行为。', 'security': '管理访问来源、会话与接口凭据。', 'laboratory': '按需开启实验功能，调整媒体识别与搜索策略。'}.get(SettingSection, ''), eyebrow='系统设置') }}
+{% set CookieCloudCfg = CookieCloudCfg|default({}) %}
+{{ UI.page_header(SettingTitle, {'system': '配置访问方式、账号与日志，保持系统稳定运行。', 'media': '管理媒体信息来源与识别规则。', 'service': '设置识别服务、CookieCloud 与搜索、下载行为。', 'security': '管理访问来源、会话与接口凭据。', 'laboratory': '按需开启实验功能，调整媒体识别与搜索策略。'}.get(SettingSection, ''), eyebrow='系统设置') }}
 <!-- 业务页面代码 -->
 <div class="page-body">
   <div class="container-xl">
@@ -357,6 +358,42 @@
           </div>
         </div>
       </div>
+      <div class="col-md-12">
+        <div class="card nt-settings-card" id="cookiecloud_settings">
+          <div class="card-body">
+            {{ UI.section_heading('CookieCloud', '保存浏览器插件的同步配置，之后可在站点维护中直接同步 Cookie。') }}
+            <div class="row">
+              <div class="col-12">
+                <div class="mb-3">
+                  <label class="form-label required" for="cookiecloud_server">服务器地址</label>
+                  <input type="url" value="{{ CookieCloudCfg.server or '' }}" id="cookiecloud_server" class="form-control" placeholder="https://cookiecloud.example.com" autocomplete="off" aria-describedby="cookiecloud_server_help">
+                  <div class="invalid-feedback">请填写有效的 HTTP 或 HTTPS 服务器地址。</div>
+                  <div class="form-hint" id="cookiecloud_server_help">填写自行部署或信任的 CookieCloud 服务地址。</div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="form-label required" for="cookiecloud_key">用户 KEY</label>
+                  <input type="password" value="" id="cookiecloud_key" class="form-control" placeholder="{% if CookieCloudCfg.key_configured %}已保存，留空沿用{% else %}填写浏览器插件中的用户 KEY{% endif %}" data-configured="{{ 'true' if CookieCloudCfg.key_configured else 'false' }}" autocomplete="new-password">
+                  <div class="invalid-feedback">首次配置或更换服务器时，请填写用户 KEY。</div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="form-label required" for="cookiecloud_password">端对端加密密码</label>
+                  <input type="password" value="" id="cookiecloud_password" class="form-control" placeholder="{% if CookieCloudCfg.password_configured %}已保存，留空沿用{% else %}填写浏览器插件中的加密密码{% endif %}" data-configured="{{ 'true' if CookieCloudCfg.password_configured else 'false' }}" autocomplete="new-password">
+                  <div class="invalid-feedback">首次配置或更换服务器时，请填写加密密码。</div>
+                </div>
+              </div>
+            </div>
+            <p class="text-muted mb-0">已保存的 KEY 和密码不会显示在页面中，留空可沿用。更换服务器时需重新填写两项凭据。</p>
+          </div>
+          <div class="card-footer nt-settings-footer d-flex flex-wrap gap-2 justify-content-between">
+            <a href="#" data-nt-click="cookiecloud-sites" class="btn btn-outline-primary">前往站点维护</a>
+            <button type="button" id="cookiecloud_save_btn" data-nt-click="save-cookiecloud" class="btn btn-primary">保存 CookieCloud 配置</button>
+          </div>
+        </div>
+      </div>
       {% endif %}
       {% if SettingSection == "security" %}
       <div class="col-md-12">
@@ -629,9 +666,51 @@
   }
   {% endif %}
 
+  {% if SettingSection == "service" %}
+  function save_cookiecloud_config() {
+    const serverInput = document.getElementById('cookiecloud_server');
+    const keyInput = document.getElementById('cookiecloud_key');
+    const passwordInput = document.getElementById('cookiecloud_password');
+    const server = serverInput.value.trim().replace(/\/+$/, '');
+    const savedServer = serverInput.defaultValue.trim().replace(/\/+$/, '');
+    const serverChanged = server !== savedServer;
+    const key = keyInput.value.trim();
+    const password = passwordInput.value;
+    let validServer = false;
+    try {
+      const url = new URL(server);
+      validServer = ['http:', 'https:'].includes(url.protocol) && !!url.hostname && !url.username && !url.password;
+    } catch (_) {}
+    const validKey = !!key || (!serverChanged && keyInput.dataset.configured === 'true');
+    const validPassword = !!password || (!serverChanged && passwordInput.dataset.configured === 'true');
+    serverInput.classList.toggle('is-invalid', !validServer);
+    keyInput.classList.toggle('is-invalid', !validKey);
+    passwordInput.classList.toggle('is-invalid', !validPassword);
+    if (!validServer || !validKey || !validPassword) return;
+    return NasToolsUI.withButton('#cookiecloud_save_btn', '保存中...', () => pageAction('cookiecloud_save', {server, key, password}, function (ret) {
+      if (ret.code !== 0) {
+        show_fail_modal(ret.msg || 'CookieCloud 配置保存失败，请重试。');
+        return;
+      }
+      serverInput.value = server;
+      serverInput.defaultValue = server;
+      [keyInput, passwordInput].forEach(input => {
+        input.value = '';
+        input.dataset.configured = 'true';
+        input.placeholder = '已保存，留空沿用';
+      });
+      show_success_modal(ret.msg || 'CookieCloud 配置已保存，可前往站点维护同步。');
+    }));
+  }
+  {% endif %}
+
   NasToolsUI.bindActions('#page_content', {click: {
     'save-basic': (element) => save_basic_config(element.dataset.section),
     'tmdb-cache': () => navmenu('tmdbcache'),
+    {% if SettingSection == "service" %}
+    'save-cookiecloud': () => save_cookiecloud_config(),
+    'cookiecloud-sites': () => navmenu('site'),
+    {% endif %}
     {% if SettingSection == "system" %}
     'save-script': () => save_user_script(),
     {% endif %}

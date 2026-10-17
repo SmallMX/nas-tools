@@ -31,7 +31,7 @@ DOMAIN_COMMANDS = {
     "_sites": """update_site get_site get_brush_site_capabilities del_site get_site_favicon
         get_site_activity get_site_history get_site_seeding_info check_site_attr list_site_resources
         test_site get_sites get_indexers update_sites_cookie_ua set_site_captcha_code
-        get_site_user_statistics cookiecloud_sync add_brushtask del_brushtask brushtask_detail
+        get_site_user_statistics cookiecloud_sync cookiecloud_save add_brushtask del_brushtask brushtask_detail
         run_brushtask list_brushtask_torrents""".split(),
     "_system": """logging restart logout update_config refresh_message net_test
         refresh_process update_message_client delete_message_client check_message_client
@@ -68,7 +68,7 @@ class WebActionDispatchTest(unittest.TestCase):
     def test_active_commands_are_complete_and_bound_to_their_domains(self):
         commands = [command for names in DOMAIN_COMMANDS.values() for command in names]
         commands.extend(TOOL_COMMANDS)
-        self.assertEqual(79, len(commands))
+        self.assertEqual(80, len(commands))
         self.assertEqual(len(commands), len(set(commands)))
         self.assertEqual(set(commands), set(self.action._actions))
         for attribute, names in DOMAIN_COMMANDS.items():

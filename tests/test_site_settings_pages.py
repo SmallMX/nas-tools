@@ -51,7 +51,8 @@ class SiteSettingsPagesTest(unittest.TestCase):
 
         context, html = self._render("site_pages", "/site", "site/site.html", method="POST", actual=True)
 
-        self.assertEqual({"server": "https://cloud.example", "key": "", "password": ""}, context["CookieCloudCfg"])
+        self.assertEqual({"server": "https://cloud.example", "key": "", "password": "",
+                          "key_configured": True, "password_configured": True}, context["CookieCloudCfg"])
         self.assertEqual({"username": "saved-user", "password": "", "two_step_code": ""}, context["CookieUserInfoCfg"])
         self.assertEqual({"7": "日常下载"}, context["DownloadSettings"])
         self.assertTrue(context["ChromeOk"])
@@ -61,8 +62,21 @@ class SiteSettingsPagesTest(unittest.TestCase):
         self.assertIn('id="modal-cookiecloud"', html)
         self.assertIn("https://cloud.example", html)
         self.assertIn("saved-user", html)
+        self.assertIn('data-configured="true"', html)
+        self.assertIn("已保存，留空沿用", html)
         for secret in ("cloud-key-secret", "cloud-password-secret", "site-password-secret", "two-step-secret"):
             self.assertNotIn(secret, html)
+
+    def test_site_without_cookiecloud_credentials_requires_initial_configuration(self):
+        self.site["SystemConfig"].return_value.get_system_config.return_value = None
+
+        context, html = self._render("site_pages", "/site", "site/site.html", actual=True)
+
+        self.assertEqual({"server": "", "key": "", "password": "",
+                          "key_configured": False, "password_configured": False}, context["CookieCloudCfg"])
+        self.assertIn('data-configured="false"', html)
+        self.assertNotIn("已保存，留空沿用", html)
+        self.assertIn('data-nt-click="site-cookie-settings"', html)
 
     def test_site_ocr_status_only_accepts_nonempty_string(self):
         for value, expected in ((None, False), (123, False), (" \t", False), (" https://ocr.example ", True)):
@@ -226,11 +240,46 @@ class SiteSettingsPagesTest(unittest.TestCase):
                     self.assertEqual("proxy.example:8080", context["Proxy"])
                     self.assertIs(scripts, context["CustomScriptCfg"])
                     self.settings["SystemConfig"].return_value.get_system_config.assert_called_once_with("CustomScript")
+                elif section == "service":
+                    self.assertNotIn("Proxy", context)
+                    self.assertNotIn("CustomScriptCfg", context)
+                    self.assertIn("CookieCloudCfg", context)
+                    self.settings["SystemConfig"].return_value.get_system_config.assert_called_once_with("CookieCloud")
                 else:
                     self.assertNotIn("Proxy", context)
                     self.assertNotIn("CustomScriptCfg", context)
                     self.settings["SystemConfig"].assert_not_called()
                 self.assertEqual(original, config)
+
+    def test_cookiecloud_service_settings_render_saved_status_without_secrets(self):
+        values = {"server": "https://cloud.example", "key": "cloud-key-secret", "password": "cloud-password-secret"}
+        original = copy.deepcopy(values)
+        self.settings["Config"].return_value.get_config.return_value = {"app": {}, "pt": {}}
+        self.settings["SystemConfig"].return_value.get_system_config.return_value = values
+
+        context, html = self._render("settings_pages", "/service_setting", "setting/basic.html", actual=True)
+
+        self.assertEqual({"server": "https://cloud.example", "key": "", "password": "",
+                          "key_configured": True, "password_configured": True}, context["CookieCloudCfg"])
+        self.assertEqual(original, values)
+        self.assertIn('id="cookiecloud_settings"', html)
+        self.assertIn('data-nt-click="save-cookiecloud"', html)
+        self.assertIn('data-nt-click="cookiecloud-sites"', html)
+        self.assertIn("https://cloud.example", html)
+        self.assertIn("已保存，留空沿用", html)
+        self.assertNotIn("cloud-key-secret", html)
+        self.assertNotIn("cloud-password-secret", html)
+
+    def test_cookiecloud_service_settings_can_render_without_saved_configuration(self):
+        self.settings["Config"].return_value.get_config.return_value = {"app": {}, "pt": {}}
+        self.settings["SystemConfig"].return_value.get_system_config.return_value = None
+
+        context, html = self._render("settings_pages", "/service_setting", "setting/basic.html", actual=True)
+
+        self.assertEqual({"server": "", "key": "", "password": "",
+                          "key_configured": False, "password_configured": False}, context["CookieCloudCfg"])
+        self.assertIn('data-configured="false"', html)
+        self.assertIn('placeholder="填写浏览器插件中的用户 KEY"', html)
 
     def test_downloader_page_preserves_configuration_contract(self):
         config = {"pt": {"pt_client": "qbittorrent"}, "qbittorrent": {"qbhost": "downloader.example"}}

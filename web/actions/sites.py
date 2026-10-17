@@ -1,4 +1,6 @@
 import html as html_lib
+import time
+from urllib.parse import urlsplit
 from app.brushtask import BrushTask
 from app.conf import SystemConfig
 from app.helper import CookieCloudHelper
@@ -14,6 +16,61 @@ def _site_capabilities(attributes):
         "site_2xfree": bool(attributes.get("2XFREE")),
         "site_hr": bool(attributes.get("HR")),
     }
+
+
+def _cookiecloud_host(value):
+    if not isinstance(value, str) or not value.strip():
+        return ""
+    value = value.strip().lstrip(".")
+    try:
+        host = urlsplit(value if "://" in value else "//" + value).hostname
+        return host.rstrip(".").encode("idna").decode("ascii").lower() if host else ""
+    except (ValueError, UnicodeError):
+        return ""
+
+
+def _cookiecloud_site_cookie(site, contents):
+    """按浏览器域规则合并 Cookie；不同站点地址的凭据不混合。"""
+    now = time.time()
+    ignored = {"CookieAutoDeleteBrowsingDataCleanup", "CookieAutoDeleteCleaningDiscarded"}
+    for url in (site.get("signurl"), site.get("rssurl"), site.get("strict_url")):
+        host = _cookiecloud_host(url)
+        if not host:
+            continue
+        request_path = urlsplit(url if "://" in url else "//" + url).path or "/"
+        cookies = {}
+        for bucket, entries in contents.items():
+            if not isinstance(entries, list):
+                continue
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    continue
+                domain = _cookiecloud_host(entry.get("domain") or bucket)
+                if not domain or not (host == domain or (
+                        not entry.get("hostOnly") and host.endswith("." + domain))):
+                    continue
+                path = entry.get("path") or "/"
+                if not isinstance(path, str) or not path.startswith("/"):
+                    continue
+                if request_path != path and not (
+                        request_path.startswith(path) and (path.endswith("/") or request_path[len(path):].startswith("/"))):
+                    continue
+                name, value = entry.get("name"), entry.get("value")
+                if not isinstance(name, str) or not name or name in ignored or not isinstance(value, str):
+                    continue
+                if any(char in name for char in "\r\n;=") or any(char in value for char in "\r\n;"):
+                    continue
+                expires = entry.get("expirationDate")
+                if not entry.get("session") and isinstance(expires, (int, float)) and expires <= now:
+                    continue
+                # 优先采用适用的最长路径，再比较域，避免其它目录或父域覆盖登录态。
+                priority = (len(path), len(domain))
+                previous = cookies.get(name)
+                if previous is None or priority > previous[0]:
+                    cookies[name] = (priority, value)
+        if cookies and set(cookies) != {"cf_clearance"}:
+            return "; ".join(f"{name}={value}" for name, (_, value) in cookies.items())
+    return ""
 
 
 class SiteActions:
@@ -309,52 +366,74 @@ class SiteActions:
                 item["site_hash"] = StringUtils.md5_hash(item.get("site"))
         return {"code": 0, "data": statistics}
 
-    def cookiecloud_sync(self, data):
-        """
-        CookieCloud数据同步
-        """
+    @staticmethod
+    def _cookiecloud_config(data):
+        data = {} if data is None else data
+        if not isinstance(data, dict):
+            raise ValueError("CookieCloud配置格式不正确")
+        # 先校验提交的地址，避免保存或使用不合法的端点。
+        server = None
+        if "server" in data:
+            server = validate_site_config_url(data.get("server"), "CookieCloud服务器地址").rstrip('/')
+        saved = SystemConfig().get_system_config("CookieCloud") or {}
+        if server is None:
+            server = validate_site_config_url(saved.get("server"), "CookieCloud服务器地址").rstrip('/')
+        if not server:
+            raise ValueError("请先在服务设置中配置CookieCloud服务器地址")
+        changed_server = server != str(saved.get("server") or "").strip().rstrip('/')
+        config = {"server": server}
+        for field, label in (("key", "用户KEY"), ("password", "端对端加密密码")):
+            value = data.get(field)
+            if value in (None, "", "******"):
+                if changed_server and saved.get(field):
+                    raise ValueError("更换CookieCloud服务器时，请重新输入用户KEY和端对端加密密码")
+                value = saved.get(field)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"请先配置CookieCloud{label}")
+            config[field] = value.strip() if field == "key" else value
+        return config, saved
+
+    @staticmethod
+    def cookiecloud_save(data):
+        """保存同步配置，空凭据沿用已有值，不向页面返回密钥。"""
         try:
-            server = validate_site_config_url(
-                data.get("server"), "CookieCloud服务器地址"
-            ).rstrip('/')
+            config, _ = SiteActions._cookiecloud_config(data)
         except ValueError as error:
             return {"code": 1, "msg": str(error)}
-        key = data.get("key")
-        password = data.get("password")
-        # 保存设置
-        SystemConfig().set_system_config(key="CookieCloud",
-                                         value={
-                                             "server": server,
-                                             "key": key,
-                                             "password": password
-                                         })
-        # 同步数据
-        contents, retmsg = CookieCloudHelper(server=server,
-                                             key=key,
-                                             password=password).download_data()
+        if not SystemConfig().set_system_config(key="CookieCloud", value=config):
+            return {"code": 1, "msg": "CookieCloud配置保存失败，请重试"}
+        return {"code": 0, "msg": "CookieCloud配置已保存"}
+
+    def cookiecloud_sync(self, data):
+        """使用已保存的配置同步 CookieCloud 到维护过的站点。"""
+        try:
+            config, saved = self._cookiecloud_config(data)
+        except ValueError as error:
+            return {"code": 1, "msg": str(error)}
+        if config != saved and not SystemConfig().set_system_config(key="CookieCloud", value=config):
+            return {"code": 1, "msg": "CookieCloud配置保存失败，请重试"}
+        sites = Sites().get_sites()
+        if not sites:
+            return {"code": 1, "msg": "尚未维护站点，请先添加站点地址后再同步CookieCloud"}
+        contents, retmsg = CookieCloudHelper(**config).download_data()
         if not contents:
-            return {"code": 1, "msg": retmsg}
-        success_count = 0
-        for domain, content_list in contents.items():
-            if domain.startswith('.'):
-                domain = domain[1:]
-            cookie_str = ""
-            for content in content_list:
-                cookie_str += content.get("name") + \
-                    "=" + content.get("value") + ";"
-            if not cookie_str:
+            return {"code": 1, "msg": retmsg or "CookieCloud中没有Cookie数据，请检查浏览器插件的同步范围"}
+        success_count = failed_count = 0
+        for site_info in sites:
+            cookie = _cookiecloud_site_cookie(site_info, contents)
+            if not cookie:
                 continue
-            site_info = Sites().get_sites(siteurl=domain)
-            if not site_info:
-                continue
-            self.dbhelper.update_site_cookie_ua(tid=site_info.get("id"),
-                                                cookie=cookie_str)
-            success_count += 1
+            if self.dbhelper.update_site_cookie_ua(tid=site_info.get("id"), cookie=cookie):
+                success_count += 1
+            else:
+                failed_count += 1
         if success_count:
-            # 重载站点信息
             Sites().init_config()
+        if failed_count:
+            return {"code": 1, "msg": f"已更新 {success_count} 个站点，{failed_count} 个站点保存失败，请重试"}
+        if success_count:
             return {"code": 0, "msg": f"成功更新 {success_count} 个站点的Cookie数据"}
-        return {"code": 0, "msg": "同步完成，但未更新任何站点的Cookie！"}
+        return {"code": 1, "msg": "未找到匹配的有效Cookie，请检查已维护站点地址和浏览器插件的同步范围"}
 
     def add_brushtask(self, data):
         """
