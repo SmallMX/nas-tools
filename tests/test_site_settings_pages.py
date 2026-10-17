@@ -51,19 +51,21 @@ class SiteSettingsPagesTest(unittest.TestCase):
 
         context, html = self._render("site_pages", "/site", "site/site.html", method="POST", actual=True)
 
-        self.assertEqual({"server": "https://cloud.example", "key": "", "password": "",
-                          "key_configured": True, "password_configured": True}, context["CookieCloudCfg"])
+        self.assertTrue(context["CookieCloudConfigured"])
+        self.assertNotIn("CookieCloudCfg", context)
         self.assertEqual({"username": "saved-user", "password": "", "two_step_code": ""}, context["CookieUserInfoCfg"])
         self.assertEqual({"7": "日常下载"}, context["DownloadSettings"])
         self.assertTrue(context["ChromeOk"])
         self.assertTrue(context["OcrServerConfigured"])
         self.assertEqual([call("CookieCloud"), call("CookieUserInfo")], config.get_system_config.call_args_list)
         self.assertEqual(original, values)
-        self.assertIn('id="modal-cookiecloud"', html)
-        self.assertIn("https://cloud.example", html)
+        self.assertNotIn('id="modal-cookiecloud"', html)
+        self.assertNotIn("https://cloud.example", html)
         self.assertIn("saved-user", html)
-        self.assertIn('data-configured="true"', html)
-        self.assertIn("已保存，留空沿用", html)
+        self.assertIn('id="cookiecloud_syncbtn"', html)
+        self.assertIn("pageAction('cookiecloud_sync', {},", html)
+        for field in ("cookiecloud_server", "cookiecloud_key", "cookiecloud_password"):
+            self.assertNotIn(f'id="{field}"', html)
         for secret in ("cloud-key-secret", "cloud-password-secret", "site-password-secret", "two-step-secret"):
             self.assertNotIn(secret, html)
 
@@ -72,11 +74,24 @@ class SiteSettingsPagesTest(unittest.TestCase):
 
         context, html = self._render("site_pages", "/site", "site/site.html", actual=True)
 
-        self.assertEqual({"server": "", "key": "", "password": "",
-                          "key_configured": False, "password_configured": False}, context["CookieCloudCfg"])
-        self.assertIn('data-configured="false"', html)
-        self.assertNotIn("已保存，留空沿用", html)
+        self.assertFalse(context["CookieCloudConfigured"])
+        self.assertNotIn("CookieCloudCfg", context)
+        self.assertIn("设置 → 服务设置 → CookieCloud", html)
         self.assertIn('data-nt-click="site-cookie-settings"', html)
+        self.assertIn("自动添加内置列表中已识别的站点", html)
+
+    def test_site_cookiecloud_is_not_configured_when_any_required_field_is_missing(self):
+        for missing_field in ("server", "key", "password"):
+            with self.subTest(missing_field=missing_field):
+                config = {"server": "https://cloud.example", "key": "saved-key", "password": "saved-password"}
+                config.pop(missing_field)
+                self.site["SystemConfig"].return_value.get_system_config.side_effect = {
+                    "CookieCloud": config,
+                }.get
+
+                context, _ = self._render("site_pages", "/site", "site/site.html")
+
+                self.assertFalse(context["CookieCloudConfigured"])
 
     def test_site_ocr_status_only_accepts_nonempty_string(self):
         for value, expected in ((None, False), (123, False), (" \t", False), (" https://ocr.example ", True)):
@@ -252,19 +267,25 @@ class SiteSettingsPagesTest(unittest.TestCase):
                 self.assertEqual(original, config)
 
     def test_cookiecloud_service_settings_render_saved_status_without_secrets(self):
-        values = {"server": "https://cloud.example", "key": "cloud-key-secret", "password": "cloud-password-secret"}
+        values = {"server": "https://cloud.example", "key": "cloud-key-secret", "password": "cloud-password-secret", "interval": 60}
         original = copy.deepcopy(values)
         self.settings["Config"].return_value.get_config.return_value = {"app": {}, "pt": {}}
         self.settings["SystemConfig"].return_value.get_system_config.return_value = values
 
         context, html = self._render("settings_pages", "/service_setting", "setting/basic.html", actual=True)
 
-        self.assertEqual({"server": "https://cloud.example", "key": "", "password": "",
+        self.assertEqual({"server": "https://cloud.example", "key": "", "password": "", "interval": 60,
                           "key_configured": True, "password_configured": True}, context["CookieCloudCfg"])
         self.assertEqual(original, values)
         self.assertIn('id="cookiecloud_settings"', html)
         self.assertIn('data-nt-click="save-cookiecloud"', html)
         self.assertIn('data-nt-click="cookiecloud-sites"', html)
+        self.assertIn('data-nt-click="sync-cookiecloud"', html)
+        self.assertIn('value="60" id="cookiecloud_interval"', html)
+        self.assertIn('min="0" max="10080" step="1"', html)
+        self.assertIn("每 60 分钟自动同步一次", html)
+        self.assertIn("自动添加内置站点库中识别到的站点", html)
+        self.assertIn("API Key", html)
         self.assertIn("https://cloud.example", html)
         self.assertIn("已保存，留空沿用", html)
         self.assertNotIn("cloud-key-secret", html)
@@ -276,10 +297,23 @@ class SiteSettingsPagesTest(unittest.TestCase):
 
         context, html = self._render("settings_pages", "/service_setting", "setting/basic.html", actual=True)
 
-        self.assertEqual({"server": "", "key": "", "password": "",
+        self.assertEqual({"server": "", "key": "", "password": "", "interval": 0,
                           "key_configured": False, "password_configured": False}, context["CookieCloudCfg"])
         self.assertIn('data-configured="false"', html)
         self.assertIn('placeholder="填写浏览器插件中的用户 KEY"', html)
+        self.assertIn('value="0" id="cookiecloud_interval"', html)
+        self.assertIn("自动同步已关闭", html)
+
+    def test_cookiecloud_service_settings_keep_existing_configuration_manual_until_enabled(self):
+        self.settings["Config"].return_value.get_config.return_value = {"app": {}, "pt": {}}
+        self.settings["SystemConfig"].return_value.get_system_config.return_value = {
+            "server": "https://cloud.example", "key": "saved-key", "password": "saved-password",
+        }
+
+        context, html = self._render("settings_pages", "/service_setting", "setting/basic.html", actual=True)
+
+        self.assertEqual(0, context["CookieCloudCfg"]["interval"])
+        self.assertIn('value="0" id="cookiecloud_interval"', html)
 
     def test_downloader_page_preserves_configuration_contract(self):
         config = {"pt": {"pt_client": "qbittorrent"}, "qbittorrent": {"qbhost": "downloader.example"}}

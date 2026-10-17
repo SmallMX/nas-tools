@@ -82,7 +82,7 @@
 | D13 | 站点新增与编辑 | `site/site.html · modal-site` |
 | D14 | 站点连通性测试 | `site/site.html · modal-sitetest` |
 | D15 | 更新站点凭据 | `site/site.html · modal-update-site-cookie` |
-| D16 | CookieCloud 数据同步 | `site/site.html · modal-cookiecloud` |
+| D16 | CookieCloud 同步反馈 | `site/site.html、setting/basic.html · 共用成功/失败反馈` |
 | D17 | 输入验证码 | `site/site.html · modal-captcha-code` |
 | D18 | 站点活动信息 | `site/statistics.html · site-activity` |
 | D19 | 站点做种明细 | `site/statistics.html · site-seeding-info` |

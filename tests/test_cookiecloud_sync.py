@@ -3,7 +3,7 @@ import json
 import unittest
 from unittest.mock import Mock, call, patch
 
-from web.actions.sites import SiteActions
+from web.actions.sites import SiteActions, _cookiecloud_sync_lock
 
 
 class CookieCloudSyncTest(unittest.TestCase):
@@ -12,6 +12,9 @@ class CookieCloudSyncTest(unittest.TestCase):
         self.saved = {"server": "https://cloud.example", "key": "saved-key", "password": "saved-password"}
         self.config.get_system_config.return_value = self.saved
         self.config.set_system_config.return_value = True
+        self.scheduler_instance = self.enterContext(patch("web.actions.sites.get_singleton_instance", return_value=None))
+        self.indexers = self.enterContext(patch("web.actions.sites.IndexerHelper")).return_value
+        self.indexers.get_all_indexers.return_value = []
         self.sites = self.enterContext(patch("web.actions.sites.Sites")).return_value
         self.sites.get_sites.return_value = [{"id": 1, "signurl": "https://pt.example.org/"}]
         self.brush = self.enterContext(patch("web.actions.sites.BrushTask")).return_value
@@ -21,6 +24,8 @@ class CookieCloudSyncTest(unittest.TestCase):
         }, "")
         self.db = Mock()
         self.db.update_site_cookie_ua.return_value = True
+        self.db.get_site_by_name.return_value = []
+        self.db.insert_config_site.return_value = True
         self.actions = SiteActions(self.db)
 
     def test_sync_uses_saved_credentials_without_rewriting_them(self):
@@ -35,7 +40,7 @@ class CookieCloudSyncTest(unittest.TestCase):
         original = copy.deepcopy(self.saved)
         result = self.actions.cookiecloud_save({"server": "https://cloud.example/", "key": "", "password": ""})
         self.assertEqual(0, result["code"])
-        self.config.set_system_config.assert_called_once_with(key="CookieCloud", value=original)
+        self.config.set_system_config.assert_called_once_with(key="CookieCloud", value={**original, "interval": 0})
         self.assertEqual(original, self.saved)
         self.assertNotIn("saved-key", str(result))
         self.assertNotIn("saved-password", str(result))
@@ -66,6 +71,47 @@ class CookieCloudSyncTest(unittest.TestCase):
         result = self.actions.cookiecloud_sync({"password": "replacement"})
         self.assertEqual(1, result["code"])
         self.cloud.assert_not_called()
+
+    def test_interval_save_preserves_credentials_and_refreshes_running_schedule(self):
+        scheduler = Mock()
+        scheduler.reload_cookiecloud_config.return_value = True
+        self.scheduler_instance.return_value = scheduler
+        for interval in (0, "60", 10080):
+            with self.subTest(interval=interval):
+                result = self.actions.cookiecloud_save({"interval": interval})
+                self.assertEqual(0, result["code"])
+                self.config.set_system_config.assert_called_with(
+                    key="CookieCloud", value={**self.saved, "interval": int(interval)})
+        self.assertEqual(3, scheduler.reload_cookiecloud_config.call_count)
+        self.cloud.assert_not_called()
+
+    def test_invalid_intervals_never_save_or_refresh_schedule(self):
+        for interval in (-1, 10081, True, 1.5, "1.5", "", "bad", None, [], {}):
+            with self.subTest(interval=interval):
+                result = self.actions.cookiecloud_save({"interval": interval})
+                self.assertEqual(1, result["code"])
+                self.assertIn("整数分钟", result["msg"])
+        self.config.set_system_config.assert_not_called()
+        self.scheduler_instance.assert_not_called()
+
+    def test_failed_schedule_reload_reports_saved_config_without_claiming_success(self):
+        scheduler = Mock()
+        scheduler.reload_cookiecloud_config.return_value = False
+        self.scheduler_instance.return_value = scheduler
+        result = self.actions.cookiecloud_save({"interval": 60})
+        self.assertEqual(1, result["code"])
+        self.assertIn("配置已保存", result["msg"])
+        self.assertIn("计划更新失败", result["msg"])
+
+    def test_overlapping_sync_is_rejected_and_errors_release_the_lock(self):
+        with _cookiecloud_sync_lock:
+            result = self.actions.cookiecloud_sync({})
+        self.assertIn("正在进行", result["msg"])
+        self.cloud.assert_not_called()
+        self.cloud.return_value.download_data.side_effect = RuntimeError("fixture")
+        with self.assertRaises(RuntimeError):
+            self.actions.cookiecloud_sync({})
+        self.assertFalse(_cookiecloud_sync_lock.locked())
 
     def test_all_sites_receive_merged_domain_cookies_once(self):
         self.sites.get_sites.return_value = [
@@ -148,7 +194,7 @@ class CookieCloudSyncTest(unittest.TestCase):
         self.db.update_site_cookie_ua.side_effect = [True, False]
         result = self.actions.cookiecloud_sync({})
         self.assertEqual(1, result["code"])
-        self.assertIn("已更新 1 个站点，1 个站点保存失败", result["msg"])
+        self.assertIn("已更新 1 个站点，新增 0 个站点，1 个站点保存失败", result["msg"])
         self.sites.init_config.assert_called_once_with()
         self.brush.init_config.assert_not_called()
 
@@ -156,16 +202,107 @@ class CookieCloudSyncTest(unittest.TestCase):
         self.sites.get_sites.return_value = []
         result = self.actions.cookiecloud_sync({})
         self.assertEqual(1, result["code"])
-        self.assertIn("先添加站点", result["msg"])
-        self.cloud.assert_not_called()
+        self.assertIn("内置站点库未收录", result["msg"])
+        self.cloud.return_value.download_data.assert_called_once_with()
         self.sites.get_sites.return_value = [{"id": 1, "signurl": "https://pt.example.org/"}]
         self.cloud.return_value.download_data.return_value = ({}, "")
         result = self.actions.cookiecloud_sync({})
         self.assertEqual(1, result["code"])
         self.assertTrue(result["msg"])
 
+    def test_first_sync_adds_known_sites_and_repeat_sync_updates_without_duplicates(self):
+        self.sites.get_sites.return_value = []
+        self.indexers.get_all_indexers.return_value = [
+            {"id": "fixture", "name": "Fixture", "domain": "https://pt.example.org/"}
+        ]
+        result = self.actions.cookiecloud_sync({})
+        self.assertEqual(0, result["code"])
+        self.assertIn("更新 0 个站点，新增 1 个站点", result["msg"])
+        values = self.db.insert_config_site.call_args.kwargs
+        self.assertEqual("Fixture", values["name"])
+        self.assertEqual("https://pt.example.org/", values["signurl"])
+        self.assertEqual("session=parent", values["cookie"])
+        self.assertEqual("", values["rssurl"])
+        self.assertEqual("", values["rss_uses"])
+        self.sites.init_config.assert_called_once_with()
+        self.db.update_site_cookie_ua.assert_not_called()
+
+        self.sites.get_sites.return_value = [{"id": 9, **values}]
+        result = self.actions.cookiecloud_sync({})
+        self.assertEqual(0, result["code"])
+        self.assertIn("更新 1 个站点，新增 0 个站点", result["msg"])
+        self.db.insert_config_site.assert_called_once()
+        self.db.update_site_cookie_ua.assert_called_once_with(tid=9, cookie="session=parent")
+
+    def test_known_alias_is_imported_but_unknown_domains_and_cf_only_are_skipped(self):
+        self.sites.get_sites.return_value = []
+        self.indexers.get_all_indexers.return_value = [
+            {"id": "fixture", "name": "Fixture", "domain": "https://primary.example/",
+             "aliases": ["https://alias.example/"]},
+            {"id": "cf", "name": "CF", "domain": "https://cf.example/"},
+        ]
+        self.cloud.return_value.download_data.return_value = ({
+            "alias.example": [{"name": "session", "value": "alias"}],
+            "unknown.example": [{"name": "session", "value": "unknown"}],
+            "cf.example": [{"name": "cf_clearance", "value": "cf"}],
+        }, "")
+        self.assertEqual(0, self.actions.cookiecloud_sync({})["code"])
+        self.db.insert_config_site.assert_called_once()
+        self.assertEqual("https://alias.example/", self.db.insert_config_site.call_args.kwargs["signurl"])
+
+    def test_failed_insert_is_reported_without_reloading_sites(self):
+        self.sites.get_sites.return_value = []
+        self.indexers.get_all_indexers.return_value = [
+            {"id": "fixture", "name": "Fixture", "domain": "https://pt.example.org/"}
+        ]
+        self.db.insert_config_site.return_value = False
+        result = self.actions.cookiecloud_sync({})
+        self.assertEqual(1, result["code"])
+        self.assertIn("新增 0 个站点，1 个站点保存失败", result["msg"])
+        self.sites.init_config.assert_not_called()
+
 
 class CookieCloudPersistenceTest(unittest.TestCase):
+    def test_initial_sync_creates_a_real_site_and_next_sync_reuses_it(self):
+        from requests import Response
+        from app.helper import DbHelper
+        from app.sites import Sites
+
+        db = DbHelper()
+        name = "CookieCloud discovery persistence fixture"
+        def cleanup():
+            for site in db.get_site_by_name(name):
+                db.delete_config_site(site.id)
+        self.addCleanup(cleanup)
+        with patch("app.sites.sites.Message"):
+            sites = Sites.__wrapped__()
+        actions = SiteActions(db)
+        with patch("web.actions.sites.SystemConfig") as config, \
+                patch("web.actions.sites.IndexerHelper") as indexers, \
+                patch("web.actions.sites.Sites", return_value=sites), \
+                patch("app.sites.sites.Message"), \
+                patch("app.helper.cookiecloud_helper.RequestUtils") as request:
+            config.return_value.get_system_config.return_value = {
+                "server": "https://cloud.example", "key": "fixture-key", "password": "fixture-password", "interval": 0}
+            indexers.return_value.get_all_indexers.return_value = [
+                {"id": "discovery-fixture", "name": name, "domain": "https://pt.discovery.example/"}]
+            response = Response()
+            response.status_code = 200
+            response._content = json.dumps({"cookie_data": {"discovery.example": [
+                {"domain": ".discovery.example", "name": "session", "value": "discovered", "path": "/"}
+            ]}}).encode()
+            response._content_consumed = True
+            request.return_value.get_res.return_value = response
+            self.assertIn("新增 1 个站点", actions.cookiecloud_sync({})["msg"])
+            records = db.get_site_by_name(name)
+            self.assertEqual(1, len(records))
+            self.assertEqual("session=discovered", records[0].cookie)
+            self.assertEqual("https://pt.discovery.example/", records[0].signurl)
+            self.assertEqual("", records[0].include)
+            self.assertEqual("session=discovered", sites.get_sites(siteid=records[0].id)["cookie"])
+            self.assertIn("更新 1 个站点，新增 0 个站点", actions.cookiecloud_sync({})["msg"])
+            self.assertEqual(1, len(db.get_site_by_name(name)))
+
     def test_saved_config_reload_and_sync_update_the_database_and_site_cache(self):
         from requests import Response
         from app.conf import SystemConfig
@@ -184,9 +321,10 @@ class CookieCloudPersistenceTest(unittest.TestCase):
         self.addCleanup(db.delete_config_site, site_id)
         with patch("app.sites.sites.Message"):
             sites = Sites.__closure__[0].cell_contents()
-        config = {"server": "https://cloud.example", "key": "fixture-key", "password": "fixture-password"}
+        config = {"server": "https://cloud.example", "key": "fixture-key", "password": "fixture-password", "interval": 0}
         actions = SiteActions(db)
         with patch("web.actions.sites.SystemConfig", side_effect=config_class), \
+                patch("web.actions.sites.get_singleton_instance", return_value=None), \
                 patch("web.actions.sites.Sites", return_value=sites), \
                 patch("app.sites.sites.Message"), \
                 patch("app.helper.cookiecloud_helper.RequestUtils") as request:

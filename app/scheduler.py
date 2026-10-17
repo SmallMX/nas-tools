@@ -7,6 +7,7 @@ from threading import RLock
 from apscheduler.jobstores.base import JobLookupError
 
 import log
+from app.conf import SystemConfig
 from app.helper import MetaHelper
 from app.scheduler_manager import SchedulerManager
 from app.sites import SiteUserInfo
@@ -32,6 +33,10 @@ class Scheduler:
     _site_signin_date_job_id = "site_signin_random"
     _site_signin_generation = 0
     _site_signin_dirty = False
+    _cookiecloud_interval = None
+    _cookiecloud_job_id = "cookiecloud_sync"
+    _cookiecloud_generation = 0
+    _cookiecloud_dirty = False
     _config_lock = RLock()
 
     def __init__(self):
@@ -46,6 +51,77 @@ class Scheduler:
     @staticmethod
     def _signin_cron(config):
         return str((config or {}).get('cron') or '').strip()
+
+    def reload_cookiecloud_config(self):
+        """更新 CookieCloud 周期；凭据变化不重置下一次执行时间。"""
+        with self._config_lock:
+            valid = True
+            try:
+                config = SystemConfig().get_system_config("CookieCloud") or {}
+                if not isinstance(config, dict):
+                    raise ValueError("invalid config")
+                value = config.get("interval", 0)
+                if isinstance(value, bool) or not isinstance(value, (int, str)):
+                    raise ValueError("invalid interval")
+                interval = int(value)
+                if not 0 <= interval <= 10080:
+                    raise ValueError("invalid interval")
+                if not all(isinstance(config.get(key), str) and config[key].strip()
+                           for key in ("server", "key", "password")):
+                    interval = 0
+            except Exception as error:
+                # 无法确认当前计划时停用旧任务；不记录可能含凭据的配置或异常文本。
+                log.warn("【CookieCloud】读取自动同步配置失败，将停用自动同步：%s" % type(error).__name__)
+                interval = 0
+                valid = False
+
+            if not self.SCHEDULER:
+                self._cookiecloud_interval = interval
+                self._cookiecloud_dirty = False
+                return valid
+            try:
+                job = self.SCHEDULER.get_job(self._cookiecloud_job_id)
+                if (interval == self._cookiecloud_interval and not self._cookiecloud_dirty
+                        and bool(job) == bool(interval)):
+                    return valid
+                self._cookiecloud_generation += 1
+                self._cookiecloud_dirty = True
+                if interval:
+                    generation = self._cookiecloud_generation
+
+                    def sync_cookiecloud():
+                        with self._config_lock:
+                            if generation != self._cookiecloud_generation or not self.SCHEDULER:
+                                return
+                        self._run_cookiecloud_sync()
+
+                    self.SCHEDULER.add_job(
+                        sync_cookiecloud, 'interval', id=self._cookiecloud_job_id,
+                        replace_existing=True, minutes=interval, max_instances=1, coalesce=True
+                    )
+                elif job:
+                    self.SCHEDULER.remove_job(self._cookiecloud_job_id)
+                self._cookiecloud_interval = interval
+                self._cookiecloud_dirty = False
+                return valid
+            except Exception as error:
+                log.error("【CookieCloud】更新自动同步计划失败：%s" % type(error).__name__)
+                return False
+
+    @staticmethod
+    def _run_cookiecloud_sync():
+        """复用手动同步入口，执行时读取最新配置并由入口统一防止重叠。"""
+        try:
+            from app.helper import DbHelper
+            from web.actions.sites import SiteActions
+
+            result = SiteActions(DbHelper()).cookiecloud_sync({})
+            if isinstance(result, dict) and result.get("code") == 0:
+                log.info("【CookieCloud】定时同步完成")
+            else:
+                log.warn("【CookieCloud】定时同步未完成，请在站点维护页面手动同步查看结果")
+        except Exception as error:
+            log.error("【CookieCloud】定时同步执行失败：%s" % type(error).__name__)
 
     def reload_runtime_config(self):
         """只在执行周期变化时替换签到任务，保留其他任务的运行计划。"""
@@ -141,6 +217,8 @@ class Scheduler:
                 self._site_signin_dirty = not self._schedule_site_signin(
                     self._signin_cron(self._site_signin_config)
                 )
+                self._cookiecloud_dirty = True
+                self.reload_cookiecloud_config()
                 group.add_job(MetaHelper().save_meta_data, 'interval',
                               id="meta_save", seconds=METAINFO_SAVE_INTERVAL)
                 group.add_job(SiteUserInfo().refresh_pt_date_now, 'interval',
@@ -156,6 +234,7 @@ class Scheduler:
             except BaseException:
                 self.SCHEDULER = None
                 self._site_signin_generation += 1
+                self._cookiecloud_generation += 1
                 try:
                     group.shutdown(wait=False)
                 except Exception as error:
@@ -171,6 +250,7 @@ class Scheduler:
                 scheduler = self.SCHEDULER
                 self.SCHEDULER = None
                 self._site_signin_generation += 1
+                self._cookiecloud_generation += 1
             if scheduler:
                 scheduler.shutdown(wait=True)
         except Exception as e:

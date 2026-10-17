@@ -146,6 +146,7 @@ def render_basic_setting(section, title):
         cookie_cloud_cfg = SystemConfig().get_system_config("CookieCloud") or {}
         context["CookieCloudCfg"] = {
             "server": cookie_cloud_cfg.get("server") or "",
+            "interval": cookie_cloud_cfg.get("interval") or 0,
             "key": "",
             "password": "",
             "key_configured": bool(cookie_cloud_cfg.get("key")),

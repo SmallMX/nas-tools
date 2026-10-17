@@ -361,7 +361,7 @@
       <div class="col-md-12">
         <div class="card nt-settings-card" id="cookiecloud_settings">
           <div class="card-body">
-            {{ UI.section_heading('CookieCloud', '保存浏览器插件的同步配置，之后可在站点维护中直接同步 Cookie。') }}
+            {{ UI.section_heading('CookieCloud', '保存浏览器插件的同步配置，按同步周期更新 Cookie，也可随时立即同步。') }}
             <div class="row">
               <div class="col-12">
                 <div class="mb-3">
@@ -385,12 +385,25 @@
                   <div class="invalid-feedback">首次配置或更换服务器时，请填写加密密码。</div>
                 </div>
               </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="form-label required" for="cookiecloud_interval">同步周期（分钟）</label>
+                  <input type="number" value="{{ CookieCloudCfg.interval or 0 }}" id="cookiecloud_interval" class="form-control" min="0" max="10080" step="1" inputmode="numeric" aria-describedby="cookiecloud_interval_help cookiecloud_schedule_status">
+                  <div class="invalid-feedback">请填写 0–10080 之间的整数，0 表示关闭自动同步。</div>
+                  <div class="form-hint" id="cookiecloud_interval_help">0 关闭自动同步；1–10080 按指定分钟数同步，保存后生效。</div>
+                  <div class="form-hint" id="cookiecloud_schedule_status" role="status">{% if CookieCloudCfg.interval %}已保存：每 {{ CookieCloudCfg.interval }} 分钟自动同步一次。{% else %}已保存：自动同步已关闭。{% endif %}</div>
+                </div>
+              </div>
             </div>
-            <p class="text-muted mb-0">已保存的 KEY 和密码不会显示在页面中，留空可沿用。更换服务器时需重新填写两项凭据。</p>
+            <p class="text-muted mb-2">同步会更新已维护站点，并自动添加内置站点库中识别到的站点。使用 API Key 的站点仍需在站点维护中补充 API Key。</p>
+            <p class="text-muted mb-0">已保存的 KEY 和密码不会显示在页面中，留空可沿用。更换服务器时需重新填写两项凭据；修改后请先保存，再立即同步。</p>
           </div>
           <div class="card-footer nt-settings-footer d-flex flex-wrap gap-2 justify-content-between">
             <a href="#" data-nt-click="cookiecloud-sites" class="btn btn-outline-primary">前往站点维护</a>
-            <button type="button" id="cookiecloud_save_btn" data-nt-click="save-cookiecloud" class="btn btn-primary">保存 CookieCloud 配置</button>
+            <div class="btn-list">
+              <button type="button" id="cookiecloud_sync_btn" data-nt-click="sync-cookiecloud" class="btn btn-outline-primary">立即同步</button>
+              <button type="button" id="cookiecloud_save_btn" data-nt-click="save-cookiecloud" class="btn btn-primary">保存 CookieCloud 配置</button>
+            </div>
           </div>
         </div>
       </div>
@@ -671,11 +684,13 @@
     const serverInput = document.getElementById('cookiecloud_server');
     const keyInput = document.getElementById('cookiecloud_key');
     const passwordInput = document.getElementById('cookiecloud_password');
+    const intervalInput = document.getElementById('cookiecloud_interval');
     const server = serverInput.value.trim().replace(/\/+$/, '');
     const savedServer = serverInput.defaultValue.trim().replace(/\/+$/, '');
     const serverChanged = server !== savedServer;
     const key = keyInput.value.trim();
     const password = passwordInput.value;
+    const interval = Number(intervalInput.value);
     let validServer = false;
     try {
       const url = new URL(server);
@@ -683,23 +698,49 @@
     } catch (_) {}
     const validKey = !!key || (!serverChanged && keyInput.dataset.configured === 'true');
     const validPassword = !!password || (!serverChanged && passwordInput.dataset.configured === 'true');
+    const validInterval = /^\d+$/.test(intervalInput.value) && Number.isSafeInteger(interval) && interval >= 0 && interval <= 10080;
     serverInput.classList.toggle('is-invalid', !validServer);
     keyInput.classList.toggle('is-invalid', !validKey);
     passwordInput.classList.toggle('is-invalid', !validPassword);
-    if (!validServer || !validKey || !validPassword) return;
-    return NasToolsUI.withButton('#cookiecloud_save_btn', '保存中...', () => pageAction('cookiecloud_save', {server, key, password}, function (ret) {
+    intervalInput.classList.toggle('is-invalid', !validInterval);
+    if (!validServer || !validKey || !validPassword || !validInterval) return;
+    return NasToolsUI.withButton('#cookiecloud_save_btn', '保存中...', () => pageAction('cookiecloud_save', {server, key, password, interval}, function (ret) {
       if (ret.code !== 0) {
         show_fail_modal(ret.msg || 'CookieCloud 配置保存失败，请重试。');
         return;
       }
       serverInput.value = server;
       serverInput.defaultValue = server;
+      intervalInput.value = String(interval);
+      intervalInput.defaultValue = String(interval);
+      document.getElementById('cookiecloud_schedule_status').textContent = interval > 0
+        ? `已保存：每 ${interval} 分钟自动同步一次。` : '已保存：自动同步已关闭。';
       [keyInput, passwordInput].forEach(input => {
         input.value = '';
         input.dataset.configured = 'true';
         input.placeholder = '已保存，留空沿用';
       });
-      show_success_modal(ret.msg || 'CookieCloud 配置已保存，可前往站点维护同步。');
+      show_success_modal(ret.msg || 'CookieCloud 配置已保存。');
+    }));
+  }
+
+  function sync_cookiecloud() {
+    const serverInput = document.getElementById('cookiecloud_server');
+    const keyInput = document.getElementById('cookiecloud_key');
+    const passwordInput = document.getElementById('cookiecloud_password');
+    const intervalInput = document.getElementById('cookiecloud_interval');
+    const dirty = serverInput.value.trim().replace(/\/+$/, '') !== serverInput.defaultValue.trim().replace(/\/+$/, '')
+      || keyInput.value !== '' || passwordInput.value !== '' || intervalInput.value !== intervalInput.defaultValue;
+    if (dirty || !serverInput.defaultValue || keyInput.dataset.configured !== 'true' || passwordInput.dataset.configured !== 'true') {
+      show_fail_modal('请先保存 CookieCloud 配置，再立即同步。');
+      return;
+    }
+    return NasToolsUI.withButton('#cookiecloud_sync_btn', '正在同步...', () => pageAction('cookiecloud_sync', {}, function (ret) {
+      if (ret.code === 0) {
+        show_success_modal(ret.msg || 'CookieCloud 同步完成，可前往站点维护查看。');
+      } else {
+        show_fail_modal(ret.msg || 'CookieCloud 同步失败，请检查配置后重试。');
+      }
     }));
   }
   {% endif %}
@@ -709,6 +750,7 @@
     'tmdb-cache': () => navmenu('tmdbcache'),
     {% if SettingSection == "service" %}
     'save-cookiecloud': () => save_cookiecloud_config(),
+    'sync-cookiecloud': () => sync_cookiecloud(),
     'cookiecloud-sites': () => navmenu('site'),
     {% endif %}
     {% if SettingSection == "system" %}

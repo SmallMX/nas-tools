@@ -20,6 +20,7 @@ class SchedulerRuntimeConfigTest(unittest.TestCase):
     def setUp(self):
         self.config = self._patch("app.scheduler.get_site_signin_config")
         self.config.return_value = {"cron": "08:00", "notify": True}
+        self._patch("app.scheduler.SystemConfig").return_value.get_system_config.return_value = {}
         self._patch("app.scheduler.SiteSignin")
         self._patch("app.scheduler.MetaHelper")
         self._patch("app.scheduler.SiteUserInfo")

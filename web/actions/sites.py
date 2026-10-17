@@ -1,13 +1,20 @@
 import html as html_lib
 import time
+from threading import Lock
 from urllib.parse import urlsplit
+
 from app.brushtask import BrushTask
 from app.conf import SystemConfig
-from app.helper import CookieCloudHelper
+from app.helper import CookieCloudHelper, IndexerHelper
 from app.indexer import Indexer
 from app.sites import Sites, SiteUserInfo, SiteCookie
+from app.sites.cookiecloud import cookiecloud_site_candidates
 from app.utils import StringUtils
+from app.utils.commons import get_singleton_instance
 from web.actions.validation import parse_brush_rule, prepare_site_note, validate_site_config_url
+
+
+_cookiecloud_sync_lock = Lock()
 
 
 def _site_capabilities(attributes):
@@ -391,7 +398,25 @@ class SiteActions:
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"请先配置CookieCloud{label}")
             config[field] = value.strip() if field == "key" else value
-        return config, saved
+        interval = data.get("interval", saved.get("interval", 0))
+        if isinstance(interval, bool) or not isinstance(interval, (str, int)) or not str(interval).strip().isdigit():
+            raise ValueError("CookieCloud同步周期必须为 0 到 10080 的整数分钟，0 表示关闭自动同步")
+        interval = int(interval)
+        if not 0 <= interval <= 10080:
+            raise ValueError("CookieCloud同步周期必须为 0 到 10080 的整数分钟，0 表示关闭自动同步")
+        config["interval"] = interval
+        return config, {**saved, "interval": saved.get("interval", 0)}
+
+    @staticmethod
+    def _save_cookiecloud_config(config):
+        if not SystemConfig().set_system_config(key="CookieCloud", value=config):
+            return {"code": 1, "msg": "CookieCloud配置保存失败，请重试"}
+        from app.scheduler import Scheduler
+
+        scheduler = get_singleton_instance(Scheduler)
+        if scheduler and not scheduler.reload_cookiecloud_config():
+            return {"code": 1, "msg": "CookieCloud配置已保存，但自动同步计划更新失败，请重试保存"}
+        return {"code": 0, "msg": "CookieCloud配置已保存"}
 
     @staticmethod
     def cookiecloud_save(data):
@@ -400,25 +425,34 @@ class SiteActions:
             config, _ = SiteActions._cookiecloud_config(data)
         except ValueError as error:
             return {"code": 1, "msg": str(error)}
-        if not SystemConfig().set_system_config(key="CookieCloud", value=config):
-            return {"code": 1, "msg": "CookieCloud配置保存失败，请重试"}
-        return {"code": 0, "msg": "CookieCloud配置已保存"}
+        return SiteActions._save_cookiecloud_config(config)
 
     def cookiecloud_sync(self, data):
-        """使用已保存的配置同步 CookieCloud 到维护过的站点。"""
+        """手动和定时同步共用同一把锁，防止重复添加站点。"""
+        if not _cookiecloud_sync_lock.acquire(blocking=False):
+            return {"code": 1, "msg": "CookieCloud同步正在进行，请稍后再试"}
+        try:
+            return self._sync_cookiecloud(data)
+        finally:
+            _cookiecloud_sync_lock.release()
+
+    def _sync_cookiecloud(self, data):
+        """更新已有站点，并从内置站点库识别和添加新站点。"""
         try:
             config, saved = self._cookiecloud_config(data)
         except ValueError as error:
             return {"code": 1, "msg": str(error)}
-        if config != saved and not SystemConfig().set_system_config(key="CookieCloud", value=config):
-            return {"code": 1, "msg": "CookieCloud配置保存失败，请重试"}
+        if config != saved:
+            result = self._save_cookiecloud_config(config)
+            if result["code"] != 0:
+                return result
         sites = Sites().get_sites()
-        if not sites:
-            return {"code": 1, "msg": "尚未维护站点，请先添加站点地址后再同步CookieCloud"}
-        contents, retmsg = CookieCloudHelper(**config).download_data()
+        contents, retmsg = CookieCloudHelper(**{
+            field: config[field] for field in ("server", "key", "password")
+        }).download_data()
         if not contents:
             return {"code": 1, "msg": retmsg or "CookieCloud中没有Cookie数据，请检查浏览器插件的同步范围"}
-        success_count = failed_count = 0
+        success_count = added_count = failed_count = 0
         for site_info in sites:
             cookie = _cookiecloud_site_cookie(site_info, contents)
             if not cookie:
@@ -427,13 +461,32 @@ class SiteActions:
                 success_count += 1
             else:
                 failed_count += 1
-        if success_count:
+        processed_names = set()
+        for candidate in cookiecloud_site_candidates(IndexerHelper().get_all_indexers(), contents, sites):
+            name = candidate["name"]
+            if name.casefold() in processed_names:
+                continue
+            cookie = _cookiecloud_site_cookie(candidate, contents)
+            if not cookie:
+                continue
+            processed_names.add(name.casefold())
+            # 维护页面可能同时添加站点，写入前再次检查名称。
+            if self.dbhelper.get_site_by_name(name=name):
+                continue
+            if self.dbhelper.insert_config_site(
+                    name=name, site_pri=1, rssurl="", signurl=candidate["signurl"], cookie=cookie,
+                    note=prepare_site_note({"parse": "Y", "message": "N", "chrome": "N", "proxy": "N"}),
+                    rss_uses=""):
+                added_count += 1
+            else:
+                failed_count += 1
+        if success_count or added_count:
             Sites().init_config()
         if failed_count:
-            return {"code": 1, "msg": f"已更新 {success_count} 个站点，{failed_count} 个站点保存失败，请重试"}
-        if success_count:
-            return {"code": 0, "msg": f"成功更新 {success_count} 个站点的Cookie数据"}
-        return {"code": 1, "msg": "未找到匹配的有效Cookie，请检查已维护站点地址和浏览器插件的同步范围"}
+            return {"code": 1, "msg": f"已更新 {success_count} 个站点，新增 {added_count} 个站点，{failed_count} 个站点保存失败，请重试"}
+        if success_count or added_count:
+            return {"code": 0, "msg": f"同步完成：更新 {success_count} 个站点，新增 {added_count} 个站点"}
+        return {"code": 1, "msg": "未找到匹配的有效Cookie，请检查浏览器插件的同步范围；内置站点库未收录的站点可手动添加后同步"}
 
     def add_brushtask(self, data):
         """

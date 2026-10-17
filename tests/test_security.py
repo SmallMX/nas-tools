@@ -901,4 +901,5 @@ class SecurityTest(unittest.TestCase):
 
         for secret in ("cookie-key-secret", "cookie-password-secret", "site-password-secret", "two-step-secret"):
             self.assertNotIn(secret, admin_html)
-        self.assertIn('id="modal-cookiecloud"', admin_html)
+        self.assertNotIn('id="modal-cookiecloud"', admin_html)
+        self.assertIn('id="cookiecloud_syncbtn"', admin_html)
