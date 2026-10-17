@@ -29,7 +29,6 @@ export class LayoutSearchbar extends CustomElement {
     layout_systemflag: { attribute: "layout-systemflag" },
     layout_username: { attribute: "layout-username" },
     layout_search_source: { attribute: "layout-search-source" },
-    layout_userpris: { attribute: "layout-userpris", type: Array },
     _search_source: { state: true },
   };
 
@@ -37,7 +36,6 @@ export class LayoutSearchbar extends CustomElement {
     super();
     this.layout_systemflag = "Docker";
     this.layout_username = "admin";
-    this.layout_userpris = ["系统设置"];
     this.layout_search_source = "tmdb";
     this._search_source = "tmdb";
     this.classList.add("navbar", "fixed-top", "lit-searchbar");
@@ -153,13 +151,12 @@ export class LayoutSearchbar extends CustomElement {
               </a>
             </span>
           </div>
-          ${this.layout_userpris.includes("系统设置") ? html`
-            <button class="btn btn-icon nt-message-button" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasEnd" aria-controls="offcanvasEnd" aria-label="打开消息中心" title="消息中心">
-              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"></path></svg>
-            </button>` : nothing}
-          <!-- 头像 -->
+          <button class="btn btn-icon nt-message-button" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasEnd" aria-controls="offcanvasEnd" aria-label="打开消息中心" title="消息中心">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"></path></svg>
+          </button>
+          <!-- 管理员菜单 -->
           <div class="nav-item dropdown">
-              <a href="#" class="lit-user-menu nav-link d-flex align-items-center gap-2 lh-1 text-reset px-3" data-bs-toggle="dropdown" aria-label="用户菜单">
+              <a href="#" class="lit-user-menu nav-link d-flex align-items-center gap-2 lh-1 text-reset px-3" data-bs-toggle="dropdown" aria-label="管理员菜单">
                 <!-- http://tabler-icons.io/i/user -->
                 <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user"
                     width="24" height="24" viewBox="0 0 24 24"
@@ -174,17 +171,13 @@ export class LayoutSearchbar extends CustomElement {
                 <a class="dropdown-item hide-theme-dark" href="?theme=dark" role="button">暗黑风格</a>
                 <a class="dropdown-item hide-theme-light" href="?theme=light" role="button">明亮风格</a>
                 <div class="dropdown-divider"></div>
-                ${this.layout_userpris.includes("系统设置")
+                <a class="dropdown-item" data-bs-toggle="offcanvas" href="#offcanvasEnd" role="button"
+                  aria-controls="offcanvasEnd">消息中心</a>
+                <a class="dropdown-item" href="#" @click=${event => { event.preventDefault(); show_logging_modal(); }} role="button">实时日志</a>
+                <div class="dropdown-divider"></div>
+                ${["Docker", "Synology"].includes(this.layout_systemflag)
                 ? html`
-                    <a class="dropdown-item" data-bs-toggle="offcanvas" href="#offcanvasEnd" role="button"
-                      aria-controls="offcanvasEnd">消息中心</a>
-                    <a class="dropdown-item" href="#" @click=${event => { event.preventDefault(); show_logging_modal(); }} role="button">实时日志</a>
-                    <div class="dropdown-divider"></div>
-                    ${["Docker", "Synology"].includes(this.layout_systemflag)
-                    ? html`
-                      <a href="#" @click=${event => { event.preventDefault(); restart(); }} class="dropdown-item">重启</a>`
-                    : nothing }
-                  `
+                  <a href="#" @click=${event => { event.preventDefault(); restart(); }} class="dropdown-item">重启</a>`
                 : nothing }
                 <a href="#" @click=${event => { event.preventDefault(); logout(); }} class="dropdown-item">
                   注销 <span class="text-muted mx-3">${this.layout_username}</span>

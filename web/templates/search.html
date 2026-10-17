@@ -187,14 +187,10 @@
                                       </a>
                                     </div>
                                     <div class="col">
-                                      {% if "下载管理" in UserPris %}
                                       <a href="#" class="search-download-action" data-nt-click="search-download"
                                          data-torrent-id="{{ torrent.id }}"
                                          data-torrent-title="【{{ torrent.site }}】{{ torrent.torrent_name }}"
                                          data-torrent-site="{{ torrent.site }}">{{ torrent.torrent_name }}</a>
-                                      {% else %}
-                                      <span>{{ torrent.torrent_name }}</span>
-                                      {% endif %}
                                       <div class="text-muted">
                                         {{ torrent.description or '' }}
                                       </div>
@@ -227,7 +223,6 @@
                                         {% endif %}
                                       </div>
                                     </div>
-                                    {% if "下载管理" in UserPris %}
                                     <div class="col-auto ms-2 d-none d-md-inline-block">
                                       <a href="#" class="link-secondary search-download-action" data-nt-click="search-download" title="下载"
                                          data-torrent-id="{{ torrent.id }}"
@@ -255,7 +250,6 @@
                                         </div>
                                       </div>
                                     </div>
-                                    {% endif %}
                                   </div>
                                 </div>
                               {% endfor %}

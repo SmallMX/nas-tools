@@ -2,11 +2,11 @@ import copy
 import inspect
 import json
 import unittest
-from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from app.utils import TokenCache
 from app.utils.types import SearchType
+from config import Config
 from web import action as action_module
 from web.action import WebAction
 from web.actions import validation
@@ -18,7 +18,7 @@ from web.main import App
 from web.security import generate_access_token
 
 
-# 分拆前的 81 个动作名称快照，按迁移后的归属排列；不从实现或权限表生成。
+# 支持的动作名称快照，按所属领域排列，不从实现生成。
 DOMAIN_COMMANDS = {
     "_search": """search media_info name_test get_recommend get_search_result search_media_infos
         get_tvseason_list get_categories clear_tmdb_cache delete_tmdb_cache modify_tmdb_cache
@@ -33,14 +33,14 @@ DOMAIN_COMMANDS = {
         test_site get_sites get_indexers update_sites_cookie_ua set_site_captcha_code
         get_site_user_statistics cookiecloud_sync add_brushtask del_brushtask brushtask_detail
         run_brushtask list_brushtask_torrents""".split(),
-    "_system": """logging restart logout update_config user_manager refresh_message net_test
-        refresh_process get_users update_message_client delete_message_client check_message_client
+    "_system": """logging restart logout update_config refresh_message net_test
+        refresh_process update_message_client delete_message_client check_message_client
         get_message_client test_message_client set_system_config send_custom_message save_user_script""".split(),
 }
 TOOL_COMMANDS = {"tool_site_signin_status": "status", "tool_site_signin_run": "run",
                  "tool_site_signin_config_update": "update_config"}
 PUBLIC_DELEGATES = {"get_recommend": "_search", "get_downloaded": "_downloads",
-                    "get_search_result": "_search", "get_users": "_system"}
+                    "get_search_result": "_search"}
 STATIC_ALIASES = {
     "restart_server": SystemActions,
     "set_config_value": SystemActions,
@@ -65,10 +65,10 @@ class WebActionDispatchTest(unittest.TestCase):
         self.addCleanup(signin.stop)
         self.action = WebAction()
 
-    def test_original_commands_are_complete_and_bound_to_their_domains(self):
+    def test_active_commands_are_complete_and_bound_to_their_domains(self):
         commands = [command for names in DOMAIN_COMMANDS.values() for command in names]
         commands.extend(TOOL_COMMANDS)
-        self.assertEqual(81, len(commands))
+        self.assertEqual(79, len(commands))
         self.assertEqual(len(commands), len(set(commands)))
         self.assertEqual(set(commands), set(self.action._actions))
         for attribute, names in DOMAIN_COMMANDS.items():
@@ -98,7 +98,6 @@ class WebActionDispatchTest(unittest.TestCase):
             "get_search_result": (("self", "data"), {"data": None}),
             "search_media_infos": (("data",), {}),
             "get_downloading": (("data",), {"data": None}),
-            "get_users": (("self", "data"), {"data": None}),
             "get_site_user_statistics": (("data",), {}),
             "send_custom_message": (("data",), {}),
             "media_detail": (("data",), {}),
@@ -126,7 +125,7 @@ class WebActionDispatchTest(unittest.TestCase):
                 with patch.object(getattr(self.action, attribute), method, return_value=result) as handler:
                     self.assertIs(result, getattr(self.action, method)(payload))
                     handler.assert_called_once_with(payload)
-        for method in ("get_search_result", "get_users"):
+        for method in ("get_search_result",):
             with patch.object(getattr(self.action, PUBLIC_DELEGATES[method]), method) as handler:
                 getattr(self.action, method)()
                 handler.assert_called_once_with(None)
@@ -178,27 +177,19 @@ class WebActionDispatchTest(unittest.TestCase):
                              self.action.api_action("known"))
 
 
-class WebActionPermissionBoundaryTest(unittest.TestCase):
-    PERMISSIONS = ("系统设置", "下载管理", "站点管理", "服务", "资源搜索", "探索", "未知权限", "")
-
+class WebActionAuthenticationBoundaryTest(unittest.TestCase):
     def setUp(self):
         self._patch_dict(App.config, {"TESTING": True})
         self.client = App.test_client()
-        self.user = SimpleNamespace(id=1, username="dispatch-test", pris="", is_authenticated=True)
-        self._patch("web.backend.user.User.get", Mock(return_value=self.user))
-        self._patch("web.backend.user.User.get_user", Mock(return_value=self.user))
         self.database = self._patch("web.action.DbHelper")
         self.signin = self._patch("web.action.SiteSigninWebService")
-        self.token = generate_access_token(self.user.username)
+        self.admin_username = Config().get_config("app")["login_user"]
+        self.token = generate_access_token(self.admin_username)
         TokenCache.set(self.token, self.token)
         self.addCleanup(TokenCache.delete, self.token)
-        self.headers = {"Authorization": f"Bearer {self.token}"}
-        with self.client.session_transaction() as session:
-            session["_user_id"] = "1"
-            session["_fresh"] = True
 
-    def _patch(self, target, value=None):
-        patcher = patch(target, value) if value is not None else patch(target)
+    def _patch(self, target):
+        patcher = patch(target)
         result = patcher.start()
         self.addCleanup(patcher.stop)
         return result
@@ -208,57 +199,62 @@ class WebActionPermissionBoundaryTest(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def _assert_request(self, handler, path, payload, allowed, api=False):
+    def _assert_request(self, handler, path, payload, allowed, headers=None):
         handler.reset_mock()
         self.database.reset_mock()
         self.signin.reset_mock()
-        response = self.client.post(path, data=payload, headers=self.headers if api else None)
+        response = self.client.post(path, data=payload, headers=headers)
+        self.assertEqual(200 if allowed else 401, response.status_code)
+        self.assertEqual(0 if allowed else 401, response.get_json()["code"])
         if allowed:
-            self.assertEqual(200, response.status_code)
-            self.assertEqual(0, response.get_json()["code"])
             handler.assert_called_once()
             self.database.assert_called_once_with()
         else:
-            self.assertEqual(403 if api else 200, response.status_code)
-            self.assertEqual(403 if api else -1, response.get_json()["code"])
             handler.assert_not_called()
             self.database.assert_not_called()
             self.signin.assert_not_called()
 
-    def test_ui_permissions_reject_before_domain_or_facade_initialization(self):
+    def test_ui_actions_accept_admin_and_reject_legacy_or_missing_session(self):
         cases = (
-            (DownloadActions, "update_download_setting", {"系统设置", "下载管理"}),
-            (SiteActions, "list_site_resources", {"站点管理"}),
-            (SiteActions, "get_brush_site_capabilities", {"服务"}),
-            (SiteActions, "set_site_captcha_code", {"系统设置"}),
-            (SystemActions, "update_config", {"系统设置"}),
-            (SearchActions, "media_info", {"探索", "资源搜索"}),
+            (DownloadActions, "update_download_setting"),
+            (SiteActions, "list_site_resources"),
+            (SiteActions, "get_brush_site_capabilities"),
+            (SiteActions, "set_site_captcha_code"),
+            (SystemActions, "update_config"),
+            (SearchActions, "media_info"),
         )
-        for domain, command, permissions in cases:
+        for domain, command in cases:
             with patch.object(domain, command, autospec=True,
                               side_effect=lambda *args, **kwargs: {"code": 0, "result": "handled"}) as handler:
-                for permission in self.PERMISSIONS:
-                    with self.subTest(command=command, permission=permission):
-                        self.user.pris = permission
+                for user_id in ("0", "1", None):
+                    with self.subTest(command=command, user_id=user_id):
+                        with self.client.session_transaction() as session:
+                            session.clear()
+                            if user_id is not None:
+                                session["_user_id"] = user_id
+                                session["_fresh"] = True
                         self._assert_request(handler, "/do", {"cmd": command, "data": json.dumps({"id": 7})},
-                                             permission in permissions)
+                                             user_id == "0")
 
-    def test_api_preserves_path_permissions_and_cross_domain_exceptions(self):
+    def test_api_actions_accept_admin_and_reject_legacy_or_missing_token(self):
+        legacy_token = generate_access_token("retired-user")
+        TokenCache.set(legacy_token, legacy_token)
+        self.addCleanup(TokenCache.delete, legacy_token)
         cases = (
             (DownloadActions, "update_download_setting", "/api/v1/download/config/update",
-             {"sid": "7", "name": "example"}, {"系统设置", "下载管理"}),
-            (SiteActions, "brushtask_detail", "/api/v1/brushtask/info", {"id": "7"}, {"服务", "系统设置"}),
-            (SearchActions, "media_info", "/api/v1/media/info", {"type": "MOV", "id": "7"}, {"探索"}),
-            (SystemActions, "net_test", "/api/v1/service/network/test", {"url": "https://example.com"}, {"系统设置"}),
-            (SiteActions, "test_site", "/api/v1/site/test", {"id": 7}, {"站点管理"}),
+             {"sid": "7", "name": "example"}),
+            (SiteActions, "brushtask_detail", "/api/v1/brushtask/info", {"id": "7"}),
+            (SearchActions, "media_info", "/api/v1/media/info", {"type": "MOV", "id": "7"}),
+            (SystemActions, "net_test", "/api/v1/service/network/test", {"url": "https://example.com"}),
+            (SiteActions, "test_site", "/api/v1/site/test", {"id": 7}),
         )
-        for domain, command, path, data, permissions in cases:
+        for domain, command, path, data in cases:
             with patch.object(domain, command, autospec=True,
                               side_effect=lambda *args, **kwargs: {"code": 0, "result": "handled"}) as handler:
-                for permission in self.PERMISSIONS:
-                    with self.subTest(path=path, permission=permission):
-                        self.user.pris = permission
-                        self._assert_request(handler, path, data, permission in permissions, api=True)
+                for token in (self.token, legacy_token, None):
+                    with self.subTest(path=path, admin=token == self.token):
+                        headers = {"Authorization": f"Bearer {token}"} if token else None
+                        self._assert_request(handler, path, data, token == self.token, headers=headers)
 
 
 if __name__ == "__main__":

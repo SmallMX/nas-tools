@@ -13,11 +13,11 @@ import log
 from app.conf import SystemConfig, ModuleConf
 from app.helper import ProgressHelper, DisplayHelper
 from app.message import Message, MessageCenter
-from app.retired_features import ACTIVE_USER_PERMISSIONS, sanitize_config_write
+from app.retired_features import sanitize_config_write
 from app.scheduler import stop_scheduler
 from app.utils import RequestUtils, ExceptionUtils
 from config import Config
-from web.security import request_has_system_settings, sanitize_message_client
+from web.security import request_is_admin, sanitize_message_client
 from web.actions.validation import prepare_message_client_config, validate_site_config_url
 
 
@@ -45,7 +45,7 @@ def _message_client_config(data):
 
 
 class SystemActions:
-    """系统配置、用户、通知与运行状态动作。"""
+    """系统配置、通知与运行状态动作。"""
 
     def __init__(self, dbhelper):
         self.dbhelper = dbhelper
@@ -203,44 +203,6 @@ class SystemActions:
 
         return {"code": 0}
 
-    def user_manager(self, data):
-        """
-        用户管理
-        """
-        if not isinstance(data, dict):
-            return {"code": 1, "success": False, "message": "请求参数错误"}
-        oper = str(data.get("oper") or "").strip().lower()
-        name = str(data.get("name") or "").strip()
-        if oper not in {"add", "del"}:
-            return {"code": 1, "success": False, "message": "不支持的用户操作"}
-        if not name or len(name) > 64:
-            return {"code": 1, "success": False, "message": "用户名不能为空且不能超过 64 个字符"}
-
-        if oper == "add":
-            raw_password = data.get("password")
-            if not isinstance(raw_password, str) or not 8 <= len(raw_password) <= 128:
-                return {"code": 1, "success": False, "message": "密码长度必须为 8 至 128 个字符"}
-            if name == (Config().get_config("app") or {}).get("login_user") \
-                    or self.dbhelper.is_user_exists(name):
-                return {"code": 1, "success": False, "message": "用户已存在"}
-            pris = data.get("pris")
-            if isinstance(pris, str):
-                pris = [permission.strip() for permission in pris.split(",")]
-            if not isinstance(pris, list) or not pris \
-                    or any(permission not in ACTIVE_USER_PERMISSIONS for permission in pris):
-                return {"code": 1, "success": False, "message": "包含已下线或未知权限"}
-            normalized_permissions = list(dict.fromkeys(pris))
-            password_hash = generate_password_hash(raw_password)
-            ret = self.dbhelper.insert_user(name, password_hash, ",".join(normalized_permissions))
-        else:
-            if name == (Config().get_config("app") or {}).get("login_user"):
-                return {"code": 1, "success": False, "message": "不能删除管理员用户"}
-            ret = self.dbhelper.delete_user(name)
-
-        if ret:
-            return {"code": 0, "success": True}
-        return {"code": 1, "success": False, "message": "用户不存在或操作失败"}
-
     @staticmethod
     def get_system_message(lst_time):
         messages = MessageCenter().get_system_messages(lst_time=lst_time)
@@ -306,24 +268,13 @@ class SystemActions:
         """
         process_type = data.get("type")
         if process_type == "sitecookie" and has_request_context() \
-                and not request_has_system_settings():
+                and not request_is_admin():
             return {"code": 403, "value": 0, "text": "权限不足"}
         detail = ProgressHelper().get_process(process_type)
         if detail:
             return {"code": 0, "value": detail.get("value"), "text": detail.get("text")}
         else:
             return {"code": 1, "value": 0, "text": "正在处理..."}
-
-    def get_users(self, data=None):
-        """
-        查询所有用户
-        """
-        user_list = self.dbhelper.get_users()
-        Users = []
-        for user in user_list:
-            pris = str(user.pris).split(",")
-            Users.append({"id": user.id, "name": user.name, "pris": pris})
-        return {"code": 0, "result": Users}
 
     def update_message_client(self, data):
         """

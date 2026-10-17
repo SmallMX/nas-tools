@@ -2,8 +2,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from flask import Flask
+
 from app.tools import ToolSource, get_tool, get_tools
-from web.permissions import PATH_PERMISSIONS
+from web.routes.tool_pages import tool_pages_bp
 from web.tools.site_signin import SiteSigninWebService
 
 
@@ -22,13 +24,15 @@ class ToolRegistryTest(unittest.TestCase):
 
         self.assertIsNotNone(tool)
         self.assertEqual("tools/site-signin", tool.page)
-        self.assertEqual("站点管理", tool.permission)
         self.assertIsNone(tool.source)
 
     def test_tool_pages_and_icons_match_host_registry(self):
+        app = Flask(__name__)
+        app.register_blueprint(tool_pages_bp)
+        routes = {rule.rule for rule in app.url_map.iter_rules()}
         for tool in get_tools():
             with self.subTest(tool=tool.tool_id):
-                self.assertEqual(tool.permission, PATH_PERMISSIONS.get(f"/{tool.page}"))
+                self.assertIn(f"/{tool.page}", routes)
                 self.assertTrue((self.ROOT / "web/static/img" / tool.icon).is_file())
 
     def test_external_tool_source_requires_complete_audit_metadata(self):

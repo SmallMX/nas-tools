@@ -15,7 +15,7 @@ fs.mkdirSync(output,{recursive:true});
  page.on('pageerror',e=>errors.push(e.message));
  for(const width of [390,768,992,1440]){
   await page.setViewportSize({width,height:width<768?844:1000});
-  for(const route of ['ranking','media_detail?id=1&type=MOV','search','statistics','basic','tools/site-signin','downloader','users','downloading']){
+  for(const route of ['ranking','media_detail?id=1&type=MOV','search','statistics','basic','tools/site-signin','downloader','downloading']){
    errors=[];await page.goto(origin+'/?next='+encodeURIComponent(route));
    await page.waitForSelector('#page_content:not([hidden])');await page.waitForTimeout(350);
    const metrics=await page.evaluate(()=>({overflow:document.documentElement.scrollWidth-innerWidth,sidebar:document.querySelector('layout-navbar').getBoundingClientRect().width,header:document.querySelector('layout-searchbar').getBoundingClientRect().height}));

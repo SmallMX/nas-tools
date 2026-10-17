@@ -32,16 +32,6 @@ class ConfigSite(Base):
     note = Column('note', Text)
 
 
-class ConfigUsers(Base):
-    """用户管理 —— Web 管理后台的用户名、密码和权限配置。"""
-    __tablename__ = 'config_users'
-
-    id = Column('id', Integer, Sequence('id'), primary_key=True)
-    name = Column('name', Text, index=True, unique=True, nullable=False)
-    password = Column('password', Text, nullable=False)
-    pris = Column('pris', Text, nullable=False)
-
-
 class DownloadHistory(Base):
     """下载历史 —— 记录每次成功添加到下载器的种子信息（标题、站点、日期等）。"""
     __tablename__ = 'download_history'

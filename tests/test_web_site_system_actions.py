@@ -190,10 +190,10 @@ class WebSiteSystemActionsTest(unittest.TestCase):
         self.database.insert_message_client.assert_not_called()
         self.message.get_status.assert_not_called()
 
-    def test_site_cookie_progress_keeps_extra_permission_check(self):
+    def test_site_cookie_progress_requires_admin_request(self):
         app = Flask("web-action-progress-test")
         with app.test_request_context(), \
-                patch("web.actions.system.request_has_system_settings", return_value=False), \
+                patch("web.actions.system.request_is_admin", return_value=False), \
                 patch("web.actions.system.ProgressHelper") as progress:
             response = self.action.action("refresh_process", {"type": "sitecookie"})
 

@@ -2,9 +2,13 @@ import copy
 import json
 import sqlite3
 import stat
+import tempfile
 import unittest
 from contextlib import closing
 from pathlib import Path
+from unittest.mock import patch
+
+from sqlalchemy import create_engine, inspect
 
 import ruamel.yaml
 
@@ -142,9 +146,22 @@ class ConfigPersistenceTest(unittest.TestCase):
         self.assertFalse(any(str(key).startswith("ptsignin") for key in template_config["pt"]))
         self.assertEqual(5, template_config["tools"]["site_signin"]["concurrency"])
 
+    def test_new_database_does_not_create_login_user_storage(self):
+        with tempfile.TemporaryDirectory(prefix="nastool-admin-db-") as directory:
+            database_path = str(Path(directory) / "user.db")
+            engine = create_engine(f"sqlite:///{database_path}")
+            try:
+                with patch("app.db.main_db._Engine", engine), \
+                        patch("app.db.main_db._CONFIG_PATH", directory), \
+                        patch("app.db.main_db._DB_PATH", database_path):
+                    init_db()
+                self.assertNotIn("config_users", inspect(engine).get_table_names())
+            finally:
+                engine.dispose()
+
     def test_database_initialization_removes_retired_feature_storage(self):
         with closing(sqlite3.connect(self.database_path)) as connection:
-            for table in RETIRED_DATABASE_TABLES:
+            for table in RETIRED_DATABASE_TABLES - {"config_users"}:
                 physical_table = table.upper() if table == "rss_history" else table
                 connection.execute(
                     f'CREATE TABLE IF NOT EXISTS "{physical_table}" (id INTEGER PRIMARY KEY)'
@@ -187,6 +204,10 @@ class ConfigPersistenceTest(unittest.TestCase):
                 ("site-migration", '{"rule": "retired", "subtitle": "Y", "message": "Y"}'),
             )
             connection.execute(
+                'CREATE TABLE IF NOT EXISTS config_users '
+                '(id INTEGER PRIMARY KEY, name TEXT, password TEXT, pris TEXT)'
+            )
+            connection.execute(
                 'INSERT INTO config_users(name, password, pris) VALUES (?, ?, ?)',
                 ("user-migration", "legacy-hash", "资源搜索,订阅管理,媒体整理,系统设置"),
             )
@@ -195,6 +216,7 @@ class ConfigPersistenceTest(unittest.TestCase):
         for filename in RETIRED_DATABASE_FILES:
             (self.database_path.parent / filename).write_bytes(b"retired")
 
+        init_db()
         init_db()
 
         with closing(sqlite3.connect(self.database_path)) as connection:
@@ -205,6 +227,8 @@ class ConfigPersistenceTest(unittest.TestCase):
                 )
             }
             self.assertTrue(RETIRED_DATABASE_TABLES.isdisjoint(existing_tables))
+            self.assertNotIn("config_users", existing_tables)
+            self.assertEqual("ok", connection.execute("PRAGMA integrity_check").fetchone()[0])
             for table, columns in RETIRED_DATABASE_COLUMNS.items():
                 existing_columns = {
                     str(row[1]).lower()
@@ -239,15 +263,9 @@ class ConfigPersistenceTest(unittest.TestCase):
                 ("site-migration",),
             ).fetchone()[0]
             self.assertEqual({"message": "Y"}, json.loads(site_note))
-            permissions = connection.execute(
-                'SELECT pris FROM config_users WHERE name = ?',
-                ("user-migration",),
-            ).fetchone()[0]
-            self.assertEqual("资源搜索,系统设置", permissions)
             connection.execute('DELETE FROM download_setting WHERE name = ?', ("retired",))
             connection.execute('DELETE FROM message_client WHERE name = ?', ("telegram-migration",))
             connection.execute('DELETE FROM config_site WHERE name = ?', ("site-migration",))
-            connection.execute('DELETE FROM config_users WHERE name = ?', ("user-migration",))
             connection.commit()
 
         try:

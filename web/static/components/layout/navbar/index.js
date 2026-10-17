@@ -2,7 +2,7 @@ import { LayoutNavbarButton } from "./button.js"; export { LayoutNavbarButton };
 import { html, nothing } from "../../utility/lit-core.min.js";
 import { CustomElement } from "../../utility/utility.js";
 
-// name: 导航分组或页面名称；访问权限由后端页面权限表决定
+// name: 导航分组或页面名称；管理员登录后显示所有功能
 // page: 导航路径
 // icon: 项目图标
 // : 显示别名 (可选)
@@ -253,20 +253,6 @@ const navbar_list = [
         `,
       },
       {
-        name: "用户管理",
-        page: "users",
-        icon: html`
-          <!-- https://tabler-icons.io/static/tabler-icons/icons-png/users.png -->
-          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-users" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-            <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-            <path d="M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"></path>
-            <path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2"></path>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-            <path d="M21 21v-2a4 4 0 0 0 -3 -3.85"></path>
-          </svg>
-        `,
-      },
-      {
         name: "消息通知",
         page: "notification",
         icon: html`
@@ -299,8 +285,6 @@ export class LayoutNavbar extends CustomElement {
   static properties = {
     layout_gopage: { attribute: "layout-gopage" },
     layout_appversion: { attribute: "layout-appversion"},
-    layout_userpris: { attribute: "layout-userpris", type: Array },
-    layout_page_permissions: { attribute: "layout-page-permissions", type: Object },
     _active_name: { state: true},
   };
 
@@ -308,8 +292,6 @@ export class LayoutNavbar extends CustomElement {
     super();
     this.layout_gopage = "";
     this.layout_appversion = "v0.7.0";
-    this.layout_userpris = [];
-    this.layout_page_permissions = {};
     this._active_name = "";
     this.classList.add("navbar", "navbar-vertical", "navbar-expand-lg", "lit-navbar-fixed", "lit-navbar");
   }
@@ -331,29 +313,8 @@ export class LayoutNavbar extends CustomElement {
   }
 
   _open_default_page() {
-    // 保留按用户权限顺序选择常用首页的行为，分组名不参与权限判断。
-    const entryPages = navbar_list.map((entry) => entry.page ?? entry.list?.[0]?.page);
-    const item = this.layout_userpris
-      .map((permission) => entryPages.find((page) => {
-        const required = this._page_permissions(page);
-        return required.length === 1 && required[0] === permission;
-      }) ?? entryPages.find((page) => this._page_permissions(page).includes(permission)))
-      .find((page) => page);
-    const page = item ?? navbar_list.flatMap((entry) => entry.list ?? [entry])
-      .find((entry) => this._can_view_page(entry.page))?.page;
-    if (page) {
-      navmenu(page);
-      setTimeout(() => { this.show_collapse(page) }, 200);
-      return;
-    }
-
-    document.querySelector("#page_content").innerHTML = `
-      <div class="container-xl py-5">
-        <div class="empty">
-          <p class="empty-title">暂无可访问的功能</p>
-          <p class="empty-subtitle text-muted">请联系管理员重新分配权限。</p>
-        </div>
-      </div>`;
+    navmenu("ranking");
+    setTimeout(() => { this.show_collapse("ranking") }, 200);
   }
 
   update_active(page) {
@@ -365,24 +326,6 @@ export class LayoutNavbar extends CustomElement {
     );
     this._active_name = parent?.page ?? requestedPage;
     this.show_collapse(this._active_name);
-  }
-
-  _page_permissions(page) {
-    const permission = this.layout_page_permissions?.[`/${page}`];
-    return Array.isArray(permission) ? permission : permission ? [permission] : [];
-  }
-
-  _can_view_page(page) {
-    const permissions = this._page_permissions(page);
-    return permissions.includes("*") || permissions.some(
-      (permission) => this.layout_userpris.includes(permission)
-    );
-  }
-
-  _can_view_item(item) {
-    return item.list?.length
-      ? item.list.some((child) => this._can_view_page(child.page))
-      : this._can_view_page(item.page);
   }
 
   show_collapse(page) {
@@ -436,22 +379,15 @@ export class LayoutNavbar extends CustomElement {
                 <button type="button" class="btn-close d-lg-none" data-bs-dismiss="offcanvas" aria-label="关闭导航"></button>
               </div>
               <div class="accordion px-2 py-3 flex-grow-1">
-                ${navbar_list.map((item, index) => ( html`
-                  ${this._can_view_item(item)
+                ${navbar_list.map((item, index) => item.list?.length > 0
                   ? html`
-                    ${item.list?.length > 0
-                    ? html`
-                      <button class="accordion-button lit-navbar-accordion-button collapsed ps-2 pe-1 py-2" data-bs-toggle="collapse" data-bs-target="#lit-navbar-collapse-${index}" aria-expanded="false">
-                        ${item.also??item.name}
-                      </button>
-                      <div class="accordion-collapse collapse" id="lit-navbar-collapse-${index}">
-                        ${item.list.filter((drop) => this._can_view_page(drop.page))
-                          .map((drop) => this._render_page_item(drop, true))}
-                      </div>`
-                    : this._render_page_item(item, false)
-                    } `
-                  : nothing }
-                `))}
+                    <button class="accordion-button lit-navbar-accordion-button collapsed ps-2 pe-1 py-2" data-bs-toggle="collapse" data-bs-target="#lit-navbar-collapse-${index}" aria-expanded="false">
+                      ${item.also ?? item.name}
+                    </button>
+                    <div class="accordion-collapse collapse" id="lit-navbar-collapse-${index}">
+                      ${item.list.map((drop) => this._render_page_item(drop, true))}
+                    </div>`
+                  : this._render_page_item(item, false))}
               </div>
               <div class="d-flex align-items-end">
                 <a class="d-flex flex-grow-1 justify-content-center nt-sidebar-footer"

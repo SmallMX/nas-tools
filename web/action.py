@@ -56,7 +56,6 @@ class WebAction:
             "update_config": self._system.update_config,
             "media_info": self._search.media_info,
             "test_connection": self._downloads.test_connection,
-            "user_manager": self._system.user_manager,
             "refresh_message": self._system.refresh_message,
             "delete_tmdb_cache": self._search.delete_tmdb_cache,
             "modify_tmdb_cache": self._search.modify_tmdb_cache,
@@ -84,7 +83,6 @@ class WebAction:
 
             "get_search_result": self.get_search_result,
             "search_media_infos": self.search_media_infos,
-            "get_users": self.get_users,
             "get_downloading": self.get_downloading,
             "test_site": self._sites.test_site,
             "get_download_setting": self._downloads.get_download_setting,
@@ -195,6 +193,3 @@ class WebAction:
 
     def get_search_result(self, data=None):
         return self._search.get_search_result(data)
-
-    def get_users(self, data=None):
-        return self._system.get_users(data)

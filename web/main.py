@@ -22,7 +22,6 @@ from app.utils.types import SearchType
 from config import Config
 from web.action import WebAction
 from web.apiv1 import apiv1_bp
-from web.permissions import PATH_PERMISSIONS
 from web.routes import (
     system_files_bp, tool_pages_bp,
     search_pages_bp, download_pages_bp, site_pages_bp, settings_pages_bp,
@@ -30,7 +29,6 @@ from web.routes import (
 from web.backend.user import User
 from web.backend.wallpaper import get_login_wallpaper
 from web.backend.web_utils import WebUtils
-from web.security import current_user_can  # 保留原有辅助函数导入入口。
 
 
 App = Flask(__name__)
@@ -117,33 +115,6 @@ def add_header(r):
     if request.is_secure:
         r.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
     return r
-
-
-@App.before_request
-def global_ui_rbac_check():
-    """
-    全局 Session-based UI 页面与动作 RBAC 拦截器
-    """
-    path = request.path
-    if path.startswith("/static/") or path.startswith("/api/v1/"):
-        return
-    if path in ["/", "/login", "/telegram", "/robots.txt", "/healthz"]:
-        return
-
-    from flask_login import current_user
-    if not current_user.is_authenticated:
-        return
-
-    from web.security import is_authorized
-    username = current_user.username
-
-    if path == "/do":
-        cmd = request.form.get("cmd")
-        if cmd and not is_authorized(username, path, cmd=cmd):
-            return {"code": -1, "msg": "权限不足，拒绝执行动作"}
-    else:
-        if not is_authorized(username, path):
-            return render_template("403.html"), 403
 
 
 @LoginManager.user_loader
@@ -236,8 +207,6 @@ def login():
         return render_template('navigation.html',
                                GoPage=GoPage,
                                UserName=userinfo.username,
-                               UserPris=str(userinfo.pris).split(","),
-                               PagePermissions=PATH_PERMISSIONS,
                                SystemFlag=SystemFlag.value,
                                TMDBFlag=TMDBFlag,
                                AppVersion=WebUtils.get_current_version(),

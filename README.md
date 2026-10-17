@@ -76,6 +76,8 @@ docker compose -f docker/compose.yml up -d --build
 | `downloaddir` | 按媒体类型和二级分类匹配下载目录 |
 | `laboratory` | 实验性功能开关 |
 
+应用仅支持 `app.login_user` 和 `app.login_password` 定义的一个管理员账号，登录后可使用全部功能。用户管理和按用户分配权限已移除，旧普通用户及其登录会话、API Token 不再有效。升级后首次启动会自动删除旧 `config_users` 表及其中的普通用户记录，导出的备份也不再包含该表。
+
 TMDB、Fanart 和豆瓣等第三方服务的凭据必须由使用者自行获取并配置；本项目不提供或内置第三方 API Key、账号、Cookie。
 
 ## 安全提示

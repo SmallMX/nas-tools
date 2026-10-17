@@ -31,7 +31,6 @@ class ToolDefinition:
     name: str
     description: str
     page: str
-    permission: str
     icon: str
     order: int = 9999
     source: ToolSource | None = None
@@ -43,7 +42,6 @@ _TOOLS = (
         name="站点自动签到",
         description="执行站点签到或保号登录，并查看今日状态与最近执行历史。",
         page="tools/site-signin",
-        permission="站点管理",
         icon="sign_in.svg",
         order=10,
     ),

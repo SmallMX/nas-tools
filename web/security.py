@@ -8,13 +8,6 @@ from flask import g, has_request_context, request
 
 from app.utils import TokenCache
 from config import Config
-from web.permissions import (
-    API_PREFIX_PERMISSIONS,
-    CMD_PERMISSIONS,
-    PATH_PERMISSIONS,
-    PUBLIC_PATHS,
-    matches_permission,
-)
 
 
 def extract_auth_token(auth_header):
@@ -83,59 +76,8 @@ def identify(auth_header: str):
     return flag, ""
 
 
-def is_authorized(username: str, path: str, cmd: str = None) -> bool:
-    """按集中声明的权限规则校验页面、动作和 API。"""
-    from web.backend.user import User
-
-    user = User().get_user(username)
-    if not user:
-        return False
-    if user.id == 0:
-        return True
-
-    user_permissions = str(user.pris).split(",") if user.pris else []
-
-    if cmd:
-        rule = CMD_PERMISSIONS.get(cmd)
-        return matches_permission(user_permissions, rule)
-
-    norm_path = path.rstrip("/")
-    if norm_path in PUBLIC_PATHS or norm_path.startswith("/static/"):
-        return True
-
-    rule = PATH_PERMISSIONS.get(norm_path)
-    if rule:
-        return matches_permission(user_permissions, rule)
-
-    if norm_path.startswith("/api/v1/user/"):
-        action = norm_path.removeprefix("/api/v1/user/")
-        if action in {"manage", "list"}:
-            return "系统设置" in user_permissions
-        return action == "info"
-
-    for prefix, prefix_rule in API_PREFIX_PERMISSIONS:
-        if norm_path.startswith(prefix):
-            return matches_permission(user_permissions, prefix_rule)
-
-    return False
-
-
-def current_user_can(permission):
-    """返回当前 Session 用户是否具备指定权限，管理员始终允许。"""
-    from flask_login import current_user
-    from web.backend.user import User
-
-    if not current_user.is_authenticated:
-        return False
-    user_info = User().get_user(current_user.username)
-    if not user_info:
-        return False
-    permissions = set(str(user_info.pris).split(",")) if user_info.pris else set()
-    return user_info.id == 0 or permission in permissions
-
-
-def request_has_permission(permission):
-    """检查当前 Session 或 API 用户是否具备指定权限。"""
+def request_is_admin():
+    """验证当前请求的管理员身份，API Token 优先于浏览器会话。"""
     from flask_login import current_user
     from web.backend.user import User
 
@@ -144,25 +86,15 @@ def request_has_permission(permission):
     api_username = getattr(g, "api_username", None)
     if api_username:
         user = User().get_user(api_username)
-    elif getattr(current_user, "is_authenticated", False):
+    elif current_user.is_authenticated:
         user = User().get_user(current_user.username)
     else:
         user = None
-    if not user:
-        return False
-    permissions = {
-        item.strip() for item in str(user.pris).split(",") if item.strip()
-    } if user.pris else set()
-    return user.id == 0 or permission in permissions
-
-
-def request_has_system_settings():
-    """检查当前请求用户是否具备系统设置权限。"""
-    return request_has_permission("系统设置")
+    return bool(user and user.id == 0)
 
 
 def login_required(func):
-    """验证 API Token 并执行 RBAC 权限校验。"""
+    """验证 API Token 是否属于当前配置的管理员。"""
 
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -187,12 +119,11 @@ def login_required(func):
                 "message": "安全认证已过期，请重新登录"
             }, 401
 
-        if not is_authorized(username, request.path):
-            return {
-                "code": 403,
-                "success": False,
-                "message": "权限不足，拒绝访问"
-            }, 403
+        from web.backend.user import User
+
+        user = User().get_user(username)
+        if not user or user.id != 0:
+            return auth_failed()
 
         g.api_username = username
         return func(*args, **kwargs)

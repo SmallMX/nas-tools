@@ -1,4 +1,4 @@
-"""配置、用户、通知与系统维护页面。"""
+"""配置、通知与系统维护页面。"""
 
 from flask import Blueprint, request, render_template
 from flask_login import login_required
@@ -10,9 +10,7 @@ from app.helper import MetaHelper
 from app.message import Message
 from app.utils.types import DownloaderType
 from config import Config
-from web.action import WebAction
 from web.security import (
-    current_user_can,
     desensitize_config_dict,
     sanitize_downloader,
     sanitize_message_client,
@@ -38,22 +36,19 @@ def userdownloader():
 @login_required
 def service():
     scheduler_cfg_list = []
-    can_service = current_user_can("服务")
-    can_system_settings = current_user_can("系统设置")
-    if can_service:
-        scheduler_cfg_list.append({
-            'name': '名称识别测试',
-            'time': '',
-            'state': 'OFF',
-            'id': 'nametest',
-            'color': 'blue',
-            'svg': '''
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="40" height="40"
-                 viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none">
-              <path d="M4 6h16M4 12h10M4 18h7"></path>
-            </svg>
-            ''',
-        })
+    scheduler_cfg_list.append({
+        'name': '名称识别测试',
+        'time': '',
+        'state': 'OFF',
+        'id': 'nametest',
+        'color': 'blue',
+        'svg': '''
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="40" height="40"
+             viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none">
+          <path d="M4 6h16M4 12h10M4 18h7"></path>
+        </svg>
+        ''',
+    })
     # 网络连通性测试
     svg = '''
     <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-network" width="40" height="40" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -69,10 +64,9 @@ def service():
     </svg>
     '''
     targets = ModuleConf.NETTEST_TARGETS
-    if can_system_settings:
-        scheduler_cfg_list.append(
-            {'name': '网络连通性测试', 'time': '', 'state': 'OFF', 'id': 'nettest', 'svg': svg,
-             'color': 'cyan'})
+    scheduler_cfg_list.append(
+        {'name': '网络连通性测试', 'time': '', 'state': 'OFF', 'id': 'nettest', 'svg': svg,
+         'color': 'cyan'})
 
     # 备份
     svg = '''
@@ -82,14 +76,12 @@ def service():
     <path d="M469 887a40 40 0 0 1-27-10L152 618a40 40 0 0 1 1-60l290-248a40 40 0 0 1 66 30v128a367 367 0 0 0 241-128l94-111a40 40 0 0 1 70 35l-26 109a430 430 0 0 1-379 332v142a40 40 0 0 1-40 40zM240 589l189 169v-91a40 40 0 0 1 40-40c144 0 269-85 323-214a447 447 0 0 1-323 137 40 40 0 0 1-40-40v-83z" fill="#ffffff" p-id="1562"></path>
     </svg>
     '''
-    if can_system_settings:
-        scheduler_cfg_list.append(
-            {'name': '配置备份', 'time': '', 'state': 'OFF', 'id': 'backup', 'svg': svg, 'color': 'green'})
+    scheduler_cfg_list.append(
+        {'name': '配置备份', 'time': '', 'state': 'OFF', 'id': 'backup', 'svg': svg, 'color': 'green'})
     return render_template("service.html",
                            Count=len(scheduler_cfg_list),
                            SchedulerTasks=scheduler_cfg_list,
-                           NettestTargets=targets,
-                           CanSystemSettings=can_system_settings)
+                           NettestTargets=targets)
 
 
 @settings_pages_bp.route('/tmdbcache', methods=['POST', 'GET'])
@@ -218,10 +210,3 @@ def notification():
                            Switchs=Switchs,
                            ClientCount=len(MessageClients),
                            MessageClients=MessageClients)
-
-
-@settings_pages_bp.route('/users', methods=['POST', 'GET'])
-@login_required
-def users():
-    Users = WebAction().get_users().get("result")
-    return render_template("setting/users.html", Users=Users, UserCount=len(Users))

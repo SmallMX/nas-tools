@@ -7,14 +7,13 @@ import urllib.parse
 from pathlib import Path
 
 from flask import Blueprint, make_response, request, send_file
-from flask_login import current_user, login_required
+from flask_login import login_required
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 
 from app.db.main_db import RETIRED_DATABASE_TABLES, RETIRED_SYSTEM_CONFIG_KEYS
 from app.utils import ExceptionUtils
 from config import Config
-from web.backend.user import User
 
 
 system_files_bp = Blueprint("system_files", __name__)
@@ -63,38 +62,14 @@ def create_sqlite_backup(source_path: Path, destination_path: Path):
 def dirlist():
     items = ['<ul class="jqueryFileTree" style="display: none;">']
     try:
-        from web.action import get_allowed_file_roots, resolve_allowed_file_path
-        from web.security import request_has_system_settings
-
         input_dir = request.form.get("dir")
         file_filter = request.form.get("filter")
-        unrestricted = request_has_system_settings()
-        roots = get_allowed_file_roots()
-        if not input_dir or input_dir == "/":
-            if unrestricted:
-                paths = [Path("/") / name for name in os.listdir("/")]
-            else:
-                paths = list(roots)
-        else:
-            current_dir = os.path.normpath(urllib.parse.unquote(input_dir))
-            if unrestricted:
-                current_dir = Path(current_dir)
-                if not current_dir.is_dir():
-                    current_dir = current_dir.parent
-            else:
-                current_dir = resolve_allowed_file_path(
-                    current_dir, roots=roots, must_exist=True)
-                if not current_dir.is_dir():
-                    current_dir = current_dir.parent
-            paths = [current_dir / name for name in os.listdir(current_dir)]
+        current_dir = Path(os.path.normpath(urllib.parse.unquote(input_dir or "/")))
+        if not current_dir.is_dir():
+            current_dir = current_dir.parent
+        paths = [current_dir / name for name in os.listdir(current_dir)]
 
         for item_path in sorted(paths, key=lambda path: (not os.path.isdir(path), str(path).lower())):
-            if not unrestricted:
-                try:
-                    item_path = resolve_allowed_file_path(
-                        str(item_path), roots=roots, must_exist=True)
-                except ValueError:
-                    continue
             item_name = os.path.basename(item_path) or item_path
             safe_path = html.escape(str(item_path).replace("\\", "/"), quote=True)
             safe_name = html.escape(str(item_name).replace("\\", "/"))
@@ -195,15 +170,6 @@ def upload():
         allowed_extensions = {".torrent"}
         if extension not in allowed_extensions:
             return {"code": 1, "msg": f"不支持的文件类型: {extension}", "filepath": ""}
-
-        user_info = User().get_user(current_user.username)
-        user_permissions = set(str(user_info.pris).split(",")) if user_info and user_info.pris else set()
-        is_admin = bool(user_info and user_info.id == 0)
-        can_upload = is_admin or bool(
-            user_permissions.intersection({"系统设置", "资源搜索", "下载管理"})
-        )
-        if not can_upload:
-            return {"code": 1, "msg": "权限不足，拒绝上传该类型文件", "filepath": ""}, 403
 
         temp_path = Path(Config().get_temp_path()).resolve()
         temp_path.mkdir(parents=True, exist_ok=True)

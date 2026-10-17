@@ -7,7 +7,7 @@
     "height": 1000
   },
   "generatedAt": "2026-09-09T08:38:19.229Z",
-  "pages": 41,
+  "pages": 40,
   "results": [
     {
       "route": "/preview/login",
@@ -287,15 +287,6 @@
       "screenshot": "pages/notification.png",
       "status": 200,
       "heading": "消息通知"
-    },
-    {
-      "route": "/?next=users",
-      "title": "用户管理",
-      "errors": [],
-      "overflow": false,
-      "screenshot": "pages/users.png",
-      "status": 200,
-      "heading": "用户管理"
     },
     {
       "route": "/?next=recommend%3Ftype%3DSEARCH%26title%3D%E5%AA%92%E4%BD%93%E6%90%9C%E7%B4%A2%26keyword%3D%E8%BF%9C%E5%B1%B1",

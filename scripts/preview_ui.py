@@ -26,7 +26,6 @@ from jinja2 import ChainableUndefined
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web"
-PERMISSIONS = ["探索", "资源搜索", "站点管理", "下载管理", "服务", "系统设置"]
 GIB = 1024 ** 3
 READ_ONLY_MESSAGE = "只读演示模式：此操作不会执行，也不会保存任何配置或任务。"
 TITLES = ["远山来信", "深海回声", "城市之外", "星河彼岸", "森林之声", "夏日序章", "长夜微光", "重返旷野"]
@@ -57,12 +56,6 @@ def read_public_ui_definitions():
 
 
 DEFINITIONS = read_public_ui_definitions()
-PAGE_PERMISSIONS = next(
-    ast.literal_eval(node.value)
-    for node in ast.parse((WEB / "permissions.py").read_text()).body
-    if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
-    and node.target.id == "PATH_PERMISSIONS"
-)
 CONFIG = {
     "app": {"logtype": "console", "loglevel": "info", "logpath": "/demo/logs", "logserver": "",
             "wallpaper": "themoviedb", "login_user": "demo", "login_password": "", "domain": "",
@@ -155,7 +148,7 @@ PAGES = {
     "media_setting": ("媒体设置", "setting/basic.html"), "service_setting": ("服务设置", "setting/basic.html"),
     "security_setting": ("安全设置", "setting/basic.html"), "laboratory_setting": ("实验室", "setting/basic.html"),
     "downloader": ("下载器", "setting/downloader.html"), "download_setting": ("下载设置", "setting/download_setting.html"),
-    "notification": ("消息通知", "setting/notification.html"), "users": ("用户管理", "setting/users.html"),
+    "notification": ("消息通知", "setting/notification.html"),
 }
 VARIANTS = ["recommend?type=SEARCH&title=媒体搜索&keyword=远山", "recommend?type=MOV&subtype=person&title=参演作品",
             "recommend?type=MOV&subtype=sim&title=类似作品", "recommend?type=MOV&subtype=more&title=相关推荐",
@@ -166,11 +159,10 @@ def page_context(page):
     channels = DEFINITIONS["MESSAGE_CONF"]
     context = dict(
         Config=CONFIG, CustomScriptCfg={"css": "", "javascript": ""}, Proxy="",
-        UserPris=PERMISSIONS, PagePermissions=PAGE_PERMISSIONS,
         UserName="demo", SystemFlag="MacOS", AppVersion="UI Preview",
         SiteFavicons={s["name"]: "/static/img/logo.png" for s in SITES}, SearchSource="tmdb", TMDBFlag=1,
         RestypeDict=DEFINITIONS["TORRENT_SEARCH_PARAMS"]["restype"], PixDict=DEFINITIONS["TORRENT_SEARCH_PARAMS"]["pix"],
-        Indexers=SITES, Sites=SITES, CanDownload=True, CanSystemSettings=True, ChromeOk=True,
+        Indexers=SITES, Sites=SITES, ChromeOk=True,
         CookieCloudCfg={}, CookieUserInfoCfg={"username": "demo"}, OcrServerConfigured=False,
         DownloadSettings={i: v["name"] for i, v in DOWNLOAD_SETTINGS.items()}, Downloaders=DOWNLOADERS,
         Count=0, CurrentPage=1, TotalPage=1, PageRange=[1], PageNum=30, Search="", KeyWord="", TotalCount=0,
@@ -184,7 +176,6 @@ def page_context(page):
         Channels=channels["client"], Switchs=channels["switch"], ClientCount=1,
         MessageClients={1: {"id": 1, "type": "telegram", "name": "Telegram 通知（示例）", "enabled": True,
                             "interactive": False, "switchs": ["download_start", "site_signin"], "config": {}}},
-        Users=[{"name": "demo", "pris": PERMISSIONS}, {"name": "viewer", "pris": ["探索", "资源搜索"]}], UserCount=2,
         SettingSection={"basic": "system", "media_setting": "media", "service_setting": "service",
                         "security_setting": "security", "laboratory_setting": "laboratory"}.get(page, "system"),
         SettingTitle=PAGES.get(page, ("", ""))[0],
@@ -271,11 +262,6 @@ def create_preview_app():
         if request.method == "POST": return blocked()
         context = page_context("")
         context["GoPage"] = request.args.get("next", "ranking").lstrip("/")
-        if "permissions" in request.args:
-            context["UserPris"] = [
-                permission for permission in request.args["permissions"].split(",")
-                if permission in PERMISSIONS
-            ]
         return render_template("navigation.html", **context)
 
     @app.get("/preview")

@@ -7,12 +7,10 @@
             {{ SVG.plus() }}
             新增站点
           </a>
-          {% if CanSystemSettings %}
           <a href="#" data-nt-click="site-cookiecloud" class="btn btn-outline-primary">
             {{ SVG.refresh_dot() }}
             CookieCloud
           </a>
-          {% endif %}
           <a href="#" data-nt-click="site-test-modal" class="btn">
             {{ SVG.activity_heartbeat() }}
             站点测试
@@ -43,7 +41,7 @@
             <a href="#" data-nt-click="site-edit" data-nt-args='{{ [Site.id|string]|tojson }}' class="btn-action ms-1" title="编辑站点">
               {{ SVG.edit() }}
             </a>
-            {% if ChromeOk and CanSystemSettings %}
+            {% if ChromeOk %}
             <a href="#" data-nt-click="site-cookie" data-nt-args='{{ [Site.id, Site.name]|tojson }}' class="btn-action ms-1" title="更新站点Cookie和User-Agent">
               {{ SVG.refresh_dot() }}
             </a>
@@ -324,7 +322,7 @@
     </div>
   </div>
 </div>
-{% if CanSystemSettings %}
+
 <div class="modal modal-blur fade" id="modal-update-site-cookie" tabindex="-1" role="dialog" aria-hidden="true"
      data-bs-backdrop="static" data-bs-keyboard="false">
   <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
@@ -435,7 +433,7 @@
     </div>
   </div>
 </div>
-{% endif %}
+
 <div class="modal modal-blur fade" id="modal-captcha-code" tabindex="-1" role="dialog" aria-hidden="true"
      data-bs-backdrop="static" data-bs-keyboard="false">
   <div class="modal-dialog modal-lg modal-dialog-centered" role="document">

@@ -2,14 +2,13 @@ import ast
 import unittest
 from pathlib import Path
 
-from web.permissions import CMD_PERMISSIONS, PATH_PERMISSIONS, PUBLIC_PATHS
-
 
 ROOT = Path(__file__).resolve().parents[1]
+PUBLIC_ROUTES = {"/", "/healthz", "/robots.txt", "/telegram"}
 
 
-class PermissionRegistryTest(unittest.TestCase):
-    def test_all_web_actions_have_permission_rule(self):
+class AuthenticationBoundaryTest(unittest.TestCase):
+    def test_web_actions_have_unique_registration(self):
         tree = ast.parse((ROOT / "web" / "action.py").read_text(encoding="utf-8"))
         actions = []
         for node in ast.walk(tree):
@@ -28,14 +27,13 @@ class PermissionRegistryTest(unittest.TestCase):
                 if isinstance(key, ast.Constant) and isinstance(key.value, str)
             )
 
-        self.assertTrue(actions, "未找到 Web 动作注册表，不能跳过权限覆盖检查")
+        self.assertTrue(actions, "未找到 Web 动作注册表，不能跳过注册检查")
         self.assertEqual(len(actions), len(set(actions)), "Web 动作存在重复注册")
-        missing = sorted(set(actions).difference(CMD_PERMISSIONS))
-        self.assertEqual([], missing, f"以下 Web 动作缺少权限声明：{missing}")
-        self.assertEqual(set(CMD_PERMISSIONS), set(actions), "权限表和动作注册表必须保持一致")
+        self.assertTrue({"get_users", "user_manager"}.isdisjoint(actions))
 
-    def test_all_ui_routes_are_public_or_have_permission_rule(self):
+    def test_all_private_ui_routes_require_login(self):
         routes = set()
+        missing = []
         route_files = [ROOT / "web" / "main.py", *(ROOT / "web" / "routes").glob("*.py")]
         for route_file in route_files:
             tree = ast.parse(route_file.read_text(encoding="utf-8"))
@@ -50,11 +48,20 @@ class PermissionRegistryTest(unittest.TestCase):
                         continue
                     route = decorator.args[0]
                     if isinstance(route, ast.Constant) and isinstance(route.value, str):
-                        routes.add(route.value.rstrip("/"))
+                        path = route.value
+                        routes.add(path)
+                        if path in PUBLIC_ROUTES:
+                            continue
+                        authentication = "action_login_check" if path == "/do" else "login_required"
+                        if not any(isinstance(item, ast.Name) and item.id == authentication
+                                   for item in node.decorator_list):
+                            missing.append(path)
 
-        special_routes = {"/", "/do"}
-        missing = sorted(routes.difference(PATH_PERMISSIONS, PUBLIC_PATHS, special_routes))
-        self.assertEqual([], missing, f"以下 UI 路由缺少权限声明：{missing}")
+        self.assertTrue(routes, "未找到 UI 路由，不能跳过登录认证检查")
+        self.assertTrue(PUBLIC_ROUTES.issubset(routes))
+        self.assertIn("/do", routes)
+        self.assertNotIn("/users", routes)
+        self.assertEqual([], sorted(missing), f"以下 UI 路由缺少登录认证：{missing}")
 
 
 if __name__ == "__main__":

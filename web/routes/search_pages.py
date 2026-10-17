@@ -1,11 +1,10 @@
 """搜索与媒体探索页面。"""
 
 from flask import Blueprint, request, json, render_template
-from flask_login import login_required, current_user
+from flask_login import login_required
 from app.conf import ModuleConf
 from app.indexer import Indexer
 from web.action import WebAction
-from web.backend.user import User
 
 
 search_pages_bp = Blueprint("search_pages", __name__)
@@ -14,18 +13,11 @@ search_pages_bp = Blueprint("search_pages", __name__)
 @search_pages_bp.route('/search', methods=['POST', 'GET'])
 @login_required
 def search():
-    # 权限
-    if current_user.is_authenticated:
-        username = current_user.username
-        pris = User().get_user(username).pris
-    else:
-        pris = ""
     # 结果
     res = WebAction().get_search_result()
     SearchResults = res.get("result")
     Count = res.get("total")
     return render_template("search.html",
-                           UserPris=str(pris).split(","),
                            Count=Count,
                            Results=SearchResults,
                            SiteDict=Indexer().get_indexer_hash_dict(),

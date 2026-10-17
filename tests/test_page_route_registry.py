@@ -15,8 +15,8 @@ GET = ("GET", "HEAD", "OPTIONS")
 POST = ("OPTIONS", "POST")
 PAGE_METHODS = ("GET", "HEAD", "OPTIONS", "POST")
 
-# 拆分前的完整运行时路由快照；RESTX 原本为 /api/v1/ 注册两条 GET 规则。
-ORIGINAL_ROUTES = {
+# 单管理员模式的完整运行时路由快照；RESTX 为 /api/v1/ 注册两条 GET 规则。
+EXPECTED_ROUTES = {
     GET: """
         /api/v1/ /api/v1/ /api/v1/service/mediainfo /api/v1/site/sites /api/v1/site/statistics
         /api/v1/swagger.json /healthz /robots.txt /static/<path:filename> /swaggerui/<path:filename>
@@ -43,71 +43,70 @@ ORIGINAL_ROUTES = {
         /api/v1/system/logging /api/v1/system/logout /api/v1/system/message /api/v1/system/progress
         /api/v1/system/restart /api/v1/torrentremover/task/delete /api/v1/torrentremover/task/info
         /api/v1/torrentremover/task/list /api/v1/torrentremover/task/update /api/v1/user/info
-        /api/v1/user/list /api/v1/user/login /api/v1/user/manage /backup /dirlist /do /telegram /upload
+        /api/v1/user/login /backup /dirlist /do /telegram /upload
     """.split(),
     PAGE_METHODS: """
         / /bangumi /basic /brushtask /discovery_person /download_setting /downloaded /downloader
         /downloading /laboratory_setting /media_detail /media_setting /notification /ranking
         /recommend /resources /search /security_setting /service /service_setting /site /sitelist
         /statistics /tmdb_movie /tmdb_tv /tmdbcache /tools /tools/site-signin /torrent_remove
-        /userdownloader /users
+        /userdownloader
     """.split(),
 }
 
-# 页面归属不决定授权；尤其刷流、服务与自定义下载器保留各自原权限。
+# 所有业务页面均由配置中的唯一管理员访问。
 PAGE_ROUTES = {
     "search_pages": (
-        ("/search", "search", ("资源搜索",)),
-        ("/recommend", "recommend", ("探索",)),
-        ("/ranking", "ranking", ("探索",)),
-        ("/tmdb_movie", "tmdb_movie", ("探索",)),
-        ("/tmdb_tv", "tmdb_tv", ("探索",)),
-        ("/bangumi", "discovery_bangumi", ("探索",)),
-        ("/media_detail", "media_detail", ("探索",)),
-        ("/discovery_person", "discovery_person", ("探索",)),
+        ("/search", "search"),
+        ("/recommend", "recommend"),
+        ("/ranking", "ranking"),
+        ("/tmdb_movie", "tmdb_movie"),
+        ("/tmdb_tv", "tmdb_tv"),
+        ("/bangumi", "discovery_bangumi"),
+        ("/media_detail", "media_detail"),
+        ("/discovery_person", "discovery_person"),
     ),
     "download_pages": (
-        ("/downloading", "downloading", ("下载管理",)),
-        ("/downloaded", "downloaded", ("下载管理",)),
-        ("/torrent_remove", "torrent_remove", ("下载管理",)),
+        ("/downloading", "downloading"),
+        ("/downloaded", "downloaded"),
+        ("/torrent_remove", "torrent_remove"),
     ),
     "site_pages": (
-        ("/site", "sites", ("站点管理",)),
-        ("/sitelist", "sitelist", ("站点管理",)),
-        ("/resources", "resources", ("站点管理",)),
-        ("/statistics", "statistics", ("站点管理",)),
-        ("/brushtask", "brushtask", ("服务",)),
+        ("/site", "sites"),
+        ("/sitelist", "sitelist"),
+        ("/resources", "resources"),
+        ("/statistics", "statistics"),
+        ("/brushtask", "brushtask"),
     ),
     "settings_pages": (
-        ("/userdownloader", "userdownloader", ("系统设置",)),
-        ("/service", "service", ("服务", "系统设置")),
-        ("/tmdbcache", "tmdbcache", ("系统设置",)),
-        ("/basic", "basic", ("系统设置",)),
-        ("/media_setting", "media_setting", ("系统设置",)),
-        ("/service_setting", "service_setting", ("系统设置",)),
-        ("/security_setting", "security_setting", ("系统设置",)),
-        ("/laboratory_setting", "laboratory_setting", ("系统设置",)),
-        ("/downloader", "downloader", ("系统设置",)),
-        ("/download_setting", "download_setting", ("系统设置",)),
-        ("/notification", "notification", ("系统设置",)),
-        ("/users", "users", ("系统设置",)),
+        ("/userdownloader", "userdownloader"),
+        ("/service", "service"),
+        ("/tmdbcache", "tmdbcache"),
+        ("/basic", "basic"),
+        ("/media_setting", "media_setting"),
+        ("/service_setting", "service_setting"),
+        ("/security_setting", "security_setting"),
+        ("/laboratory_setting", "laboratory_setting"),
+        ("/downloader", "downloader"),
+        ("/download_setting", "download_setting"),
+        ("/notification", "notification"),
     ),
 }
 
 
 class PageRouteRegistryTest(unittest.TestCase):
-    def test_all_original_urls_and_methods_remain_registered(self):
-        expected = Counter((url, methods) for methods, urls in ORIGINAL_ROUTES.items() for url in urls)
+    def test_expected_urls_and_methods_are_registered(self):
+        expected = Counter((url, methods) for methods, urls in EXPECTED_ROUTES.items() for url in urls)
         actual = Counter((rule.rule, tuple(sorted(rule.methods))) for rule in main.App.url_map.iter_rules())
-        self.assertEqual(119, expected.total())
+        self.assertEqual(116, expected.total())
         self.assertEqual(expected, actual)
 
     def test_pages_use_explicit_blueprint_endpoints_without_changing_paths(self):
-        self.assertEqual(28, sum(map(len, PAGE_ROUTES.values())))
+        self.assertEqual(27, sum(map(len, PAGE_ROUTES.values())))
         with main.App.test_request_context():
             for blueprint, routes in PAGE_ROUTES.items():
                 self.assertEqual(f"web.routes.{blueprint}", main.App.blueprints[blueprint].import_name)
-                for path, name, _ in routes:
+                for path, name in routes:
                     with self.subTest(path=path):
                         endpoint = f"{blueprint}.{name}"
                         rules = [rule for rule in main.App.url_map.iter_rules() if rule.rule == path]
@@ -128,9 +127,8 @@ class PageRequestBoundaryTest(unittest.TestCase):
     def setUp(self):
         self._patch_dict(main.App.config, {"TESTING": True, "PROPAGATE_EXCEPTIONS": False})
         self.client = main.App.test_client()
-        self.user = SimpleNamespace(id=1, username="page-route-test", pris="", is_authenticated=True)
+        self.user = SimpleNamespace(id=0, username="admin", is_authenticated=True)
         self._patch("flask_login.utils._get_user", return_value=self.user)
-        self._patch("web.backend.user.User.get_user", return_value=self.user)
         self.renderers = {}
         self.services = []
         dependencies = {
@@ -138,7 +136,7 @@ class PageRequestBoundaryTest(unittest.TestCase):
             download_pages: ("Config", "WebAction", "TorrentRemover"),
             site_pages: ("BrushTask", "SystemConfig", "Downloader", "ChromeHelper", "Indexer",
                          "Sites", "SiteUserInfo", "Config", "WebAction"),
-            settings_pages: ("BrushTask", "SystemConfig", "Downloader", "MetaHelper", "Message", "Config", "WebAction"),
+            settings_pages: ("BrushTask", "SystemConfig", "Downloader", "MetaHelper", "Message", "Config"),
         }
         configuration = {"app": {"proxies": {}}, "pt": {"pt_client": "qbittorrent"}}
         for module, names in dependencies.items():
@@ -154,7 +152,6 @@ class PageRequestBoundaryTest(unittest.TestCase):
                     instance.get_search_result.return_value = {"result": {}, "total": 0}
                     instance.get_downloading.return_value = {"result": []}
                     instance.get_site_user_statistics.return_value = {"data": []}
-                    instance.get_users.return_value = {"result": []}
                     instance.action.return_value = {"data": []}
                 elif name == "Indexer":
                     instance.get_builtin_indexers.return_value = []
@@ -201,7 +198,7 @@ class PageRequestBoundaryTest(unittest.TestCase):
     def test_every_migrated_page_keeps_html_login_redirect_and_json_401(self):
         self.user.is_authenticated = False
         for routes in PAGE_ROUTES.values():
-            for path, _, _ in routes:
+            for path, _ in routes:
                 for method in ("GET", "POST"):
                     with self.subTest(path=path, method=method):
                         self._reset_calls()
@@ -218,36 +215,17 @@ class PageRequestBoundaryTest(unittest.TestCase):
         response = self.client.get("/resources?site=7&page=2", headers={"X-Requested-With": "XMLHttpRequest"})
         self.assertEqual(401, response.status_code)
 
-    def test_page_permission_matrix_rejects_before_any_domain_service_call(self):
-        permissions = ("探索", "资源搜索", "站点管理", "下载管理", "服务", "系统设置", "未知权限", "")
+    def test_admin_can_render_all_pages(self):
         for blueprint, routes in PAGE_ROUTES.items():
-            for path, _, allowed in routes:
-                for permission in permissions:
-                    self.user.pris = permission
-                    for method in ("GET", "POST"):
-                        with self.subTest(path=path, permission=permission, method=method):
-                            self._reset_calls()
-                            response = self.client.open(path, method=method)
-                            if permission in allowed:
-                                self.assertEqual(200, response.status_code)
-                                self.assertEqual("page-rendered", response.get_data(as_text=True))
-                                self.renderers[blueprint].assert_called_once()
-                            else:
-                                self.assertEqual(403, response.status_code)
-                                self._assert_no_page_work()
-
-    def test_admin_can_render_all_pages_without_explicit_permissions(self):
-        self.user.id = 0
-        for blueprint, routes in PAGE_ROUTES.items():
-            for path, _, _ in routes:
-                with self.subTest(path=path):
-                    self._reset_calls()
-                    response = self.client.post(path)
-                    self.assertEqual(200, response.status_code)
-                    self.renderers[blueprint].assert_called_once()
+            for path, _ in routes:
+                for method in ("GET", "POST"):
+                    with self.subTest(path=path, method=method):
+                        self._reset_calls()
+                        response = self.client.open(path, method=method)
+                        self.assertEqual(200, response.status_code)
+                        self.renderers[blueprint].assert_called_once()
 
     def test_global_headers_error_handlers_and_teardown_apply_to_blueprint_requests(self):
-        self.user.pris = "探索"
         cleanup = self._patch("web.main.remove_db_session")
         self._patch("web.main.App.logger.error")
         renderer = self.renderers["search_pages"]

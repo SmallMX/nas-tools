@@ -74,14 +74,11 @@
   <span hidden><input type="text"><input type="password"></span>
   <layout-navbar id="navbar-menu" hidden
     layout-gopage="{{ GoPage }}"
-    layout-appversion="{{ AppVersion }}"
-    layout-userpris='{{ UserPris|tojson|safe }}'
-    layout-page-permissions='{{ PagePermissions|tojson|safe }}'>
+    layout-appversion="{{ AppVersion }}">
   </layout-navbar>
   <layout-searchbar hidden
       layout-username="{{ UserName }}"
-      layout-systemflag="{{ SystemFlag }}"
-      layout-userpris='{{ UserPris|tojson|safe }}'>
+      layout-systemflag="{{ SystemFlag }}">
   </layout-searchbar>
   <div class="app-shell-loading" id="app_shell_loading" role="status" aria-live="polite">
     <div class="spinner-border text-primary" aria-hidden="true"></div>
@@ -1441,10 +1438,8 @@
       }
     });
 
-    {% if "系统设置" in UserPris %}
-      // 刷新消息
-      refresh_message("");
-    {% endif %}
+    // 刷新消息
+    refresh_message("");
 
     {% if not TMDBFlag %}
       // 检查tmdb配置

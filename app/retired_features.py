@@ -1,4 +1,4 @@
-"""已下线功能的配置与权限边界。"""
+"""已下线功能的配置边界。"""
 
 RETIRED_CONFIG_SECTIONS = frozenset({
     "aria2",
@@ -33,15 +33,6 @@ ACTIVE_CONFIG_SECTION_KEYS = {
     "douban": frozenset({"cookie"}),
     "media": frozenset({"category"}),
 }
-
-ACTIVE_USER_PERMISSIONS = (
-    "资源搜索",
-    "探索",
-    "站点管理",
-    "下载管理",
-    "服务",
-    "系统设置",
-)
 
 
 def is_retired_config_path(config_path):

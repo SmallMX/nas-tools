@@ -11,7 +11,7 @@ from app.indexer import Indexer
 from app.sites import Sites, SiteUserInfo
 from config import Config
 from web.action import WebAction
-from web.security import current_user_can, sanitize_brush_task, sanitize_downloader
+from web.security import sanitize_brush_task, sanitize_downloader
 
 
 site_pages_bp = Blueprint("site_pages", __name__)
@@ -23,29 +23,24 @@ def sites():
     CfgSites = Sites().get_sites()
     DownloadSettings = {did: attr["name"] for did, attr in Downloader().get_download_setting().items()}
     ChromeOk = ChromeHelper().get_status()
-    can_system_settings = current_user_can("系统设置")
-    CookieCloudCfg = {}
-    CookieUserInfoCfg = {}
-    if can_system_settings:
-        cookie_cloud_cfg = SystemConfig().get_system_config('CookieCloud') or {}
-        cookie_user_info_cfg = SystemConfig().get_system_config('CookieUserInfo') or {}
-        # 长期凭据不回填到 HTML；需要执行敏感操作时由管理员重新输入。
-        CookieCloudCfg = {
-            "server": cookie_cloud_cfg.get("server") or "",
-            "key": "",
-            "password": "",
-        }
-        CookieUserInfoCfg = {
-            "username": cookie_user_info_cfg.get("username") or "",
-            "password": "",
-            "two_step_code": "",
-        }
+    cookie_cloud_cfg = SystemConfig().get_system_config('CookieCloud') or {}
+    cookie_user_info_cfg = SystemConfig().get_system_config('CookieUserInfo') or {}
+    # 长期凭据不回填到 HTML；需要执行敏感操作时由管理员重新输入。
+    CookieCloudCfg = {
+        "server": cookie_cloud_cfg.get("server") or "",
+        "key": "",
+        "password": "",
+    }
+    CookieUserInfoCfg = {
+        "username": cookie_user_info_cfg.get("username") or "",
+        "password": "",
+        "two_step_code": "",
+    }
     ocr_server = Config().get_config('app').get('ocr_server')
     return render_template("site/site.html",
                            Sites=CfgSites,
                            DownloadSettings=DownloadSettings,
                            ChromeOk=ChromeOk,
-                           CanSystemSettings=can_system_settings,
                            OcrServerConfigured=isinstance(ocr_server, str) and bool(ocr_server.strip()),
                            CookieCloudCfg=CookieCloudCfg,
                            CookieUserInfoCfg=CookieUserInfoCfg)
@@ -73,7 +68,6 @@ def resources():
                            Results=Results,
                            SiteId=site_id,
                            Title=site_name,
-                           CanDownload=current_user_can("下载管理"),
                            KeyWord=keyword,
                            TotalCount=len(Results),
                            PageRange=range(0, 10),

@@ -6,15 +6,13 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
-from werkzeug.security import check_password_hash
 
 from app.utils import TokenCache
 from app.utils import StringUtils
 from web.security import (
     desensitize_config_dict,
     generate_access_token,
-    is_authorized,
-    request_has_permission,
+    request_is_admin,
     sanitize_message_client,
 )
 from web.action import (
@@ -31,7 +29,6 @@ from web.action import (
 from web.actions.download import DownloadActions
 from web.actions.system import SystemActions
 from web.main import App
-from web.permissions import API_PREFIX_PERMISSIONS
 from web.routes.system_files import create_sqlite_backup
 from web.security import sanitize_brush_task, sanitize_downloader
 from app.db.main_db import RETIRED_DATABASE_TABLES
@@ -42,47 +39,9 @@ class SecurityTest(unittest.TestCase):
         App.config['TESTING'] = True
         self.client = App.test_client()
 
-    def test_request_permission_check_fails_closed_without_request_context(self):
-        self.assertFalse(request_has_permission("服务"))
+    def test_admin_check_fails_closed_without_request_context(self):
+        self.assertFalse(request_is_admin())
 
-    @patch('web.backend.user.User.get_user')
-    def test_rbac_authorization_logic(self, mock_get_user):
-        # 1. Admin user has full access
-        mock_get_user.return_value = MagicMock(id=0, username="admin", pris="系统设置,站点管理")
-        self.assertTrue(is_authorized("admin", "/basic"))
-        self.assertTrue(is_authorized("admin", "/api/v1/config/info"))
-        self.assertTrue(is_authorized("admin", "/do", cmd="update_config"))
-
-        # 2. Regular user with limited permissions (e.g. only search)
-        mock_get_user.return_value = MagicMock(id=1, username="searcher", pris="资源搜索")
-        self.assertTrue(is_authorized("searcher", "/search"))
-        self.assertTrue(is_authorized("searcher", "/do", cmd="search"))
-        # Must be blocked from system settings
-        self.assertFalse(is_authorized("searcher", "/basic"))
-        self.assertFalse(is_authorized("searcher", "/do", cmd="update_config"))
-        # Fail-closed for unknown paths
-        self.assertFalse(is_authorized("searcher", "/api/v1/unknown"))
-        self.assertFalse(is_authorized("searcher", "/api/v1/media/cache/clear"))
-
-        # 3. Unknown permission names do not grant access to any module
-        mock_get_user.return_value = MagicMock(id=1, username="restricted", pris="未知权限")
-        self.assertFalse(is_authorized("restricted", "/index"))
-        self.assertFalse(is_authorized("restricted", "/api/v1/library/space"))
-        self.assertFalse(is_authorized("restricted", "/do", cmd="unknown_action"))
-
-        # 4. Remaining pages use their actual permission domains
-        mock_get_user.return_value = MagicMock(id=1, username="settings", pris="系统设置")
-        self.assertTrue(is_authorized("settings", "/do", cmd="get_categories"))
-        self.assertTrue(is_authorized("settings", "/tmdbcache"))
-        mock_get_user.return_value = MagicMock(id=1, username="sites", pris="站点管理")
-        self.assertTrue(is_authorized("sites", "/statistics"))
-
-        mock_get_user.return_value = MagicMock(id=1, username="service", pris="服务")
-        self.assertTrue(is_authorized("service", "/api/v1/brushtask/list"))
-        self.assertFalse(is_authorized("service", "/api/v1/brushtask/downloader/list"))
-        self.assertFalse(is_authorized("service", "/api/v1/service/network/test"))
-        mock_get_user.return_value = MagicMock(id=1, username="settings", pris="系统设置")
-        self.assertTrue(is_authorized("settings", "/api/v1/service/network/test"))
 
     def test_library_dashboard_routes_removed(self):
         routes = {rule.rule for rule in App.url_map.iter_rules()}
@@ -90,18 +49,6 @@ class SecurityTest(unittest.TestCase):
         self.assertNotIn("/library", routes)
         self.assertNotIn("/api/v1/library/space", routes)
         self.assertNotIn("/api/v1/organization/history/statistics", routes)
-
-    def test_all_api_routes_are_public_or_have_permission_rule(self):
-        public_api_routes = {"/api/v1/", "/api/v1/swagger.json"}
-        missing = sorted({
-            rule.rule
-            for rule in App.url_map.iter_rules()
-            if rule.rule.startswith("/api/v1/")
-            and rule.rule not in public_api_routes
-            and not rule.rule.startswith("/api/v1/user/")
-            and not any(rule.rule.startswith(prefix) for prefix, _ in API_PREFIX_PERMISSIONS)
-        })
-        self.assertEqual([], missing, f"以下 API 路由缺少权限声明：{missing}")
 
     @patch('builtins.eval')
     def test_rce_whitelist_eval_never_called(self, mock_eval):
@@ -298,72 +245,22 @@ class SecurityTest(unittest.TestCase):
         self.assertEqual(1, response["code"])
         self.assertIn("HTTP(S)", response["message"])
 
-    def test_retired_user_permissions_cannot_be_recreated(self):
+    def test_user_management_action_is_removed(self):
         response = WebAction().api_action(
             cmd="user_manager",
             data={
                 "oper": "add",
-                "name": "retired-permission",
+                "name": "legacy-user",
                 "password": "password",
                 "pris": ["资源搜索", "订阅管理"],
             },
         )
 
-        self.assertEqual(1, response["code"])
-
-    def test_user_manager_rejects_missing_password_and_reports_real_success(self):
-        action = SystemActions(MagicMock())
-        action.dbhelper.is_user_exists.return_value = False
-        action.dbhelper.insert_user.return_value = True
-
-        missing_password = action.user_manager({
-            "oper": "add",
-            "name": "reader",
-            "pris": ["资源搜索"],
-        })
-        self.assertEqual(1, missing_password["code"])
-        action.dbhelper.insert_user.assert_not_called()
-
-        success = action.user_manager({
-            "oper": "add",
-            "name": "reader",
-            "password": "safe-password",
-            "pris": ["资源搜索", "资源搜索"],
-        })
-        self.assertEqual({"code": 0, "success": True}, success)
-        _, password_hash, permissions = action.dbhelper.insert_user.call_args.args
-        self.assertTrue(check_password_hash(password_hash, "safe-password"))
-        self.assertEqual("资源搜索", permissions)
-
-    @patch("web.apiv1.WebAction.api_action")
-    @patch("web.backend.user.User.get_user")
-    def test_user_manage_api_preserves_submitted_password(self, get_user, api_action):
-        user = MagicMock(id=0, username="admin", pris="系统设置")
-        get_user.return_value = user
-        api_action.return_value = {"code": 0, "success": True}
-        token = generate_access_token("admin")
-        TokenCache.set(token, token)
-        try:
-            response = self.client.post(
-                "/api/v1/user/manage",
-                data={
-                    "oper": "add",
-                    "name": "reader",
-                    "password": "safe-password",
-                    "pris": "资源搜索",
-                },
-                headers={"Authorization": f"Bearer {token}"},
-            )
-        finally:
-            TokenCache.delete(token)
-
-        self.assertEqual(200, response.status_code)
-        submitted = api_action.call_args.kwargs["data"]
-        self.assertEqual("safe-password", submitted["password"])
+        self.assertEqual(-1, response["code"])
 
     @patch("web.backend.user.User.get_user")
     def test_api_login_does_not_return_long_lived_api_key(self, get_user):
-        user = MagicMock(id=0, username="admin", pris="系统设置")
+        user = MagicMock(id=0, username="admin")
         user.verify_password.return_value = True
         get_user.return_value = user
 
@@ -377,38 +274,8 @@ class SecurityTest(unittest.TestCase):
         TokenCache.delete(response.json["data"]["token"])
 
     @patch('flask_login.utils._get_user')
-    @patch('web.backend.user.User.get_user')
-    def test_global_rbac_hook_blocking(self, mock_get_user, mock_current_user):
-        # Setup mock user who only has "资源搜索" privilege
-        user_mock = MagicMock(id=1, username="searcher", pris="资源搜索")
-        user_mock.is_authenticated = True
-        mock_get_user.return_value = user_mock
-        mock_current_user.return_value = user_mock
-
-        # Accessing setting page directly should return 403
-        response = self.client.get("/basic")
-        self.assertEqual(response.status_code, 403)
-        self.assertIn(b"403", response.data)
-
-        # Accessing /do with unauthorized command should return code -1 in JSON
-        response = self.client.post("/do", data={"cmd": "update_config", "data": "{}"})
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json.get("code"), -1)
-        self.assertIn("权限不足", response.json.get("msg"))
-
-    @patch('flask_login.utils._get_user')
-    @patch('web.backend.user.User.get_user')
-    def test_tool_index_only_lists_authorized_tools(self, mock_get_user, mock_current_user):
-        user = MagicMock(id=1, username="searcher", pris="资源搜索")
-        user.is_authenticated = True
-        mock_get_user.return_value = user
-        mock_current_user.return_value = user
-
-        response = self.client.get("/tools")
-        self.assertEqual(200, response.status_code)
-        self.assertNotIn('data-tool-page="tools/site-signin"', response.get_data(as_text=True))
-
-        user.pris = "站点管理"
+    def test_admin_tool_index_lists_all_tools(self, mock_current_user):
+        mock_current_user.return_value = MagicMock(id=0, username="admin", is_authenticated=True)
         response = self.client.get("/tools")
         self.assertEqual(200, response.status_code)
         self.assertIn('data-tool-page="tools/site-signin"', response.get_data(as_text=True))
@@ -416,7 +283,7 @@ class SecurityTest(unittest.TestCase):
     @patch('flask_login.utils._get_user')
     @patch('web.backend.user.User.get_user')
     def test_site_signin_tool_uses_tool_route_only(self, mock_get_user, mock_current_user):
-        user = MagicMock(id=1, username="sites", pris="站点管理")
+        user = MagicMock(id=0, username="admin")
         user.is_authenticated = True
         mock_get_user.return_value = user
         mock_current_user.return_value = user
@@ -433,7 +300,7 @@ class SecurityTest(unittest.TestCase):
     @patch('web.backend.user.User.get_user')
     def test_generic_service_runner_does_not_expose_site_signin_tool(
             self, mock_get_user, mock_current_user, thread_helper):
-        user = MagicMock(id=1, username="service", pris="服务")
+        user = MagicMock(id=0, username="admin")
         user.is_authenticated = True
         mock_get_user.return_value = user
         mock_current_user.return_value = user
@@ -449,13 +316,13 @@ class SecurityTest(unittest.TestCase):
 
     @patch('flask_login.utils._get_user')
     @patch('web.backend.user.User.get_user')
-    def test_request_permission_uses_api_identity_before_session(
+    def test_admin_check_uses_api_identity_before_session(
             self, mock_get_user, mock_current_user):
         from flask import g
 
-        session_user = MagicMock(id=1, username="session", pris="系统设置")
+        session_user = MagicMock(id=0, username="session")
         session_user.is_authenticated = True
-        api_user = MagicMock(id=2, username="token", pris="服务")
+        api_user = None
         mock_current_user.return_value = session_user
         mock_get_user.side_effect = lambda username: {
             "session": session_user,
@@ -464,14 +331,15 @@ class SecurityTest(unittest.TestCase):
 
         with App.test_request_context("/api/v1/service/run"):
             g.api_username = "token"
-            self.assertTrue(request_has_permission("服务"))
-            self.assertFalse(request_has_permission("系统设置"))
+            self.assertFalse(request_is_admin())
+            del g.api_username
+            self.assertTrue(request_is_admin())
 
     @patch('flask_login.utils._get_user')
     @patch('web.backend.user.User.get_user')
     def test_upload_path_traversal_blocking(self, mock_get_user, mock_current_user):
         # Admin user
-        user_mock = MagicMock(id=0, username="admin", pris="系统设置")
+        user_mock = MagicMock(id=0, username="admin")
         user_mock.is_authenticated = True
         mock_get_user.return_value = user_mock
         mock_current_user.return_value = user_mock
@@ -499,7 +367,7 @@ class SecurityTest(unittest.TestCase):
     @patch('flask_login.utils._get_user')
     @patch('web.backend.user.User.get_user')
     def test_malformed_action_json_returns_400_contract(self, mock_get_user, mock_current_user):
-        user = MagicMock(id=0, username="admin", pris="系统设置")
+        user = MagicMock(id=0, username="admin")
         user.is_authenticated = True
         mock_get_user.return_value = user
         mock_current_user.return_value = user
@@ -562,11 +430,25 @@ class SecurityTest(unittest.TestCase):
                 connection.execute("CREATE TABLE TRANSFER_HISTORY (id INTEGER PRIMARY KEY, title TEXT)")
                 connection.execute("INSERT INTO TRANSFER_HISTORY(title) VALUES ('retired')")
                 connection.execute(
+                    "CREATE TABLE CONFIG_USERS (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, "
+                    "password TEXT NOT NULL, pris TEXT NOT NULL)"
+                )
+                legacy_user = ("legacy-user", "legacy-password-hash", "search,download")
+                connection.execute(
+                    "INSERT INTO CONFIG_USERS(name, password, pris) VALUES (?, ?, ?)",
+                    legacy_user,
+                )
+                connection.execute(
                     "CREATE TABLE system_dict (id INTEGER PRIMARY KEY, type TEXT, key TEXT, value TEXT)"
                 )
                 connection.execute(
                     'INSERT INTO system_dict(type, "key", value) VALUES (?, ?, ?)',
                     ("SystemConfig", "SpeedLimit", "retired"),
+                )
+                retained_setting = ("SystemConfig", "DefaultDownloader", "downloader-1")
+                connection.execute(
+                    'INSERT INTO system_dict(type, "key", value) VALUES (?, ?, ?)',
+                    retained_setting,
                 )
                 connection.commit()
 
@@ -584,12 +466,24 @@ class SecurityTest(unittest.TestCase):
                     )
                 }
                 self.assertTrue(RETIRED_DATABASE_TABLES.isdisjoint(existing_tables))
+                self.assertNotIn("config_users", existing_tables)
                 self.assertEqual(connection.execute(
                     'SELECT COUNT(*) FROM system_dict WHERE type = ? AND "key" = ?',
                     ("SystemConfig", "SpeedLimit"),
                 ).fetchone()[0], 0)
                 self.assertEqual(connection.execute(
+                    'SELECT type, "key", value FROM system_dict'
+                ).fetchall(), [retained_setting])
+                self.assertEqual(connection.execute(
                     "PRAGMA integrity_check").fetchone()[0], "ok")
+
+            with sqlite3.connect(source) as connection:
+                self.assertEqual(connection.execute(
+                    "SELECT name, password, pris FROM CONFIG_USERS"
+                ).fetchall(), [legacy_user])
+                self.assertEqual(connection.execute(
+                    "SELECT COUNT(*) FROM download_history"
+                ).fetchone()[0], 1)
 
     def test_sensitive_web_dtos_are_redacted(self):
         task = sanitize_brush_task({
@@ -622,7 +516,7 @@ class SecurityTest(unittest.TestCase):
     @patch('flask_login.utils._get_user')
     @patch('web.backend.user.User.get_user')
     def test_recommend_params_are_json_escaped(self, mock_get_user, mock_current_user):
-        user_mock = MagicMock(id=1, username="explorer", pris="探索")
+        user_mock = MagicMock(id=0, username="admin")
         user_mock.is_authenticated = True
         mock_get_user.return_value = user_mock
         mock_current_user.return_value = user_mock
@@ -651,30 +545,6 @@ class SecurityTest(unittest.TestCase):
                 updated = WebAction.set_config_value(config, f"app.{key}", "******")
                 self.assertEqual(updated["app"][key], expected)
 
-    @patch('web.backend.user.User.get_user')
-    def test_cross_page_action_permission_contracts(self, mock_get_user):
-        expectations = {
-            "下载管理": ("get_recommend", "update_torrent_remove_task", "get_download_dirs"),
-            "资源搜索": ("get_indexers", "media_info", "refresh_process"),
-            "系统设置": ("get_download_setting", "send_custom_message", "modify_tmdb_cache"),
-            "站点管理": ("name_test", "refresh_process"),
-            "服务": ("get_brush_site_capabilities",),
-        }
-        for permission, commands in expectations.items():
-            with self.subTest(permission=permission):
-                mock_get_user.return_value = MagicMock(id=1, username="user", pris=permission)
-                for command in commands:
-                    self.assertTrue(is_authorized("user", "/do", cmd=command), command)
-        mock_get_user.return_value = MagicMock(id=1, username="service", pris="服务")
-        self.assertFalse(is_authorized("service", "/do", cmd="get_site"))
-        mock_get_user.return_value = MagicMock(id=1, username="site", pris="站点管理")
-        self.assertFalse(is_authorized("site", "/do", cmd="download_link"))
-
-    @patch('web.backend.user.User.get_user')
-    def test_unknown_user_api_routes_fail_closed(self, mock_get_user):
-        mock_get_user.return_value = MagicMock(id=1, username="user", pris="资源搜索")
-        self.assertTrue(is_authorized("user", "/api/v1/user/info"))
-        self.assertFalse(is_authorized("user", "/api/v1/user/future-sensitive-action"))
 
     def test_restart_targets_gunicorn_master_only(self):
         with patch("web.actions.system.os.getppid", return_value=4321), \
@@ -761,7 +631,7 @@ class SecurityTest(unittest.TestCase):
 
     @patch('web.backend.user.User.get_user')
     def test_api_token_accepts_raw_and_bearer_but_rejects_other_schemes(self, mock_get_user):
-        user = MagicMock(id=1, username="tester", pris="资源搜索")
+        user = MagicMock(id=0, username="tester")
         mock_get_user.return_value = user
         token = generate_access_token("tester")
         TokenCache.set(token, token)
@@ -785,7 +655,7 @@ class SecurityTest(unittest.TestCase):
     @patch('flask_login.utils._get_user')
     @patch('web.backend.user.User.get_user')
     def test_oversized_upload_is_rejected_before_file_processing(self, mock_get_user, mock_current_user):
-        user = MagicMock(id=0, username="admin", pris="系统设置")
+        user = MagicMock(id=0, username="admin")
         user.is_authenticated = True
         mock_get_user.return_value = user
         mock_current_user.return_value = user
@@ -855,7 +725,7 @@ class SecurityTest(unittest.TestCase):
         )
         resources_html = App.jinja_env.get_template("site/resources.html").render(
             Results=[resource], SiteId="1", Title=payload, KeyWord="", TotalCount=1,
-            PageRange=range(1), CurrentPage=0, TotalPage=1, CanDownload=True,
+            PageRange=range(1), CurrentPage=0, TotalPage=1,
         )
 
         cache_info = SimpleNamespace(id="1", type="电影", title=payload, poster_path=None)
@@ -881,7 +751,7 @@ class SecurityTest(unittest.TestCase):
             torrent_dict=[(payload, {"group": group})],
         )
         search_html = App.jinja_env.get_template("search.html").render(
-            Count=1, Results={payload: item}, SiteDict={}, UPCHAR="↑", UserPris=["下载管理"],
+            Count=1, Results={payload: item}, SiteDict={}, UPCHAR="↑",
         )
 
         for rendered in (resources_html, cache_html, search_html):
@@ -976,7 +846,6 @@ class SecurityTest(unittest.TestCase):
         context = {
             "DownloadSettings": {},
             "ChromeOk": False,
-            "CanSystemSettings": False,
             "OcrServerConfigured": False,
             "CookieCloudCfg": SimpleNamespace(server="", password="", key=""),
             "CookieUserInfoCfg": SimpleNamespace(username="", password="", two_step_code=""),
@@ -1028,11 +897,8 @@ class SecurityTest(unittest.TestCase):
             ),
         }
 
-        regular_html = template.render(CanSystemSettings=False, **common_context)
-        admin_html = template.render(CanSystemSettings=True, **common_context)
+        admin_html = template.render(**common_context)
 
         for secret in ("cookie-key-secret", "cookie-password-secret", "site-password-secret", "two-step-secret"):
-            self.assertNotIn(secret, regular_html)
             self.assertNotIn(secret, admin_html)
-        self.assertNotIn('id="modal-cookiecloud"', regular_html)
         self.assertIn('id="modal-cookiecloud"', admin_html)

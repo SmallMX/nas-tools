@@ -62,7 +62,7 @@ const deferred = () => {
   try {
     const preview = await context.request.get(`${origin}/preview`);
     assert.match(await preview.text(), /只读/);
-    for (const name of ['basic', 'media_setting', 'service_setting', 'security_setting', 'laboratory_setting', 'users', 'notification', 'downloader', 'download_setting', 'userdownloader', 'downloading', 'torrent_remove']) {
+    for (const name of ['basic', 'media_setting', 'service_setting', 'security_setting', 'laboratory_setting', 'notification', 'downloader', 'download_setting', 'userdownloader', 'downloading', 'torrent_remove']) {
       await load(name);
       const inline = await page.locator('#page_content [onclick], #page_content [onchange], #page_content [oninput], #page_content a[href^="javascript:"]').count();
       assert.equal(inline, 0, `${name} 不应保留内联动作`);
@@ -133,16 +133,17 @@ const deferred = () => {
     assert.equal(await row.count(), 0);
     record('新增目录行的change与删除通过同一委托处理器');
 
-    await load('users');
-    responders.set('user_manager', () => ({code: -1, msg: '模拟拒绝'}));
-    const username = '名字"\'<> &';
-    await page.locator('[data-nt-click="delete-user"]').first().evaluate((element, name) => {
-      element.setAttribute('data-nt-args', JSON.stringify([name]));
-      element.click();
-    }, username);
-    await waitFor(() => count('user_manager') === 1);
-    assert.deepEqual(calls.find(call => call.cmd === 'user_manager').data, {oper: 'del', name: username});
-    record('委托参数原样传递引号和特殊字符');
+    await load('basic');
+    const settingsBefore = count('update_config');
+    responders.set('update_config', () => ({code: 0}));
+    await page.locator('[id="app.login_user"]').fill('admin-review');
+    await page.locator('[id="app.login_password"]').fill('demo-only-password');
+    await click('#basic_system_btn');
+    await waitFor(() => count('update_config') === settingsBefore + 1);
+    const adminSettings = calls.filter(call => call.cmd === 'update_config').at(-1).data;
+    assert.equal(adminSettings['app.login_user'], 'admin-review');
+    assert.equal(adminSettings['app.login_password'], 'demo-only-password');
+    record('基础设置保留唯一管理员账号与密码保存入口');
 
     await load('userdownloader');
     await click('[data-nt-click="add-downloader"]');
@@ -154,7 +155,7 @@ const deferred = () => {
     responders.set('add_downloader', () => oldTest.promise);
     await click('#dl_test_btn');
     await waitFor(() => count('add_downloader') === 1);
-    await navigate('users', '#user_name');
+    await navigate('basic', '#basic_system_btn');
     await navigate('userdownloader', '#dl_test_btn');
     oldTest.resolve({code: 0});
     await pause(100);
@@ -170,7 +171,7 @@ const deferred = () => {
     assert.equal(calls.find(call => call.cmd === 'pt_start').data.id, '4');
     start.resolve();
     await waitFor(() => count('pt_info') > infoBeforeStart);
-    await navigate('users', '#user_name');
+    await navigate('basic', '#basic_system_btn');
     const pollingCount = count('pt_info');
     await pause(2200);
     assert.equal(count('pt_info'), pollingCount);

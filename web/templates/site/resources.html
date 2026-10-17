@@ -2,12 +2,10 @@
 {% import 'macro/svg.html' as SVG %}
 {% call UI.page_header(Title or '站点资源', '浏览站点资源，搜索名称并选择需要下载的种子。', eyebrow='站点资源', count=TotalCount) %}
 <div class="btn-list">
-          {% if CanDownload %}
           <a href="#" data-nt-click="resources-batch-download" class="btn btn-primary">
             {{ SVG.arrow_big_down() }}
             一键下载
           </a>
-          {% endif %}
           <a href="/?next=sitelist" data-nt-click="resources-back" class="btn" title="返回">
             {{ SVG.arrow_back_up() }}
             返回
@@ -117,11 +115,9 @@
                     <td class="sort-peers" data-peers="{{ Result.peers }}">{{ Result.peers }}</td>
                     <td class="sort-grabs" data-grabs="{{ Result.grabs }}">{{ Result.grabs }}</td>
                     <td>
-                      {% if CanDownload %}
                       <a href="#" class="resource-download" data-nt-click="resources-download" data-resource-id="{{ loop.index0 }}" title="下载">
                         {{ SVG.download() }}
                       </a>
-                      {% endif %}
                     </td>
                   </tr>
                 {% endfor %}

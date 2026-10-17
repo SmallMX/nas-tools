@@ -28,7 +28,7 @@ nas-tools/
 │   ├── searcher.py        <-- 调度内置索引器聚合搜索资源
 │   ├── media/             <-- 媒体识别，负责查询 TMDB 并生成类型和二级分类
 │   ├── downloader/        <-- 下载器控制台，对接 qBittorrent 和 Transmission API
-│   ├── sites/             <-- 管理站点连接、Cookie 和用户数据
+│   ├── sites/             <-- 管理站点连接、Cookie 和站点账号数据
 │   ├── tools/             <-- 面向用户的内置工具，使用静态注册表统一登记
 │   └── utils/             <-- 通用代码，像 http_utils.py（发网络请求）都在这里
 ├── web/                   <-- 【Web 页面区】Flask 后端框架代码
@@ -71,7 +71,7 @@ nas-tools/
 
 先看 **`app/tools/registry.py`**，再阅读 **`app/tools/site_signin/service.py`**。
 
-- `registry.py` 使用稳定 ID 显式登记工具的名称、页面、权限和展示顺序，供 `/tools` 聚合页筛选和展示；它不是插件加载器，也不统一启动工具。
+- `registry.py` 使用稳定 ID 显式登记工具的名称、页面和展示顺序，供 `/tools` 聚合页展示；它不是插件加载器，也不统一启动工具。
 - `site_signin/service.py` 负责签到和保号登录的执行编排，但站点与 Cookie 来自 `app/sites/`，历史写入现有数据库，定时执行和通知也复用项目公共能力。
 - `app/tools/` 放有独立业务入口、页面或运行状态的工具，`app/utils/` 放可被多个模块调用的通用函数，不要混淆这两个目录。
 - 从 MoviePilot 插件库引入能力时，需要先改造成上述项目边界，再静态注册；不能把 MoviePilot 插件目录直接复制进来运行。
@@ -107,6 +107,7 @@ nas-tools/
 
 - 学习著名的 Web 框架 **Flask** 的基本用法（路由 `@app.route` 是什么，Blueprint 蓝图是什么）。
 - 从工具注册表中的 `page` 找到对应页面路由和 Jinja 模板，观察 `web/tools/` 如何通过统一动作接口读取状态、启动后台任务。
+- `web/backend/user.py` 只读取 `app.login_user` 和 `app.login_password` 定义的管理员；浏览器会话和 API Token 均验证该身份，不再从数据库加载普通用户或按功能分配权限。
 
 ---
 

@@ -16,10 +16,8 @@ class SearchDownloadPageContractTest(unittest.TestCase):
         app.register_blueprint(search_pages.search_pages_bp)
         app.register_blueprint(download_pages.download_pages_bp)
         self.client = app.test_client()
-        self.user = SimpleNamespace(id=1, username="reader", pris="资源搜索", is_authenticated=True)
+        self.user = SimpleNamespace(id=0, username="admin", is_authenticated=True)
         self._patch("flask_login.utils._get_user", return_value=self.user)
-        self.users = self._patch("web.routes.search_pages.User").return_value
-        self.users.get_user.return_value = self.user
         self.search_actions = self._patch("web.routes.search_pages.WebAction").return_value
         self.indexer = self._patch("web.routes.search_pages.Indexer").return_value
         self.download_actions = self._patch("web.routes.download_pages.WebAction").return_value
@@ -56,32 +54,21 @@ class SearchDownloadPageContractTest(unittest.TestCase):
         context.update(changes)
         return context
 
-    def test_search_keeps_results_total_indexers_and_raw_permission_list(self):
+    def test_search_keeps_results_total_and_indexers(self):
         results = {"影片": {"key": "media-1", "torrent_dict": []}}
         sites = {"hash": {"public": True, "builtin": True}}
         self.search_actions.get_search_result.return_value = {"result": results, "total": 7}
         self.indexer.get_indexer_hash_dict.return_value = sites
-        cases = (
-            (1, "资源搜索,下载管理", ["资源搜索", "下载管理"]),
-            (1, "资源搜索,, 下载管理 ", ["资源搜索", "", " 下载管理 "]),
-            (1, None, ["None"]),
-            (0, "", [""]),
-        )
         for method in ("GET", "POST"):
-            for user_id, permissions, expected in cases:
-                with self.subTest(method=method, user_id=user_id, permissions=permissions):
-                    self.user.id, self.user.pris = user_id, permissions
-                    self.users.get_user.reset_mock()
-                    self.search_actions.get_search_result.reset_mock()
-                    self.indexer.get_indexer_hash_dict.reset_mock()
-                    self.assert_render("/search", method, self.search_render, "search.html", {
-                        "UserPris": expected, "Count": 7, "Results": results,
-                        "SiteDict": sites, "UPCHAR": "↑",
-                    }, query={"page": "99"}, body={"keyword": "ignored"})
-                    self.users.get_user.assert_called_once_with("reader")
-                    self.search_actions.get_search_result.assert_called_once_with()
-                    self.indexer.get_indexer_hash_dict.assert_called_once_with()
-                    self.assertIs(results, self.search_render.call_args.kwargs["Results"])
+            with self.subTest(method=method):
+                self.search_actions.get_search_result.reset_mock()
+                self.indexer.get_indexer_hash_dict.reset_mock()
+                self.assert_render("/search", method, self.search_render, "search.html", {
+                    "Count": 7, "Results": results, "SiteDict": sites, "UPCHAR": "↑",
+                }, query={"page": "99"}, body={"keyword": "ignored"})
+                self.search_actions.get_search_result.assert_called_once_with()
+                self.indexer.get_indexer_hash_dict.assert_called_once_with()
+                self.assertIs(results, self.search_render.call_args.kwargs["Results"])
 
     def test_fixed_exploration_pages_keep_exact_template_arguments(self):
         cases = (

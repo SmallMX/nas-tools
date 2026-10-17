@@ -4,11 +4,11 @@
 
 ## 使用顺序
 
-1. 阅读 [页面清单](page-inventory.md)，确认目标页面、共享模板变体、权限和附属弹层。
+1. 阅读 [页面清单](page-inventory.md)，确认目标页面、共享模板变体、登录认证和附属弹层。
 2. 阅读 [设计规范](design-system.md)，固定颜色、字号、间距、外壳、组件和响应式规则。
 3. 使用 [全页面提示词](page-prompts.md) 的公共前缀生成 DS01 设计系统板；后续每次发送“公共前缀 + 目标 P/D 块 + 可选 V/S 块”，携带相同参考图。
 4. 按编号逐页生成设计图，长页保持文字可读，可以延长或拆分连续画板；组合总览用于观察一致性，不代替独立页面。
-5. 实现时优先复用共享 token、Jinja 宏和 Lit 组件，再处理各页结构和动态状态；接口、权限和真实数据字段优先于图中的装饰或生成错误。
+5. 实现时优先复用共享 token、Jinja 宏和 Lit 组件，再处理各页结构和动态状态；接口、登录认证和真实数据字段优先于图中的装饰或生成错误。
 6. 使用实际浏览器与项目检查验证布局和行为；记录真实执行范围。提示词、设计样例与静态渲染不表示外部站点或下载器已通过集成验证。
 
 ## 内容范围
@@ -16,11 +16,11 @@
 | 文档 | 作用 |
 |---|---|
 | [design-system.md](design-system.md) | 品牌方向、浅深色 token、排版、间距、组件、交互、响应式与交接规则 |
-| [page-inventory.md](page-inventory.md) | 31 个应用页面 URL、36 个页面画板及权限/模板/状态矩阵 |
-| [page-prompts.md](page-prompts.md) | 36 个页面块、8 个媒体列表变体、43 个弹层/抽屉/菜单块、11 个状态增量和批量生成规则 |
+| [page-inventory.md](page-inventory.md) | 30 个应用页面 URL、35 个页面画板及访问/模板/状态矩阵 |
+| [page-prompts.md](page-prompts.md) | 35 个页面块、8 个媒体列表变体、42 个弹层/抽屉/菜单块、10 个状态增量和批量生成规则 |
 | [designs/](designs/) | 本轮生成的页面族设计参考图；单图可能包含多个画板 |
 
-本轮使用内置图像生成工具产出以下 11 张页面族参考板，实际发送的提示词保存在 [prompts/](prompts/)：
+本轮使用内置图像生成工具产出以下 11 张页面族参考板，原图提示词及后续修订保存在 [prompts/](prompts/)：
 
 | 文件 | 覆盖内容 |
 |---|---|
@@ -30,13 +30,13 @@
 | [04-search-sites.png](designs/04-search-sites.png) | 资源搜索、站点维护、站点入口、单站资源 |
 | [05-statistics-automation.png](designs/05-statistics-automation.png) | 统计、刷流、自动删种、自定义下载器 |
 | [06-settings-system.png](designs/06-settings-system.png) | 基础、媒体、服务、安全、实验室设置 |
-| [07-settings-download-notify.png](designs/07-settings-download-notify.png) | 下载器、下载预设、通知、用户 |
+| [07-settings-download-notify.png](designs/07-settings-download-notify.png) | 下载器、下载预设、通知（旧图含已退役的账号管理画板） |
 | [08-tools-history.png](designs/08-tools-history.png) | 工具、签到、服务、TMDB缓存 |
 | [09-login-responsive-states.png](designs/09-login-responsive-states.png) | 登录、403/404/500、移动端、空态与加载 |
 | [10-dialogs-dark-components.png](designs/10-dialogs-dark-components.png) | 弹窗、抽屉、深色模式与组件 |
 | [11-collections-api.png](designs/11-collections-api.png) | 近期下载、完整榜单、相似作品、API文档 |
 
-这些 AI 图用于视觉方向与布局参考。模型在部分画板中补出了非现有字段、通知渠道或操作，个别小字也有生成偏差（包括登录参考板的许可证文案）；实现已按真实路由与字段校正，项目许可证仍为 AGPL-3.0。实际页面外观和功能请查看 [41 页运行截图目录](verification/pages/) 与 [交付和验证记录](implementation.md)。弹层通过公共组件和代表性弹窗设计板表达，未把每个 D/S 状态单独生成为图片。
+这些 AI 图与运行截图来自此前版本，仅用于视觉方向与布局参考；单管理员模式以当前模板和页面清单为准。模型在部分画板中补出了非现有字段、通知渠道或操作，个别小字也有生成偏差（包括登录参考板的许可证文案）；实现已按真实路由与字段校正，项目许可证仍为 AGPL-3.0。旧版外观参考请查看 [历史运行截图目录](verification/pages/) 与 [交付和验证记录](implementation.md)。弹层通过公共组件和代表性弹窗设计板表达，未把每个 D/S 状态单独生成为图片。
 
 ## 设计来源
 
@@ -61,7 +61,7 @@
 - [layout/](../../web/static/components/layout/)：导航与全局搜索 Lit 组件。
 - [card/](../../web/static/components/card/) 与 [page/](../../web/static/components/page/)：媒体卡片和媒体页面。
 - [web/templates/](../../web/templates/)：业务表格、任务、设置与工具表单。
-- [permissions.py](../../web/permissions.py)：页面、命令与 API 权限的权威来源。
+- 管理员账号在基础设置中维护；所有业务页面沿用服务端登录认证。
 
 新增页面首先复用这些入口与本目录规范，不在页面内创建第二套颜色、尺寸、表单标签和按钮系统。[nas-tools-ui Skill 源文件](skill/nas-tools-ui/SKILL.md)已保存在仓库，并安装到个人技能目录 `~/.codex/skills/nas-tools-ui/`。后续可自动匹配此项目的 UI 工作，也可显式调用 `$nas-tools-ui`；规范始终以本目录与代码 token 为准。
 

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from app.utils import TokenCache
 from web.main import App
-from web.security import generate_access_token, is_authorized
+from web.security import generate_access_token
 
 
 class ApiContractTest(unittest.TestCase):
@@ -14,7 +14,7 @@ class ApiContractTest(unittest.TestCase):
         self.token = generate_access_token("admin")
         TokenCache.set(self.token, self.token)
         self.headers = {"Authorization": f"Bearer {self.token}"}
-        self.admin = MagicMock(id=0, username="admin", pris="系统设置")
+        self.admin = MagicMock(id=0, username="admin")
 
     def tearDown(self):
         TokenCache.delete(self.token)
@@ -115,7 +115,8 @@ class ApiContractTest(unittest.TestCase):
 
     @patch("web.apiv1.WebAction")
     @patch("web.backend.user.User.get_user")
-    def test_download_settings_endpoints_share_action_permissions(self, get_user, action_class):
+    def test_download_settings_endpoints_accept_admin(self, get_user, action_class):
+        get_user.return_value = self.admin
         endpoints = {
             "info": "get_download_setting",
             "update": "update_download_setting",
@@ -126,37 +127,47 @@ class ApiContractTest(unittest.TestCase):
         result = {"code": 0, "success": True, "message": "", "data": {"sid": "7"}}
         action = action_class.return_value
         action.api_action.return_value = result
-        for permission in ("系统设置", "下载管理", "资源搜索", "站点管理", "服务", "未知权限", ""):
-            get_user.return_value = MagicMock(id=1, username="admin", pris=permission)
-            allowed = permission in {"系统设置", "下载管理"}
-            for endpoint, command in endpoints.items():
-                with self.subTest(permission=permission, endpoint=endpoint):
-                    action_class.reset_mock()
-                    self.assertEqual(allowed, is_authorized("admin", "/do", cmd=command))
-                    response = self.client.post(
-                        f"/api/v1/download/config/{endpoint}",
-                        data={"sid": "7", "name": "日常下载"},
-                        headers=self.headers,
-                    )
+        for endpoint, command in endpoints.items():
+            with self.subTest(endpoint=endpoint):
+                action_class.reset_mock()
+                response = self.client.post(
+                    f"/api/v1/download/config/{endpoint}",
+                    data={"sid": "7", "name": "日常下载"},
+                    headers=self.headers,
+                )
 
-                    self.assertEqual(200 if allowed else 403, response.status_code)
-                    if allowed:
-                        self.assertEqual(result, response.get_json())
-                        action.api_action.assert_called_once()
-                        self.assertEqual(command, action.api_action.call_args.kwargs["cmd"])
-                        self.assertEqual("7", action.api_action.call_args.kwargs["data"]["sid"])
-                    else:
-                        action_class.assert_not_called()
+                self.assertEqual(200, response.status_code)
+                self.assertEqual(result, response.get_json())
+                action.api_action.assert_called_once()
+                self.assertEqual(command, action.api_action.call_args.kwargs["cmd"])
+                self.assertEqual("7", action.api_action.call_args.kwargs["data"]["sid"])
 
     @patch("web.apiv1.WebAction")
     @patch("web.backend.user.User.get_user")
-    def test_settings_permission_does_not_grant_download_task_access(self, get_user, action_class):
-        get_user.return_value = MagicMock(id=1, username="admin", pris="系统设置")
+    def test_non_admin_identity_cannot_access_api_actions(self, get_user, action_class):
+        get_user.return_value = MagicMock(id=1, username="retired-user")
 
         response = self.client.post("/api/v1/download/now", headers=self.headers)
 
-        self.assertEqual(403, response.status_code)
+        self.assertEqual(401, response.status_code)
         action_class.assert_not_called()
+
+    def test_user_management_endpoints_are_removed_from_routes_and_schema(self):
+        spec = self.client.get("/api/v1/swagger.json").get_json()
+        for path in ("/user/manage", "/user/list"):
+            with self.subTest(path=path):
+                self.assertNotIn(path, spec["paths"])
+                response = self.client.post(f"/api/v1{path}", headers=self.headers)
+                self.assertEqual(404, response.status_code)
+
+    @patch("web.backend.user.User.get_user")
+    def test_user_info_exposes_only_admin_identity(self, get_user):
+        get_user.return_value = self.admin
+
+        response = self.client.post("/api/v1/user/info", headers=self.headers)
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual({"userid": 0, "username": "admin"}, response.get_json()["data"])
 
 
 if __name__ == "__main__":

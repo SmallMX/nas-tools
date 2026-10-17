@@ -15,7 +15,6 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.pool import QueuePool
 
 from app.db.models import Base
-from app.retired_features import ACTIVE_USER_PERMISSIONS
 from app.utils import ExceptionUtils
 from config import Config
 
@@ -37,6 +36,7 @@ RETIRED_DATABASE_TABLES = frozenset({
     "config_rss_parser",
     "config_sync_paths",
     "config_user_rss",
+    "config_users",
     "douban_medias",
     "rss_history",
     "rss_movies",
@@ -200,22 +200,6 @@ class MainDb:
                         'UPDATE config_site SET note = ? WHERE id = ?',
                         (json.dumps(site_note, ensure_ascii=False), site_id),
                     )
-                user_rows = connection.exec_driver_sql(
-                    'SELECT id, pris FROM config_users WHERE pris IS NOT NULL'
-                ).fetchall()
-                for user_id, permissions in user_rows:
-                    filtered_permissions = [
-                        permission.strip()
-                        for permission in str(permissions).split(",")
-                        if permission.strip()
-                        and permission.strip() in ACTIVE_USER_PERMISSIONS
-                    ]
-                    normalized_permissions = ",".join(filtered_permissions)
-                    if normalized_permissions != permissions:
-                        connection.exec_driver_sql(
-                            'UPDATE config_users SET pris = ? WHERE id = ?',
-                            (normalized_permissions, user_id),
-                        )
             for filename in sorted(RETIRED_DATABASE_FILES):
                 retired_path = os.path.join(_CONFIG_PATH, filename)
                 if os.path.isfile(retired_path):

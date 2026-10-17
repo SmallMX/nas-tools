@@ -14,9 +14,8 @@ class SiteSettingsPagesTest(unittest.TestCase):
     def setUp(self):
         self.enterContext(patch.dict(App.config, {"TESTING": True}))
         self.client = App.test_client()
-        self.user = SimpleNamespace(id=1, username="page-user", pris="站点管理,系统设置,服务", is_authenticated=True)
+        self.user = SimpleNamespace(id=0, username="admin", is_authenticated=True)
         self.enterContext(patch("flask_login.utils._get_user", return_value=self.user))
-        self.enterContext(patch("web.backend.user.User.get_user", return_value=self.user))
         # 构造器全部替换，渲染和全局鉴权保持真实，避免页面初始化业务单例或访问外部服务。
         self.site = {
             name: self.enterContext(patch(f"web.routes.site_pages.{name}"))
@@ -25,7 +24,7 @@ class SiteSettingsPagesTest(unittest.TestCase):
         }
         self.settings = {
             name: self.enterContext(patch(f"web.routes.settings_pages.{name}"))
-            for name in ("BrushTask", "Config", "Downloader", "Message", "MetaHelper", "SystemConfig", "WebAction")
+            for name in ("BrushTask", "Config", "Downloader", "Message", "MetaHelper", "SystemConfig")
         }
         self.site["Sites"].return_value.get_sites.return_value = []
         self.site["Downloader"].return_value.get_download_setting.return_value = {"7": {"name": "日常下载"}}
@@ -41,23 +40,7 @@ class SiteSettingsPagesTest(unittest.TestCase):
         self.assertEqual((template,), renderer.call_args.args)
         return renderer.call_args.kwargs, response.get_data(as_text=True)
 
-    def test_site_user_does_not_read_system_credentials(self):
-        self.user.pris = "站点管理"
-
-        context, html = self._render("site_pages", "/site", "site/site.html", actual=True)
-
-        self.site["SystemConfig"].assert_not_called()
-        self.assertFalse(context["CanSystemSettings"])
-        self.assertEqual({}, context["CookieCloudCfg"])
-        self.assertEqual({}, context["CookieUserInfoCfg"])
-        self.assertEqual({"7": "日常下载"}, context["DownloadSettings"])
-        self.assertTrue(context["ChromeOk"])
-        self.assertTrue(context["OcrServerConfigured"])
-        self.assertNotIn('id="modal-cookiecloud"', html)
-        self.assertNotIn('data-nt-click="site-cookie"', html)
-
     def test_site_admin_context_and_html_never_refill_saved_login_secrets(self):
-        self.user.id, self.user.pris = 0, ""
         values = {
             "CookieCloud": {"server": "https://cloud.example", "key": "cloud-key-secret", "password": "cloud-password-secret"},
             "CookieUserInfo": {"username": "saved-user", "password": "site-password-secret", "two_step_code": "two-step-secret"},
@@ -68,9 +51,11 @@ class SiteSettingsPagesTest(unittest.TestCase):
 
         context, html = self._render("site_pages", "/site", "site/site.html", method="POST", actual=True)
 
-        self.assertTrue(context["CanSystemSettings"])
         self.assertEqual({"server": "https://cloud.example", "key": "", "password": ""}, context["CookieCloudCfg"])
         self.assertEqual({"username": "saved-user", "password": "", "two_step_code": ""}, context["CookieUserInfoCfg"])
+        self.assertEqual({"7": "日常下载"}, context["DownloadSettings"])
+        self.assertTrue(context["ChromeOk"])
+        self.assertTrue(context["OcrServerConfigured"])
         self.assertEqual([call("CookieCloud"), call("CookieUserInfo")], config.get_system_config.call_args_list)
         self.assertEqual(original, values)
         self.assertIn('id="modal-cookiecloud"', html)
@@ -80,7 +65,6 @@ class SiteSettingsPagesTest(unittest.TestCase):
             self.assertNotIn(secret, html)
 
     def test_site_ocr_status_only_accepts_nonempty_string(self):
-        self.user.pris = "站点管理"
         for value, expected in ((None, False), (123, False), (" \t", False), (" https://ocr.example ", True)):
             with self.subTest(value=value):
                 self.site["Config"].return_value.get_config.return_value = {"ocr_server": value}
@@ -98,18 +82,17 @@ class SiteSettingsPagesTest(unittest.TestCase):
         self.assertIs(sites, context["Sites"])
         self.assertEqual(1, context["Count"])
 
-    def test_resources_preserves_query_types_defaults_and_download_visibility(self):
+    def test_resources_preserves_query_types_and_defaults(self):
         action = self.site["WebAction"].return_value
         entries = [{"title": "fixture"}]
         cases = [
-            ("/resources?site=9&title=Example&page=2&keyword=hello", "站点管理,下载管理", entries,
-             {"id": "9", "page": "2", "keyword": "hello"}, 2, True),
-            ("/resources?site=9&title=Example", "站点管理", None,
-             {"id": "9", "page": 0, "keyword": None}, 0, False),
+            ("/resources?site=9&title=Example&page=2&keyword=hello", entries,
+             {"id": "9", "page": "2", "keyword": "hello"}, 2),
+            ("/resources?site=9&title=Example", None,
+             {"id": "9", "page": 0, "keyword": None}, 0),
         ]
-        for url, permissions, results, params, current_page, can_download in cases:
+        for url, results, params, current_page in cases:
             with self.subTest(url=url):
-                self.user.pris = permissions
                 action.action.reset_mock()
                 action.action.return_value = {"data": results}
 
@@ -121,7 +104,6 @@ class SiteSettingsPagesTest(unittest.TestCase):
                 self.assertEqual("9", context["SiteId"])
                 self.assertEqual("Example", context["Title"])
                 self.assertEqual(params["keyword"], context["KeyWord"])
-                self.assertIs(can_download, context["CanDownload"])
                 self.assertEqual(current_page, context["CurrentPage"])
                 self.assertIs(type(context["CurrentPage"]), int)
                 self.assertEqual(list(range(10)), list(context["PageRange"]))
@@ -173,17 +155,16 @@ class SiteSettingsPagesTest(unittest.TestCase):
         self.assertEqual(0, context["TotalUpload"])
         self.assertEqual(0, context["TotalDownload"])
 
-    def test_denied_statistics_request_cannot_trigger_a_refresh(self):
-        self.user.pris = "系统设置"
+    def test_anonymous_statistics_request_cannot_trigger_a_refresh(self):
+        self.user.is_authenticated = False
 
-        response = self.client.get("/statistics?refresh_force=1")
+        response = self.client.get("/statistics?refresh_force=1", headers={"Accept": "application/json"})
 
-        self.assertEqual(403, response.status_code)
+        self.assertEqual(401, response.status_code)
         self.site["SiteUserInfo"].assert_not_called()
         self.site["WebAction"].assert_not_called()
 
     def test_brush_page_keeps_private_fields_out_of_render_context_without_mutation(self):
-        self.user.pris = "服务"
         sites = [{"id": 1, "name": "站点"}]
         downloaders = [{"id": 3, "name": "下载器", "password": "downloader-password", "save_dir": "/downloads"}]
         tasks = [{"id": 2, "name": "刷流", "site": "站点", "rss_rule": {}, "cookie": "private-cookie",
@@ -203,28 +184,19 @@ class SiteSettingsPagesTest(unittest.TestCase):
         self.assertEqual(1, context["Count"])
         self.assertEqual(original, (downloaders, tasks))
 
-    def test_service_cards_follow_both_independent_permissions_and_admin(self):
-        cases = [
-            (1, "服务", ["nametest"], False),
-            (1, "系统设置", ["nettest", "backup"], True),
-            (1, "服务,系统设置", ["nametest", "nettest", "backup"], True),
-            (0, "", ["nametest", "nettest", "backup"], True),
-        ]
-        for user_id, permissions, card_ids, can_settings in cases:
-            with self.subTest(permissions=permissions, user_id=user_id):
-                self.user.id, self.user.pris = user_id, permissions
-                context, html = self._render("settings_pages", "/service", "service.html", actual=True)
-                self.assertEqual(card_ids, [item["id"] for item in context["SchedulerTasks"]])
-                self.assertEqual(len(card_ids), context["Count"])
-                self.assertIs(can_settings, context["CanSystemSettings"])
-                self.assertEqual(ModuleConf.NETTEST_TARGETS, context["NettestTargets"])
-                for card_id in ("nametest", "nettest", "backup"):
-                    self.assertEqual(card_id in card_ids, f'data-service-id="{card_id}"' in html)
-                self.assertEqual(can_settings, 'id="modal-nettest"' in html)
-                self.assertEqual(can_settings, 'id="modal-backup"' in html)
+    def test_admin_service_page_includes_all_cards_and_dialogs(self):
+        context, html = self._render("settings_pages", "/service", "service.html", actual=True)
+
+        card_ids = ["nametest", "nettest", "backup"]
+        self.assertEqual(card_ids, [item["id"] for item in context["SchedulerTasks"]])
+        self.assertEqual(len(card_ids), context["Count"])
+        self.assertEqual(ModuleConf.NETTEST_TARGETS, context["NettestTargets"])
+        for card_id in card_ids:
+            self.assertIn(f'data-service-id="{card_id}"', html)
+        self.assertIn('id="modal-nettest"', html)
+        self.assertIn('id="modal-backup"', html)
 
     def test_basic_setting_sections_mask_copies_and_only_system_loads_custom_script(self):
-        self.user.pris = "系统设置"
         config = {
             "app": {"proxies": {"http": "http://proxy.example:8080"}, "login_password": "admin-secret", "rmt_tmdbkey": "tmdb-secret"},
             "security": {"api_key": "api-secret", "flask_secret_key": "session-secret"},
@@ -261,7 +233,6 @@ class SiteSettingsPagesTest(unittest.TestCase):
                 self.assertEqual(original, config)
 
     def test_downloader_page_preserves_configuration_contract(self):
-        self.user.pris = "系统设置"
         config = {"pt": {"pt_client": "qbittorrent"}, "qbittorrent": {"qbhost": "downloader.example"}}
         self.settings["Config"].return_value.get_config.return_value = config
 
@@ -311,16 +282,11 @@ class SiteSettingsPagesTest(unittest.TestCase):
         self.assertEqual([{"id": 7, "name": "下载器", "type": "qbittorrent"}], context["Downloaders"])
         self.assertEqual(original, downloaders)
 
-    def test_users_keep_public_action_results_and_count(self):
-        users = [{"name": "viewer", "pris": ["站点管理"]}]
-        action = self.settings["WebAction"].return_value
-        action.get_users.return_value = {"result": users}
-
-        context, _ = self._render("settings_pages", "/users", "setting/users.html")
-
-        action.get_users.assert_called_once_with()
-        self.assertIs(users, context["Users"])
-        self.assertEqual(1, context["UserCount"])
+    def test_user_management_page_is_removed(self):
+        for method in ("GET", "POST"):
+            with self.subTest(method=method):
+                response = self.client.open("/users", method=method)
+                self.assertEqual(404, response.status_code)
 
     def test_tmdbcache_keeps_query_conversion_and_pagination(self):
         helper = self.settings["MetaHelper"].return_value

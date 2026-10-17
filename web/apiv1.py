@@ -61,7 +61,7 @@ Apiv1 = Api(apiv1_bp,
             authorizations={"Bearer Auth": {"type": "apiKey", "name": "Authorization", "in": "header"}},
             )
 # API分组
-user = Apiv1.namespace('user', description='用户')
+user = Apiv1.namespace('user', description='管理员认证')
 system = Apiv1.namespace('system', description='系统')
 config = Apiv1.namespace('config', description='设置')
 site = Apiv1.namespace('site', description='站点')
@@ -112,7 +112,7 @@ class UserLogin(Resource):
             # 如果没填，直接返回错误信息的 JSON
             return {"code": 401, "success": False, "message": "用户名或密码错误"}, 401
             
-        # 去查数据库
+        # 读取配置中的管理员账号
         user_info = User().get_user(username)
         if not user_info:
             return {"code": 401, "success": False, "message": "用户名或密码错误"}, 401
@@ -126,8 +126,6 @@ class UserLogin(Resource):
         token = generate_access_token(username)
         TokenCache.set(token, token) # 把门票存在服务器内存里记一下
         
-        user_pris = str(user_info.pris).split(",")
-        
         # 返回成功的数据包！
         return {
             "code": 0,
@@ -136,8 +134,7 @@ class UserLogin(Resource):
                 "token": token,
                 "userinfo": {
                     "userid": user_info.id,
-                    "username": user_info.username,
-                    "userpris": user_pris
+                    "username": user_info.username
                 }
             }
         }
@@ -157,36 +154,9 @@ class UserInfo(ClientResource):
             "success": True,
             "data": {
                 "userid": user_info.id,
-                "username": user_info.username,
-                "userpris": str(user_info.pris).split(",")
+                "username": user_info.username
             }
         }
-
-
-@user.route('/manage')
-class UserManage(ClientResource):
-    parser = reqparse.RequestParser()
-    parser.add_argument('oper', type=str, help='操作类型（add 新增/del删除）', location='form', required=True)
-    parser.add_argument('name', type=str, help='用户名', location='form', required=True)
-    parser.add_argument('password', type=str, help='新增用户密码（至少 8 位）', location='form')
-    parser.add_argument('pris', type=str, help='权限', location='form')
-
-    @user.doc(parser=parser)
-    def post(self):
-        """
-        用户管理
-        """
-        return WebAction().api_action(cmd='user_manager', data=self.parser.parse_args())
-
-
-@user.route('/list')
-class UserList(ClientResource):
-    @staticmethod
-    def post():
-        """
-        查询所有用户
-        """
-        return WebAction().api_action(cmd='get_users')
 
 
 @service.route('/mediainfo')
