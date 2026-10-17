@@ -450,5 +450,8 @@ class SiteConf:
             'PEER_COUNT': ["//div[@class='ant-form-item-control-input-content']/span[contains(text(),'正在做种: )]"],
         }
     }
+    # 猫站更换主域名后沿用原有 NexusPHP 详情页规则。
+    RSS_SITE_GRAP_CONF['pterclub.net'] = RSS_SITE_GRAP_CONF['pterclub.com']
+
     # 公共BT站点
     PUBLIC_TORRENT_SITES = {}

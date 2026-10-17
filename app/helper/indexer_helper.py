@@ -115,8 +115,12 @@ class IndexerHelper:
                 aliases = [aliases]
             domains = [primary_domain, *aliases]
             if any(StringUtils.url_equal(domain, url) for domain in domains if domain):
-                runtime_domain = StringUtils.get_base_url(url) \
-                    if StringUtils.url_equal(primary_domain, url) else primary_domain
+                # 部分站点的别名需要保留已维护的入口，确保后续下载仍能
+                # 按详情页域名找到对应的 Cookie 或 API Key。
+                preserve_domain = indexer.get("preserve_domain") is True \
+                    or indexer.get("parser") == "MTorrentSpider" \
+                    or StringUtils.url_equal(primary_domain, url)
+                runtime_domain = StringUtils.get_base_url(url) if preserve_domain else primary_domain
                 return IndexerConf(datas=indexer,
                                    cookie=cookie,
                                    name=name,
@@ -159,6 +163,8 @@ class IndexerConf(object):
         self.builtin = builtin
         # 域名
         self.domain = domain or datas.get('domain')
+        # API 地址可与站点网页地址不同（例如 M-Team）。
+        self.api_domain = datas.get('api_domain')
         # 搜索
         self.search = datas.get('search', {})
         # 批量搜索，如果为空对象则表示不支持批量搜索

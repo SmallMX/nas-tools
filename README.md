@@ -80,6 +80,16 @@ docker compose -f docker/compose.yml up -d --build
 
 TMDB、Fanart 和豆瓣等第三方服务的凭据必须由使用者自行获取并配置；本项目不提供或内置第三方 API Key、账号、Cookie。
 
+站点可在“站点维护”中添加，也可先在“设置 → 服务设置 → CookieCloud”保存配置，再同步并自动添加内置目录识别到的站点。以下站点的接入方式为：
+
+| 站点 | 地址 | 凭据 |
+|------|------|------|
+| PlayLet | `https://playlet.cc/` | 站点 Cookie，可通过 CookieCloud 同步 |
+| PTerClub | `https://pterclub.net/` | 站点 Cookie；保留 `pterclub.com` 的旧域名识别 |
+| 馒头 M-Team | `https://kp.m-team.cc/` | 在站点编辑页填写 API Key；CookieCloud 只能添加站点及同步 Cookie，不能代替 API Key |
+
+馒头的 API Key 可在站点的“控制台 → 实验室 → 存取令牌”获取，详情见[官方 API 说明](https://wiki.m-team.cc/zh-tw/api)。搜索、下载和连接测试使用此令牌。
+
 ## 安全提示
 
 - Compose 默认会把端口发布到 `0.0.0.0`。仅本机使用或通过同机反向代理提供服务时，请设置 `NASTOOL_BIND_ADDRESS=127.0.0.1`。

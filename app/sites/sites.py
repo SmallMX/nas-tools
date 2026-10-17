@@ -217,13 +217,26 @@ class Sites:
         site_info = self.get_sites(siteid=site_id)
         if not site_info:
             return False, "站点不存在", 0
-        site_cookie = site_info.get("cookie")
-        if not site_cookie:
-            return False, "未配置站点Cookie", 0
         ua = site_info.get("ua")
         site_url = StringUtils.get_base_url(site_info.get("signurl") or site_info.get("rssurl"))
         if not site_url:
             return False, "未配置站点地址", 0
+        site_cookie = site_info.get("cookie")
+        # M-Team 使用独立 API 和 API Key，网页 Cookie 不能用于接口鉴权。
+        from app.helper.indexer_helper import IndexerHelper
+        indexer = IndexerHelper().get_indexer(url=site_url,
+                                              cookie=site_cookie,
+                                              apikey=site_info.get("apikey"),
+                                              ua=ua,
+                                              proxy=site_info.get("proxy"))
+        if indexer and indexer.parser == "MTorrentSpider":
+            from app.indexer.client._api_spider import MTorrentSpider
+            start_time = datetime.now()
+            success, message = MTorrentSpider(indexer).test_connection()
+            elapsed_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+            return success, message, elapsed_ms
+        if not site_cookie:
+            return False, "未配置站点Cookie", 0
         chrome = ChromeHelper()
         if site_info.get("chrome") and chrome.get_status():
             # 计时

@@ -3,10 +3,11 @@
 sites:
   - id: mteam
     name: 馒头
-    domain: https://m-team.io/
+    domain: https://kp.m-team.cc/
     aliases:
       - https://m-team.cc/
-      - https://kp.m-team.cc/
+      - https://m-team.io/
+    api_domain: https://api.m-team.cc/
     parser: MTorrentSpider
     timeout: 15
 

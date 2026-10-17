@@ -1,0 +1,101 @@
+# 公开适配参考：
+# https://github.com/Jackett/Jackett/blob/c765be1b31d419b97b21dfcdec44f2f86a6056fe/src/Jackett.Common/Definitions/playletpt.yml
+# https://github.com/pt-plugins/PT-depiler/blob/master/src/packages/site/definitions/playletpt.ts
+# 官方搜索契约：https://playlet.cc/opensearch.php
+id: playletpt
+name: PlayLet
+domain: https://playlet.cc/
+preserve_domain: true
+aliases:
+  - https://playletpt.xyz/
+encoding: UTF-8
+search:
+  paths:
+    - path: torrents.php
+      method: get
+  params:
+    search: '{keyword}'
+    search_area: 4
+    incldead: 0
+    spstate: 0
+    sort: 4
+    type: desc
+browse:
+  path: 'torrents.php?page={page}&incldead=0&sort=4&type=desc'
+category:
+  tv:
+    - id: 408
+      cat: TV
+      desc: 短剧/Drama
+    - id: 409
+      cat: TV
+      desc: 漫画/Comedy
+torrents:
+  list:
+    selector: >-
+      table.torrents > tr:has("a[href*='download.php?id=']"),
+      table.torrents > tbody > tr:has("a[href*='download.php?id=']")
+  fields:
+    category:
+      selector: 'a[href*="?cat="]'
+      attribute: href
+      filters:
+        - name: querystring
+          args: cat
+    title_default:
+      selector: 'a[href*="details.php?id="]'
+    title_optional:
+      selector: 'a[title][href*="details.php?id="]'
+      attribute: title
+    title:
+      text: "{{ fields['title_optional'] or fields['title_default'] }}"
+    details:
+      selector: 'a[href*="details.php?id="]'
+      attribute: href
+    download:
+      selector: 'a[href*="download.php?id="]'
+      attribute: href
+    imdbid:
+      selector: 'a[href*="imdb.com/title/tt"]'
+      attribute: href
+      filters:
+        - name: re_search
+          args: ['tt\d+', 0]
+    date_added:
+      selector: 'td.rowfollow:nth-child(4) > span[title]'
+      attribute: title
+    date_elapsed:
+      selector: 'td.rowfollow:nth-child(4):not(:has(span))'
+      filters:
+        - name: replace
+          args: ["\n", ' ']
+    date:
+      text: "{{ fields['date_added'] or fields['date_elapsed'] }}"
+      filters:
+        - name: dateparse
+          args: '%Y-%m-%d %H:%M:%S'
+    size:
+      selector: 'td.rowfollow:nth-child(5)'
+    seeders:
+      selector: 'td.rowfollow:nth-child(6)'
+    leechers:
+      selector: 'td.rowfollow:nth-child(7)'
+    grabs:
+      selector: 'td.rowfollow:nth-child(8)'
+    downloadvolumefactor:
+      case:
+        img.pro_free: 0
+        img.pro_free2up: 0
+        img.pro_50pctdown: 0.5
+        img.pro_50pctdown2up: 0.5
+        img.pro_30pctdown: 0.3
+        '*': 1
+    uploadvolumefactor:
+      case:
+        img.pro_50pctdown2up: 2
+        img.pro_free2up: 2
+        img.pro_2up: 2
+        '*': 1
+    description:
+      selector: 'td.rowfollow:nth-child(2)'
+      remove: 'a, b, font, img, span'

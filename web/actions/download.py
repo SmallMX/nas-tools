@@ -1,10 +1,12 @@
 from pathlib import Path
+import re
+from urllib.parse import urlsplit
 from flask_login import current_user
 import log
 from app.brushtask import BrushTask
 from app.downloader import Downloader
 from app.downloader.client import Qbittorrent, Transmission
-from app.helper import ThreadHelper
+from app.helper import IndexerHelper, ThreadHelper
 from app.media import Media
 from app.media.meta import MetaInfo
 from app.message import Message
@@ -22,6 +24,25 @@ class DownloadActions:
 
     def __init__(self, dbhelper):
         self.dbhelper = dbhelper
+
+    @staticmethod
+    def _mteam_download_link(site_name, page_url):
+        """从已配置站点和详情 ID 重建 API 下载请求，不执行客户端提供的描述。"""
+        page_url = validate_configured_site_url(site_name, page_url)
+        torrent_id = re.fullmatch(r"/detail/([0-9]+)/?", urlsplit(page_url).path)
+        site = next((item for item in Sites().get_sites() or [] if item.get("name") == site_name), {})
+        indexer = IndexerHelper().get_indexer(
+            url=page_url, apikey=site.get("apikey"), ua=site.get("ua"), proxy=site.get("proxy"))
+        if not torrent_id or not indexer or indexer.parser != "MTorrentSpider":
+            raise ValueError("站点不支持此动态下载链接")
+        if not indexer.apikey:
+            raise ValueError("请先在站点维护中配置馒头的 API Key")
+        from app.indexer.client._api_spider import MTorrentSpider
+
+        spider = MTorrentSpider(indexer)
+        if not spider.api_domain:
+            raise ValueError("馒头 API 地址配置无效")
+        return spider._download_url(torrent_id.group(1)), page_url
 
     def download(self, data):
         """
@@ -79,6 +100,8 @@ class DownloadActions:
             if is_valid_btih_magnet(enclosure):
                 if page_url:
                     page_url = validate_configured_site_url(site, page_url)
+            elif Torrent.is_dynamic_download_url(enclosure):
+                enclosure, page_url = DownloadActions._mteam_download_link(site, page_url)
             elif (enclosure.startswith("[") and enclosure.endswith("]")) \
                     or enclosure.startswith("#"):
                 if len(enclosure) > 4096:

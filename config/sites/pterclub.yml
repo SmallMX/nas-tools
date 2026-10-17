@@ -1,0 +1,33 @@
+# 域名与页面结构参考：https://github.com/Jackett/Jackett/blob/master/src/Jackett.Common/Definitions/pterclub.yml
+sites:
+  - id: pterclub
+    domain: https://pterclub.net/
+    preserve_domain: true
+    aliases:
+      - https://pterclub.com/
+    torrents:
+      list:
+        selector: 'table.torrents > tr:has(table.torrentname), table.torrents > tbody > tr:has(table.torrentname)'
+      fields:
+        title:
+          selector: null
+          text: "{{ fields['title_optional'] or fields['title_default'] }}"
+        title_default:
+          selector: 'table.torrentname a[href^="details.php?id="], table.torrentname a[href^="/details.php?id="]'
+        title_optional:
+          selector: 'table.torrentname a[title][href^="details.php?id="], table.torrentname a[title][href^="/details.php?id="]'
+          attribute: title
+        date_elapsed:
+          selector: 'td:has(table.torrentname) + td + td > span[title]'
+          attribute: title
+        date_added:
+          selector: 'td:has(table.torrentname) + td + td'
+          attribute: null
+        size:
+          selector: 'td:has(table.torrentname) + td + td + td'
+        seeders:
+          selector: 'td:has(table.torrentname) + td + td + td + td'
+        leechers:
+          selector: 'td:has(table.torrentname) + td + td + td + td + td'
+        grabs:
+          selector: 'td:has(table.torrentname) + td + td + td + td + td + td'

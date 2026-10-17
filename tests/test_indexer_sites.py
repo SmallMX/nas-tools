@@ -31,7 +31,8 @@ class IndexerSitesTest(unittest.TestCase):
 
         mteam = helper.get_indexer(url="https://kp.m-team.cc/", apikey="secret")
         self.assertEqual("mteam", mteam.id)
-        self.assertEqual("https://m-team.io/", mteam.domain)
+        self.assertEqual("https://kp.m-team.cc", mteam.domain)
+        self.assertEqual("https://api.m-team.cc/", mteam.api_domain)
         self.assertEqual("MTorrentSpider", mteam.parser)
         self.assertEqual("secret", mteam.apikey)
 
@@ -547,6 +548,7 @@ class IndexerSitesTest(unittest.TestCase):
         response = request_utils.return_value.post_res.return_value
         response.status_code = 200
         response.json.return_value = {
+            "code": "0",
             "data": {
                 "data": [{
                     "id": "1",

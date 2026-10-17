@@ -1,7 +1,7 @@
 import base64
 import json
 import re
-from urllib.parse import urlencode, urljoin
+from urllib.parse import urlencode, urljoin, urlsplit
 
 import log
 
@@ -101,6 +101,66 @@ class MTorrentSpider(_ApiSpider):
         "4": "中字", "5": "DIY 中字", "6": "国配 中字", "7": "DIY 国配 中字"
     }
 
+    def __init__(self, indexer):
+        super().__init__(indexer)
+        # 网页可使用 kp 子域或旧域名，API 不应从网页主机直接拼接。
+        api_domain = getattr(indexer, "api_domain", None) or "https://api.m-team.cc/"
+        self.api_domain = None
+        if isinstance(api_domain, str):
+            try:
+                parsed = urlsplit(api_domain)
+                if (parsed.scheme == "https" and parsed.hostname
+                        and not parsed.username and not parsed.password
+                        and not parsed.query and not parsed.fragment
+                        and parsed.path in ("", "/")):
+                    self.api_domain = api_domain.rstrip("/") + "/"
+            except ValueError:
+                pass
+
+    def _post_api(self, path, params=None):
+        if not self.apikey:
+            return None, "未配置馒头 API Key"
+        if not self.api_domain:
+            return None, "馒头 API 地址配置无效"
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/plain, */*",
+            "User-Agent": self.ua,
+            "x-api-key": self.apikey
+        }
+        response = self._request(headers=headers, cookie=False).post_res(
+            url=urljoin(self.api_domain, path), json=params, allow_redirects=False)
+        if response is None:
+            return None, "无法连接馒头 API"
+        try:
+            if response.status_code in (401, 403):
+                return None, "馒头 API Key 无效或权限不足"
+            if response.status_code != 200:
+                return None, f"馒头 API 连接失败，状态码：{response.status_code}"
+            try:
+                payload = response.json()
+            except (TypeError, ValueError):
+                return None, "馒头 API 返回的不是有效 JSON"
+            if not isinstance(payload, dict) or "code" not in payload:
+                return None, "馒头 API 返回数据格式错误"
+            if str(payload.get("code")) != "0":
+                # 不回显服务端错误原文，避免其包含请求凭据或用户信息。
+                return None, "馒头 API 请求失败，请检查 API Key 和站点权限"
+            data = payload.get("data")
+            if not isinstance(data, dict):
+                return None, "馒头 API 返回数据格式错误"
+            return data, ""
+        finally:
+            response.close()
+
+    def test_connection(self):
+        data, error = self._post_api("api/member/profile")
+        if error:
+            return False, error
+        if not data:
+            return False, "馒头 API 未返回用户资料，请检查 API Key"
+        return True, "连接成功"
+
     @staticmethod
     def _download_factor(discount):
         return {
@@ -118,7 +178,7 @@ class MTorrentSpider(_ApiSpider):
         return match.group(0) if match else ""
 
     def _download_url(self, torrent_id):
-        url = f"https://api.{self.host}/api/torrent/genDlToken"
+        url = urljoin(self.api_domain, "api/torrent/genDlToken")
         headers = {
             "User-Agent": self.ua,
             "Accept": "application/json, text/plain, */*",
@@ -150,20 +210,20 @@ class MTorrentSpider(_ApiSpider):
             "pageSize": min(self.result_num, 100),
             "visible": 1
         }
-        headers = {
-            "Content-Type": "application/json",
-            "User-Agent": self.ua,
-            "x-api-key": self.apikey
-        }
-        response = self._request(headers=headers, cookie=False).post_res(
-            url=f"https://api.{self.host}/api/torrent/search", json=params)
-        if not response or response.status_code != 200:
-            self._warn(response)
+        data, error = self._post_api("api/torrent/search", params)
+        if error:
+            log.warn(f"【INDEXER】{self.name} 搜索失败，{error}")
             return []
-        results = self._json(response).get("data", {}).get("data") or []
+        results = data.get("data")
+        if not isinstance(results, list):
+            log.warn(f"【INDEXER】{self.name} 搜索失败，馒头 API 返回数据格式错误")
+            return []
         torrents = []
         for item in results:
-            status = item.get("status") or {}
+            if not isinstance(item, dict):
+                continue
+            status = item.get("status")
+            status = status if isinstance(status, dict) else {}
             discount = status.get("discount")
             labels = item.get("labelsNew") or []
             if not labels:
@@ -189,13 +249,13 @@ class MTorrentSpider(_ApiSpider):
             }
             if status.get("discountEndTime"):
                 torrent["freedate"] = _timestamp(status.get("discountEndTime"))
-            promotion = status.get("promotionRule") or {}
-            if promotion:
+            promotion = status.get("promotionRule")
+            if isinstance(promotion, dict) and promotion:
                 torrent["downloadvolumefactor"] = self._download_factor(promotion.get("discount"))
                 if promotion.get("endTime"):
                     torrent["freedate"] = _timestamp(promotion.get("endTime"))
-            single_free = status.get("mallSingleFree") or {}
-            if single_free.get("status") == "ONGOING":
+            single_free = status.get("mallSingleFree")
+            if isinstance(single_free, dict) and single_free.get("status") == "ONGOING":
                 torrent["downloadvolumefactor"] = 0
                 if single_free.get("endDate"):
                     torrent["freedate"] = _timestamp(single_free.get("endDate"))

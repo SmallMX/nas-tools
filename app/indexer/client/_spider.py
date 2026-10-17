@@ -261,7 +261,7 @@ class TorrentSpider(feapder.AirSpider):
         if 'title' not in self.fields:
             return
         selector = self.fields.get('title', {})
-        if 'selector' in selector:
+        if selector.get('selector'):
             title = torrent(selector.get('selector', '')).clone()
             if "remove" in selector:
                 removelist = selector.get('remove', '').split(', ')
@@ -497,7 +497,7 @@ class TorrentSpider(feapder.AirSpider):
             return
         selector = self.fields.get('date_added', {})
         pubdate = torrent(selector.get('selector', ''))
-        if 'attribute' in selector:
+        if selector.get('attribute'):
             items = [item.attr(selector.get('attribute')) for item in pubdate.items() if item]
         else:
             items = [item.text() for item in pubdate.items() if item]
