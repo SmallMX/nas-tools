@@ -119,10 +119,10 @@ class CookieCloudSchedulerTest(unittest.TestCase):
         self.assertNotIn("test-password", str(self.logs.mock_calls))
         self._assert_other_jobs_unchanged()
 
-    def test_legacy_configuration_without_interval_keeps_sync_manual(self):
+    def test_legacy_configuration_without_interval_uses_three_hour_default(self):
         self.saved.pop("interval")
         self.assertTrue(self.service.reload_cookiecloud_config())
-        self.assertIsNone(self._job())
+        self.assertEqual(10800, self._job().trigger.interval.total_seconds())
         self._assert_other_jobs_unchanged()
 
     def test_reload_before_start_does_not_start_a_scheduler(self):

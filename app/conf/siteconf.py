@@ -68,12 +68,6 @@ class SiteConf:
             'HR': [],
             'PEER_COUNT': ["//div[@id='peercount']/b[1]"],
         },
-        'hdtime.org': {
-            'FREE': ["//h1[@id='top']/b/font[@class='free']"],
-            '2XFREE': ["//h1[@id='top']/b/font[@class='twoupfree']"],
-            'HR': [],
-            'PEER_COUNT': ["//div[@id='peercount']/b[1]"],
-        },
         'www.haidan.video': {
             'FREE': ["//img[@class='pro_free'][@title='免费']"],
             '2XFREE': [],

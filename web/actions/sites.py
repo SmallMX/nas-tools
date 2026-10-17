@@ -11,6 +11,7 @@ from app.sites import Sites, SiteUserInfo, SiteCookie
 from app.sites.cookiecloud import cookiecloud_site_candidates
 from app.utils import StringUtils
 from app.utils.commons import get_singleton_instance
+from config import COOKIECLOUD_SYNC_INTERVAL
 from web.actions.validation import parse_brush_rule, prepare_site_note, validate_site_config_url
 
 
@@ -398,14 +399,14 @@ class SiteActions:
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"请先配置CookieCloud{label}")
             config[field] = value.strip() if field == "key" else value
-        interval = data.get("interval", saved.get("interval", 0))
+        interval = data.get("interval", saved.get("interval", COOKIECLOUD_SYNC_INTERVAL))
         if isinstance(interval, bool) or not isinstance(interval, (str, int)) or not str(interval).strip().isdigit():
             raise ValueError("CookieCloud同步周期必须为 0 到 10080 的整数分钟，0 表示关闭自动同步")
         interval = int(interval)
         if not 0 <= interval <= 10080:
             raise ValueError("CookieCloud同步周期必须为 0 到 10080 的整数分钟，0 表示关闭自动同步")
         config["interval"] = interval
-        return config, {**saved, "interval": saved.get("interval", 0)}
+        return config, {**saved, "interval": saved.get("interval", COOKIECLOUD_SYNC_INTERVAL)}
 
     @staticmethod
     def _save_cookiecloud_config(config):

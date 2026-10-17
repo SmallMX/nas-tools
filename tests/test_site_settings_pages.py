@@ -297,23 +297,30 @@ class SiteSettingsPagesTest(unittest.TestCase):
 
         context, html = self._render("settings_pages", "/service_setting", "setting/basic.html", actual=True)
 
-        self.assertEqual({"server": "", "key": "", "password": "", "interval": 0,
+        self.assertEqual({"server": "", "key": "", "password": "", "interval": 180,
                           "key_configured": False, "password_configured": False}, context["CookieCloudCfg"])
         self.assertIn('data-configured="false"', html)
         self.assertIn('placeholder="填写浏览器插件中的用户 KEY"', html)
-        self.assertIn('value="0" id="cookiecloud_interval"', html)
-        self.assertIn("自动同步已关闭", html)
+        self.assertIn('value="180" id="cookiecloud_interval"', html)
+        self.assertIn("默认 180 分钟（3 小时）", html)
+        self.assertIn("填写配置并保存后生效", html)
+        self.assertNotIn("已保存：每 180 分钟自动同步一次", html)
 
-    def test_cookiecloud_service_settings_keep_existing_configuration_manual_until_enabled(self):
+    def test_cookiecloud_service_settings_default_missing_interval_but_preserve_explicit_zero(self):
         self.settings["Config"].return_value.get_config.return_value = {"app": {}, "pt": {}}
-        self.settings["SystemConfig"].return_value.get_system_config.return_value = {
+        config = {
             "server": "https://cloud.example", "key": "saved-key", "password": "saved-password",
         }
+        for saved, expected in ((config, 180), ({**config, "interval": 0}, 0)):
+            with self.subTest(saved=saved):
+                self.settings["SystemConfig"].return_value.get_system_config.return_value = saved
 
-        context, html = self._render("settings_pages", "/service_setting", "setting/basic.html", actual=True)
+                context, html = self._render("settings_pages", "/service_setting", "setting/basic.html", actual=True)
 
-        self.assertEqual(0, context["CookieCloudCfg"]["interval"])
-        self.assertIn('value="0" id="cookiecloud_interval"', html)
+                self.assertEqual(expected, context["CookieCloudCfg"]["interval"])
+                self.assertIn(f'value="{expected}" id="cookiecloud_interval"', html)
+                if expected == 0:
+                    self.assertIn("已保存：自动同步已关闭", html)
 
     def test_downloader_page_preserves_configuration_contract(self):
         config = {"pt": {"pt_client": "qbittorrent"}, "qbittorrent": {"qbhost": "downloader.example"}}

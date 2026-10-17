@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 from pyquery import PyQuery
 
+from app.conf.siteconf import SiteConf
 from app.helper.indexer_helper import IndexerConf, IndexerHelper
 from app.indexer.client._api_spider import MTorrentSpider
 from app.indexer.client._spider import TorrentSpider
@@ -49,6 +50,48 @@ class IndexerSitesTest(unittest.TestCase):
             {"search": {"params": {"search": "new"}}}
         )
         self.assertEqual({"search": {"params": {"search": "new", "page": 0}}}, merged)
+
+    def test_removed_sites_are_absent_from_builtin_catalog(self):
+        helper = IndexerHelper()
+
+        site_ids = {site.get("id") for site in helper.get_all_indexers()}
+        self.assertTrue({"oshen", "HDTime"}.isdisjoint(site_ids))
+        for url in ("https://www.oshen.win/", "https://oshen.win/",
+                    "https://hdtime.org/", "https://www.hdtime.org/"):
+            with self.subTest(url=url):
+                self.assertIsNone(helper.get_indexer(url=url))
+        self.assertNotIn("hdtime.org", SiteConf.RSS_SITE_GRAP_CONF)
+
+        # 相近名称的站点以及其它内置站点仍可识别。
+        for url in ("https://www.pttime.org/", "https://hdhome.org/"):
+            with self.subTest(url=url):
+                self.assertIsNotNone(helper.get_indexer(url=url))
+
+    def test_removed_sites_can_still_be_defined_by_user(self):
+        helper = IndexerHelper()
+        with tempfile.TemporaryDirectory() as config_dir:
+            sites_dir = Path(config_dir) / "sites"
+            sites_dir.mkdir()
+            (sites_dir / "custom.yml").write_text(
+                "sites:\n"
+                "  - id: oshen\n"
+                "    name: Custom Oshen\n"
+                "    domain: https://www.oshen.win/\n"
+                "  - id: HDTime\n"
+                "    name: Custom HDTime\n"
+                "    domain: https://hdtime.org/\n",
+                encoding="utf-8",
+            )
+            with patch("app.helper.indexer_helper.Config") as config:
+                config.return_value.get_inner_config_path.return_value = str(
+                    Path(__file__).resolve().parents[1] / "config"
+                )
+                config.return_value.get_config_path.return_value = config_dir
+                indexers = helper._IndexerHelper__load_site_overlays(helper.get_all_indexers())
+
+        with patch.object(helper, "_indexers", indexers):
+            self.assertEqual("Custom Oshen", helper.get_indexer("https://www.oshen.win/").name)
+            self.assertEqual("Custom HDTime", helper.get_indexer("https://hdtime.org/").name)
 
     @patch("app.utils.torrent.RequestUtils")
     def test_dynamic_download_url(self, request_utils):

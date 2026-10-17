@@ -40,7 +40,7 @@ class CookieCloudSyncTest(unittest.TestCase):
         original = copy.deepcopy(self.saved)
         result = self.actions.cookiecloud_save({"server": "https://cloud.example/", "key": "", "password": ""})
         self.assertEqual(0, result["code"])
-        self.config.set_system_config.assert_called_once_with(key="CookieCloud", value={**original, "interval": 0})
+        self.config.set_system_config.assert_called_once_with(key="CookieCloud", value={**original, "interval": 180})
         self.assertEqual(original, self.saved)
         self.assertNotIn("saved-key", str(result))
         self.assertNotIn("saved-password", str(result))

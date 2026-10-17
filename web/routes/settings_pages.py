@@ -9,7 +9,7 @@ from app.downloader import Downloader
 from app.helper import MetaHelper
 from app.message import Message
 from app.utils.types import DownloaderType
-from config import Config
+from config import Config, COOKIECLOUD_SYNC_INTERVAL
 from web.security import (
     desensitize_config_dict,
     sanitize_downloader,
@@ -146,7 +146,7 @@ def render_basic_setting(section, title):
         cookie_cloud_cfg = SystemConfig().get_system_config("CookieCloud") or {}
         context["CookieCloudCfg"] = {
             "server": cookie_cloud_cfg.get("server") or "",
-            "interval": cookie_cloud_cfg.get("interval") or 0,
+            "interval": cookie_cloud_cfg.get("interval", COOKIECLOUD_SYNC_INTERVAL),
             "key": "",
             "password": "",
             "key_configured": bool(cookie_cloud_cfg.get("key")),

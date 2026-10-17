@@ -16,7 +16,7 @@ from app.tools.site_signin.config import get_site_signin_config
 from app.utils import ExceptionUtils
 from app.utils.commons import singleton
 from config import METAINFO_SAVE_INTERVAL, REFRESH_PT_DATA_INTERVAL, \
-    META_DELETE_UNKNOWN_INTERVAL, REFRESH_WALLPAPER_INTERVAL
+    META_DELETE_UNKNOWN_INTERVAL, REFRESH_WALLPAPER_INTERVAL, COOKIECLOUD_SYNC_INTERVAL
 from web.backend.wallpaper import get_login_wallpaper
 
 
@@ -60,7 +60,7 @@ class Scheduler:
                 config = SystemConfig().get_system_config("CookieCloud") or {}
                 if not isinstance(config, dict):
                     raise ValueError("invalid config")
-                value = config.get("interval", 0)
+                value = config.get("interval", COOKIECLOUD_SYNC_INTERVAL)
                 if isinstance(value, bool) or not isinstance(value, (int, str)):
                     raise ValueError("invalid interval")
                 interval = int(value)

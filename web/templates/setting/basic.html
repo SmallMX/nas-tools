@@ -1,6 +1,7 @@
 {% import 'macro/ui.html' as UI %}
 {% import 'macro/svg.html' as SVG %}
 {% set CookieCloudCfg = CookieCloudCfg|default({}) %}
+{% set CookieCloudInterval = CookieCloudCfg.interval|default(180) %}
 {{ UI.page_header(SettingTitle, {'system': '配置访问方式、账号与日志，保持系统稳定运行。', 'media': '管理媒体信息来源与识别规则。', 'service': '设置识别服务、CookieCloud 与搜索、下载行为。', 'security': '管理访问来源、会话与接口凭据。', 'laboratory': '按需开启实验功能，调整媒体识别与搜索策略。'}.get(SettingSection, ''), eyebrow='系统设置') }}
 <!-- 业务页面代码 -->
 <div class="page-body">
@@ -388,10 +389,10 @@
               <div class="col-md-6">
                 <div class="mb-3">
                   <label class="form-label required" for="cookiecloud_interval">同步周期（分钟）</label>
-                  <input type="number" value="{{ CookieCloudCfg.interval or 0 }}" id="cookiecloud_interval" class="form-control" min="0" max="10080" step="1" inputmode="numeric" aria-describedby="cookiecloud_interval_help cookiecloud_schedule_status">
+                  <input type="number" value="{{ CookieCloudInterval }}" id="cookiecloud_interval" class="form-control" min="0" max="10080" step="1" inputmode="numeric" aria-describedby="cookiecloud_interval_help cookiecloud_schedule_status">
                   <div class="invalid-feedback">请填写 0–10080 之间的整数，0 表示关闭自动同步。</div>
-                  <div class="form-hint" id="cookiecloud_interval_help">0 关闭自动同步；1–10080 按指定分钟数同步，保存后生效。</div>
-                  <div class="form-hint" id="cookiecloud_schedule_status" role="status">{% if CookieCloudCfg.interval %}已保存：每 {{ CookieCloudCfg.interval }} 分钟自动同步一次。{% else %}已保存：自动同步已关闭。{% endif %}</div>
+                  <div class="form-hint" id="cookiecloud_interval_help">默认 180 分钟（3 小时）；0 关闭自动同步；1–10080 按指定分钟数同步，保存后生效。</div>
+                  <div class="form-hint" id="cookiecloud_schedule_status" role="status">{% if CookieCloudCfg.server and CookieCloudCfg.key_configured and CookieCloudCfg.password_configured %}{% if CookieCloudInterval %}已保存：每 {{ CookieCloudInterval }} 分钟自动同步一次。{% else %}已保存：自动同步已关闭。{% endif %}{% else %}填写配置并保存后生效。{% endif %}</div>
                 </div>
               </div>
             </div>

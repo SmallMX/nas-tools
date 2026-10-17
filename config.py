@@ -24,7 +24,7 @@ RMT_MEDIAEXT = ['.mp4', '.mkv', '.ts', '.iso',
 # 电视剧动漫的分类genre_ids (在 TMDB 的分类体系中 16 代表动漫)
 ANIME_GENREIDS = ['16']
 
-# ===== 各种定时任务的默认执行间隔（单位：秒或小时） =====
+# ===== 各种定时任务的默认执行间隔（单位见各项注释） =====
 # 删种检查时间间隔：1800秒 (半小时)
 AUTO_REMOVE_TORRENTS_INTERVAL = 1800
 # TMDB信息缓存定时保存时间
@@ -37,6 +37,8 @@ BRUSH_REMOVE_TORRENTS_INTERVAL = 300
 META_DELETE_UNKNOWN_INTERVAL = 12
 # 定时刷新壁纸的间隔（小时）
 REFRESH_WALLPAPER_INTERVAL = 1
+# CookieCloud 默认同步间隔（分钟）
+COOKIECLOUD_SYNC_INTERVAL = 180
 
 # ===== 各类外部服务的 API 地址 =====
 # fanart的api，用于拉取高清封面、海报图片
