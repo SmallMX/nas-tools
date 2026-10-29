@@ -157,6 +157,32 @@ VARIANTS = ["recommend?type=SEARCH&title=媒体搜索&keyword=远山", "recommen
             "recommend?type=TV&subtype=bangumi&week=3&title=星期三", "resources?site=1&title=松林影站"]
 
 
+def streaming_filters(provider, category):
+    """Return isolated sample filter rows; values are not a live platform contract."""
+    keys = {"tencent": ("itype", "iarea", "iyear", "ipay"),
+            "iqiyi": ("tag_1", "tag_2", "market_release_date_level", "is_purchase"),
+            "mgtv": ("kind", "area", "year", "chargeInfo")}
+    if provider not in keys:
+        return []
+    sort = [{"value": "hot", "name": "最热"}, {"value": "new", "name": "最新"}]
+    if provider != "mgtv" and category != "children":
+        sort.append({"value": "score", "name": "高分"})
+    categories = DEFINITIONS["DISCOVER_FILTER_CONF"][provider]["category"]["options"]
+    rows = [{"key": "category", "name": "种类", "options": categories, "default": "tv"},
+            {"key": "sort", "name": "排序", "options": sort, "default": "hot"}]
+    genres = [("comedy", "喜剧"), ("mystery", "悬疑")] if category == "movie" else [("urban", "都市"), ("costume", "古装")]
+    if category == "children":
+        genres = [("adventure", "冒险"), ("learning", "益智")]
+    for key, name, values in zip(keys[provider], ("类型", "地区", "年份", "资费"),
+                                 (genres, [("cn", "中国大陆"), ("hk", "中国香港"), ("us", "美国"), ("jp", "日本")],
+                                  [("2026", "2026"), ("2025", "2025"), ("2024", "2024")],
+                                  [("free", "免费"), ("vip", "会员")])):
+        rows.append({"key": key, "name": name, "default": "",
+                     "options": [{"value": "", "name": "全部"}] + [
+                         {"value": f"demo-{category}-{value}", "name": label} for value, label in values]})
+    return rows
+
+
 def page_context(page):
     channels = DEFINITIONS["MESSAGE_CONF"]
     context = dict(
@@ -205,7 +231,10 @@ def page_context(page):
                        SiteErr={}, SiteUserStatistics=STATISTICS, CurrentUpload=85 * GIB, CurrentDownload=24 * GIB,
                        TotalUpload=sum(s["upload"] for s in STATISTICS), TotalDownload=sum(s["download"] for s in STATISTICS),
                        TotalSeeding=sum(s["seeding"] for s in STATISTICS), TotalSeedingSize=sum(s["seeding_size"] for s in STATISTICS))
-    if page in {"tmdb_movie", "tmdb_tv"}: context.update(Type="DISCOVER", SubType="MOV" if page == "tmdb_movie" else "TV", Filter=page, FilterConf=DEFINITIONS["DISCOVER_FILTER_CONF"][page])
+    if page in {"tmdb_movie", "tmdb_tv"}:
+        context.update(Type="DISCOVER", SubType="MOV" if page == "tmdb_movie" else "TV", Filter=page,
+                       FilterConf=DEFINITIONS["DISCOVER_FILTER_CONF"][page],
+                       Params=json.loads(request.args.get("params", "{}")))
     if page in {"tencent", "iqiyi", "mgtv"}:
         params = json.loads(request.args.get("params", "{}"))
         filters = DEFINITIONS["DISCOVER_FILTER_CONF"].get(page, {})
@@ -322,11 +351,15 @@ def create_preview_app():
         try: params = json.loads(request.form.get("data", "{}"))
         except (TypeError, ValueError): return jsonify(code=-1, msg="无效示例参数"), 400
         if not isinstance(params, dict): return jsonify(code=-1, msg="无效示例参数"), 400
+        if cmd == "get_streaming_filters":
+            return jsonify(code=0, Filters=streaming_filters(params.get("source"), params.get("category", "tv")), preview=True)
         if cmd == "get_recommend":
             items = MEDIA if int(params.get("page") or 1) == 1 else []
             if params.get("type") == "STREAMING":
                 provider = params.get("subtype")
+                category = (params.get("params") or {}).get("category", "tv")
                 items = [dict(item, id="", source_id=str(item["id"]),
+                              type="MOV" if category == "movie" else "TV",
                               detail_url=f"https://{provider}.example/preview/{item['id']}",
                               site=PAGES.get(provider, ("示例平台",))[0]) for item in items]
                 return jsonify(code=0, Items=items, has_more=False, preview=True)

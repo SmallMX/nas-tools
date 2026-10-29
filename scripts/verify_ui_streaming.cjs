@@ -15,59 +15,118 @@ const chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
   try {
     const page = await context.newPage();
     const errors = [];
-    page.on("pageerror", error => errors.push(error.message));
-    for (const [provider, title] of [["tencent", "腾讯视频"], ["iqiyi", "爱奇艺"], ["mgtv", "芒果视频"]]) {
-      await page.goto(`${origin}/?next=${provider}`);
-      await page.waitForSelector("#recommend_content normal-card .nt-media-card__link");
-      assert.equal(await page.locator("#recommend_title").textContent(), title);
-      assert.equal(await page.locator(`[data-lit-page="${provider}"]`).getAttribute("aria-current"), "page");
-      const link = page.locator("#recommend_content .nt-media-card__link").first();
-      assert.equal(await link.getAttribute("target"), "_blank");
-      assert.equal(await link.getAttribute("rel"), "noopener noreferrer");
-      assert.match(await link.getAttribute("href"), new RegExp(`^https://${provider}\\.example/preview/`));
-      assert.equal(await page.locator("#recommend_load_more").isHidden(), true);
-      await page.evaluate(() => { window.media_search = (...args) => { window.streamSearchArguments = args; }; });
-      await page.locator("#recommend_content .nt-media-card__search").first().click();
-      assert.deepEqual(await page.evaluate(() => window.streamSearchArguments), ["", "远山来信", "TV"]);
-      await page.locator("#recommend_content normal-card").first().evaluate(card => card.setAttribute("card-detail-url", "javascript:alert(1)"));
-      await page.waitForFunction(() => document.querySelector("#recommend_content .nt-media-card__link").getAttribute("href") === null);
-    }
-    console.log("PASS 三个平台入口、外部详情、资源搜索与不安全链接过滤");
-
-    await page.goto(`${origin}/?next=tencent`);
-    await page.getByRole("button", { name: "最热", exact: true }).click();
-    await page.getByRole("link", { name: "高分", exact: true }).click();
-    await page.getByRole("button", { name: "高分", exact: true }).waitFor();
-    await page.getByRole("button", { name: "电视剧", exact: true }).click();
-    await page.getByRole("link", { name: "少儿", exact: true }).click();
-    await page.getByRole("button", { name: "少儿", exact: true }).waitFor();
-    assert.equal(await page.getByRole("button", { name: "最热", exact: true }).count(), 1);
-    assert.equal(await page.getByRole("link", { name: "高分", exact: true, includeHidden: true }).count(), 0);
-    const selected = await page.evaluate(() => ({ page: window.history.state.page, active: document.querySelector('[data-lit-page="tencent"]').getAttribute("aria-current") }));
-    assert.match(selected.page, /^tencent\?/);
-    assert.deepEqual(JSON.parse(new URLSearchParams(selected.page.split("?")[1]).get("params")), { category: "children", sort: "hot" });
-    assert.equal(selected.active, "page");
-    console.log("PASS 分类筛选保留平台路径，重置排序并隐藏少儿不支持的高分选项");
-
-    let firstAttempt = true;
-    const requestedPages = [];
+    const requests = [];
+    let scenario = "normal";
+    let failedOnce = false;
+    let staleRelease;
+    let staleStarted;
+    const staleReady = new Promise(resolve => { staleStarted = resolve; });
     const card = { id: "", source_id: "one", title: "分页示例", type: "TV", year: "2026", site: "腾讯视频", image: "/preview/art/0/poster.svg", detail_url: "https://tencent.example/preview/one" };
+    page.on("pageerror", error => errors.push(error.message));
     await page.route(url => url.origin === origin && url.pathname === "/do", async route => {
       const form = new URLSearchParams(route.request().postData());
+      const command = form.get("cmd");
       const data = JSON.parse(form.get("data") || "{}");
-      if (form.get("cmd") !== "get_recommend") return route.continue();
+      requests.push({ command, data });
+      if (scenario === "filter-error" && command === "get_streaming_filters" && !failedOnce) {
+        failedOnce = true;
+        return route.fulfill({ contentType: "application/json", body: JSON.stringify({ code: 1, msg: "示例筛选加载失败" }) });
+      }
+      if (scenario === "stale" && command === "get_streaming_filters" && data.source === "tencent") {
+        staleStarted();
+        await new Promise(resolve => { staleRelease = resolve; });
+        return route.fulfill({ contentType: "application/json", body: JSON.stringify({ code: 0, Filters: [{ key: "old", name: "过期筛选", options: [{ value: "old", name: "过期选项" }] }] }) });
+      }
+      if (scenario !== "pagination" || command !== "get_recommend") return route.continue();
       const currentPage = Number(data.page);
-      requestedPages.push(currentPage);
       let result;
-      if (firstAttempt) { firstAttempt = false; result = { code: 1, msg: "示例来源暂不可用" }; }
+      if (!failedOnce) { failedOnce = true; result = { code: 1, msg: "示例来源暂不可用" }; }
       else if (currentPage === 1) result = { code: 0, Items: [card, card], has_more: true };
       else if (currentPage === 2) result = { code: 0, Items: [], has_more: true };
       else result = { code: 0, Items: [card, { ...card, source_id: "two", title: "另一部作品" }], has_more: false };
       await route.fulfill({ contentType: "application/json", body: JSON.stringify(result) });
     });
+
+    const filterRow = key => page.locator(`discovery-filters [data-filter-key="${key}"]`);
+    const filterButton = (key, value) => filterRow(key).locator(`[data-filter-value="${value}"]`);
+    const waitFilters = async () => page.waitForFunction(() => document.querySelectorAll("discovery-filters [data-filter-key]").length === 6);
+    for (const provider of ["tencent", "iqiyi", "mgtv"]) {
+      await page.goto(`${origin}/?next=${provider}`);
+      await waitFilters();
+      await page.waitForSelector("#recommend_content normal-card .nt-media-card__link");
+      assert.equal(await page.locator('[data-lit-page="tmdb_movie"]').getAttribute("aria-current"), "page");
+      assert.equal(await page.locator(`[data-discovery-source="${provider}"]`).getAttribute("aria-current"), "page");
+      assert.equal(await page.locator(".nt-discovery-header").count(), 0);
+      assert.deepEqual(await page.locator(".nt-explore-filter-label").allTextContents(), ["种类", "排序", "类型", "地区", "年份", "资费"]);
+      assert.equal(await filterButton("category", "tv").getAttribute("aria-pressed"), "true");
+      const typeKey = await page.locator(".nt-explore-filter-row").filter({ has: page.locator(".nt-explore-filter-label", { hasText: /^类型$/ }) }).getAttribute("data-filter-key");
+      await filterButton(typeKey, "demo-tv-urban").click();
+      await page.waitForFunction(({ provider, typeKey }) => {
+        const state = window.history.state?.page || "";
+        const params = JSON.parse(new URLSearchParams(state.split("?")[1]).get("params") || "{}");
+        return state.startsWith(provider + "?") && params[typeKey] === "demo-tv-urban";
+      }, { provider, typeKey });
+      await waitFilters();
+      assert.equal(await filterButton(typeKey, "demo-tv-urban").getAttribute("aria-pressed"), "true");
+      await page.waitForFunction(() => document.querySelectorAll("#recommend_content normal-card").length > 0);
+      assert.equal(requests.filter(item => item.command === "get_recommend").at(-1).data.params[typeKey], "demo-tv-urban");
+      await filterButton("sort", "new").click();
+      await waitFilters();
+      await filterButton("category", "movie").click();
+      await waitFilters();
+      await page.waitForFunction(() => document.querySelector('[data-filter-key="category"] [aria-pressed="true"]')?.dataset.filterValue === "movie");
+      const params = await page.evaluate(() => JSON.parse(new URLSearchParams(window.history.state.page.split("?")[1]).get("params")));
+      assert.deepEqual(params, { category: "movie", sort: "hot" });
+      assert.equal(await filterButton(typeKey, "demo-movie-comedy").count(), 1);
+      assert.equal(await filterButton(typeKey, "demo-tv-urban").count(), 0);
+      assert.equal(await filterButton("sort", "hot").getAttribute("aria-pressed"), "true");
+      const link = page.locator("#recommend_content .nt-media-card__link").first();
+      await link.waitFor();
+      assert.equal(await link.getAttribute("target"), "_blank");
+      assert.equal(await link.getAttribute("rel"), "noopener noreferrer");
+      assert.match(await link.getAttribute("href"), new RegExp(`^https://${provider}\\.example/preview/`));
+      await page.evaluate(() => { window.media_search = (...args) => { window.streamSearchArguments = args; }; });
+      await page.locator("#recommend_content .nt-media-card__search").first().click();
+      assert.deepEqual(await page.evaluate(() => window.streamSearchArguments), ["", "远山来信", "MOV"]);
+    }
+    console.log("PASS 三平台多行筛选常显，实际传递子筛选，切换种类清空依赖并重置排序");
+
+    await page.locator('[data-discovery-source="tmdb"]').click();
+    await filterButton("media_type", "MOV").waitFor();
+    await filterButton("media_type", "TV").click();
+    await page.waitForFunction(() => window.history.state?.page === "tmdb_tv");
+    assert.equal(await filterButton("media_type", "TV").getAttribute("aria-pressed"), "true");
+    await page.locator('[data-discovery-source="bangumi"]').click();
+    await page.waitForFunction(() => window.history.state?.page === "bangumi");
+    assert.equal(await page.locator('[data-discovery-source="bangumi"]').getAttribute("aria-current"), "page");
+    assert.equal(await page.locator('[data-lit-page="tmdb_movie"]').getAttribute("aria-current"), "page");
+    console.log("PASS 统一探索来源切换、TMDB电影电视剧切换与Bangumi兼容入口");
+
+    scenario = "filter-error";
+    failedOnce = false;
+    await page.goto(`${origin}/?next=tencent`);
+    await page.getByRole("button", { name: "重新加载筛选", exact: true }).waitFor();
+    assert.equal(await filterButton("category", "movie").isVisible(), true);
+    await page.getByRole("button", { name: "重新加载筛选", exact: true }).click();
+    await waitFilters();
+    assert.equal(await page.getByRole("button", { name: "重新加载筛选", exact: true }).count(), 0);
+    console.log("PASS 筛选加载失败仍可选择种类，并可重试完整筛选");
+
+    scenario = "stale";
+    await page.goto(`${origin}/?next=tencent`);
+    await staleReady;
+    await page.locator('[data-discovery-source="iqiyi"]').click();
+    await waitFilters();
+    staleRelease();
+    await page.waitForFunction(() => document.querySelector('[data-discovery-source="iqiyi"]')?.getAttribute("aria-current") === "page");
+    assert.equal(await page.getByText("过期筛选", { exact: true }).count(), 0);
+    console.log("PASS 切换来源后旧筛选响应不会覆盖新页面");
+
+    scenario = "pagination";
+    failedOnce = false;
+    requests.length = 0;
     await page.goto(`${origin}/?next=tencent`);
     await page.getByRole("button", { name: "重新加载", exact: true }).waitFor();
-    assert.equal(await page.locator("#recommend_status").textContent(), "示例来源暂不可用");
     await page.evaluate(() => { window.hasScrollbar = () => true; });
     await page.getByRole("button", { name: "重新加载", exact: true }).click();
     await page.waitForFunction(() => document.querySelectorAll("#recommend_content normal-card").length === 1);
@@ -76,15 +135,25 @@ const chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
     await page.getByRole("button", { name: "加载更多", exact: true }).click();
     await page.waitForFunction(() => document.querySelectorAll("#recommend_content normal-card").length === 2);
     assert.equal(await page.locator("#recommend_load_more").isHidden(), true);
-    assert.deepEqual(requestedPages, [1, 1, 2, 3]);
+    assert.deepEqual(requests.filter(item => item.command === "get_recommend").map(item => Number(item.data.page)), [1, 1, 2, 3]);
     console.log("PASS 失败重试、来源去重、空中间页继续加载与末页停止");
 
+    scenario = "normal";
+    await page.goto(`${origin}/?next=tencent`);
+    await waitFilters();
+    await page.waitForSelector("#recommend_content normal-card .nt-media-card__link");
+    if (process.env.UI_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.UI_SCREENSHOT_DIR}/nastools-explore-desktop.png`, fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.evaluate(() => document.body.classList.add("theme-dark"));
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
-    assert.equal(await page.locator("#recommend_content .nt-media-card__search").first().isVisible(), true);
+    assert.equal(await filterRow("category").isVisible(), true);
+    assert.equal(await page.locator(".nt-explore-sources").evaluate(element => getComputedStyle(element).overflowX), "auto");
+    assert.equal(await page.locator(".nt-explore-filter-options").first().evaluate(element => element.scrollWidth > element.clientWidth), true);
+    await page.locator('[data-discovery-source="mgtv"]').click();
+    await waitFilters();
+    await page.waitForFunction(() => document.querySelector('[data-discovery-source="mgtv"]')?.getAttribute("aria-current") === "page");
+    if (process.env.UI_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.UI_SCREENSHOT_DIR}/nastools-explore-mobile-dark.png`, fullPage: true });
     assert.deepEqual(errors, []);
-    if (process.env.UI_SCREENSHOT_PATH) await page.screenshot({ path: process.env.UI_SCREENSHOT_PATH, fullPage: true });
-    console.log("PASS 390px 手机深色界面无横向溢出；仅隔离示例，未连接外部服务");
+    console.log("PASS 桌面与390px手机深色界面，来源和筛选行可横滚，无整页横向溢出");
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

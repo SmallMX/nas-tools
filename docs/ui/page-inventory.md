@@ -64,7 +64,9 @@
 
 `discovery/ranking.html` 还分别承载九个现有榜单分区与 Bangumi 周一至周日分区；`setting/basic.html` 通过 `SettingSection` 独立承载 system、media、service、security、laboratory 五个真实页面。每条路由保留独立标题和字段，不能渲染成一个无限长的混合设置页。
 
-三个视频平台使用 `type=STREAMING`，`subtype` 分别为 `tencent`、`iqiyi`、`mgtv`，并以 `params.category`、`params.sort` 保存分类与排序。腾讯包含电视剧、电影、综艺、动漫、少儿、纪录片；爱奇艺包含电视剧、电影、综艺、动漫；芒果视频还包含教育。排序按平台能力提供，腾讯少儿与芒果视频只提供最热、最新。海报链接打开平台详情，“搜索资源”按片名检索，不把平台 ID 传给 TMDB。
+侧栏“探索”以 `/tmdb_movie` 为默认入口，P04、P05、P06、P36–P38 共用来源标签栏；TMDB 的电影与电视剧通过种类行切换，各兼容 URL 继续保留。正文为来源标签、多行筛选标签、媒体列表，不再放置大标题与宣传横幅；“榜单推荐”仍为独立入口。
+
+三个视频平台使用 `type=STREAMING`，`subtype` 分别为 `tencent`、`iqiyi`、`mgtv`，以 `params.category`、`params.sort` 及平台返回的筛选字段保存选择。腾讯包含电视剧、电影、综艺、动漫、少儿、纪录片；爱奇艺包含电视剧、电影、综艺、动漫；芒果视频还包含教育。`get_streaming_filters` 按来源与种类返回排序、类型、地区、年份、资费等真实筛选行；切换种类后清除关联筛选并重置排序，失败提供重试。海报链接打开平台详情，“搜索资源”按片名检索，不把平台 ID 传给 TMDB。
 
 ## 弹层、抽屉与附属画板
 

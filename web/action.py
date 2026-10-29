@@ -70,6 +70,7 @@ class WebAction:
             "get_site_activity": self._sites.get_site_activity,
             "get_site_history": self._sites.get_site_history,
             "get_recommend": self.get_recommend,
+            "get_streaming_filters": self._search.get_streaming_filters,
             "get_downloaded": self.get_downloaded,
             "get_site_seeding_info": self._sites.get_site_seeding_info,
             "clear_tmdb_cache": self._search.clear_tmdb_cache,

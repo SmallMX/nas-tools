@@ -76,34 +76,45 @@ def ranking():
 @search_pages_bp.route('/tmdb_movie', methods=['POST', 'GET'])
 @login_required
 def tmdb_movie():
-    return render_template("discovery/recommend.html",
-                           Type="DISCOVER",
-                           SubType="MOV",
-                           Title="TMDB电影",
-                           Filter="tmdb_movie",
-                           FilterConf=ModuleConf.DISCOVER_FILTER_CONF.get('tmdb_movie'))
+    return _tmdb_discovery("MOV", "TMDB电影", "tmdb_movie")
 
 
 @search_pages_bp.route('/tmdb_tv', methods=['POST', 'GET'])
 @login_required
 def tmdb_tv():
+    return _tmdb_discovery("TV", "TMDB电视剧", "tmdb_tv")
+
+
+def _discovery_params():
+    """读取探索链接中的筛选对象，不执行任何外部请求。"""
+    raw_params = request.args.get("params")
+    try:
+        params = json.loads(raw_params) if raw_params else {}
+    except (TypeError, ValueError) as error:
+        raise ValueError("推荐过滤参数不是有效的 JSON") from error
+    if not isinstance(params, dict):
+        raise ValueError("推荐过滤参数必须是 JSON 对象")
+    return params
+
+
+def _tmdb_discovery(media_type, title, filter_key):
+    """在原探索路径保留 TMDB 筛选与页面导航状态。"""
+    try:
+        params = _discovery_params()
+    except ValueError as error:
+        return str(error), 400
     return render_template("discovery/recommend.html",
-                           Type="DISCOVER",
-                           SubType="TV",
-                           Title="TMDB电视剧",
-                           Filter="tmdb_tv",
-                           FilterConf=ModuleConf.DISCOVER_FILTER_CONF.get('tmdb_tv'))
+                           Type="DISCOVER", SubType=media_type, Title=title,
+                           Filter=filter_key, FilterConf=ModuleConf.DISCOVER_FILTER_CONF.get(filter_key),
+                           Params=params)
 
 
 def _streaming_discovery(provider, title):
     """渲染视频平台的探索列表，并保留筛选条件。"""
-    raw_params = request.args.get("params")
     try:
-        params = json.loads(raw_params) if raw_params else {}
-    except (TypeError, ValueError):
-        return "推荐过滤参数不是有效的 JSON", 400
-    if not isinstance(params, dict):
-        return "推荐过滤参数必须是 JSON 对象", 400
+        params = _discovery_params()
+    except ValueError as error:
+        return str(error), 400
     params = {"category": "tv", "sort": "hot", **params}
     filters = ModuleConf.DISCOVER_FILTER_CONF.get(provider)
     if provider == "tencent" and params.get("category") == "children" and filters and "sort" in filters:

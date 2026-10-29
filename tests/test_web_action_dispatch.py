@@ -20,7 +20,7 @@ from web.security import generate_access_token
 
 # 支持的动作名称快照，按所属领域排列，不从实现生成。
 DOMAIN_COMMANDS = {
-    "_search": """search media_info name_test get_recommend get_search_result search_media_infos
+    "_search": """search media_info name_test get_recommend get_streaming_filters get_search_result search_media_infos
         get_tvseason_list get_categories clear_tmdb_cache delete_tmdb_cache modify_tmdb_cache
         media_detail media_similar media_recommendations media_person person_medias""".split(),
     "_downloads": """sch download download_link download_torrent pt_start pt_stop pt_remove pt_info
@@ -68,7 +68,7 @@ class WebActionDispatchTest(unittest.TestCase):
     def test_active_commands_are_complete_and_bound_to_their_domains(self):
         commands = [command for names in DOMAIN_COMMANDS.values() for command in names]
         commands.extend(TOOL_COMMANDS)
-        self.assertEqual(80, len(commands))
+        self.assertEqual(81, len(commands))
         self.assertEqual(len(commands), len(set(commands)))
         self.assertEqual(set(commands), set(self.action._actions))
         for attribute, names in DOMAIN_COMMANDS.items():

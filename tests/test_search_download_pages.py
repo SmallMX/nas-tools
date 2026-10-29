@@ -79,11 +79,11 @@ class SearchDownloadPageContractTest(unittest.TestCase):
             ("/bangumi", "discovery/ranking.html", {"DiscoveryType": "BANGUMI"}),
             ("/tmdb_movie", "discovery/recommend.html", {
                 "Type": "DISCOVER", "SubType": "MOV", "Title": "TMDB电影",
-                "Filter": "tmdb_movie", "FilterConf": self.filters["tmdb_movie"],
+                "Filter": "tmdb_movie", "FilterConf": self.filters["tmdb_movie"], "Params": {},
             }),
             ("/tmdb_tv", "discovery/recommend.html", {
                 "Type": "DISCOVER", "SubType": "TV", "Title": "TMDB电视剧",
-                "Filter": "tmdb_tv", "FilterConf": self.filters["tmdb_tv"],
+                "Filter": "tmdb_tv", "FilterConf": self.filters["tmdb_tv"], "Params": {},
             }),
         )
         for path, template, expected in cases:
@@ -92,10 +92,19 @@ class SearchDownloadPageContractTest(unittest.TestCase):
                     self.assert_render(path, method, self.search_render, template, expected,
                                        query={"type": "ignored", "page": "9"}, body={"title": "ignored"})
 
+    def test_tmdb_pages_keep_filters_on_their_original_routes(self):
+        params = {"with_genres": "16", "with_original_language": "ja"}
+        for page, subtype, title in (("tmdb_movie", "MOV", "TMDB电影"), ("tmdb_tv", "TV", "TMDB电视剧")):
+            with self.subTest(page=page):
+                self.assert_render(f"/{page}", "GET", self.search_render, "discovery/recommend.html", {
+                    "Type": "DISCOVER", "SubType": subtype, "Title": title,
+                    "Filter": page, "FilterConf": self.filters[page], "Params": params,
+                }, query={"params": json.dumps(params)})
+
     def test_streaming_pages_keep_provider_and_selected_filters(self):
         for provider, title in (("tencent", "腾讯视频"), ("iqiyi", "爱奇艺"), ("mgtv", "芒果视频")):
             for method in ("GET", "POST"):
-                for values in ({}, {"category": "movie", "sort": "new"}):
+                for values in ({}, {"category": "movie", "sort": "new", "year": "2026"}):
                     with self.subTest(provider=provider, method=method, params=values):
                         self.assert_render(f"/{provider}", method, self.search_render,
                                            "discovery/recommend.html", {
@@ -107,7 +116,7 @@ class SearchDownloadPageContractTest(unittest.TestCase):
                             body={"params": "ignored"})
 
     def test_streaming_pages_reject_invalid_filter_objects(self):
-        for provider in ("tencent", "iqiyi", "mgtv"):
+        for provider in ("tencent", "iqiyi", "mgtv", "tmdb_movie", "tmdb_tv"):
             for value in ("{", "[]", "null", "1", '"value"'):
                 with self.subTest(provider=provider, params=value):
                     self.search_render.reset_mock()

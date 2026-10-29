@@ -1,6 +1,7 @@
 import "../../card/media-styles.js";
 import { html, nothing } from "../../utility/lit-core.min.js";
 import { CustomElement, Golbal } from "../../utility/utility.js";
+import "./navigation.js";
 
 export class PageDiscovery extends CustomElement {
   static properties = {
@@ -147,28 +148,35 @@ export class PageDiscovery extends CustomElement {
     const bangumi = this.discovery_type === "BANGUMI";
     const today = String(new Date().getDay() || 7);
     return html`
-      <div class="container-xl nt-discovery-page">
+      <div class="container-xl nt-discovery-page ${bangumi ? "nt-explore-page" : ""}">
+        ${bangumi ? html`
+          <h1 class="visually-hidden">Bangumi 每日放送</h1>
+          <discovery-navigation active-source="bangumi"></discovery-navigation>` : html`
         <header class="nt-discovery-header">
-          <div class="nt-discovery-eyebrow">探索 · ${bangumi ? "BANGUMI" : "DISCOVER"}</div>
-          <h1 class="nt-discovery-title">${bangumi ? "每一天，都有新番陪伴" : "发现下一部好作品"}</h1>
-          <p class="nt-discovery-description">${bangumi ? "按星期浏览每日放送，查看番剧详情，轻松找到想追的故事。" : "从热门榜单到每周新番，找到值得收藏的影视。"}</p>
+          <div class="nt-discovery-eyebrow">探索 · DISCOVER</div>
+          <h1 class="nt-discovery-title">发现下一部好作品</h1>
+          <p class="nt-discovery-description">从热门榜单到每周新番，找到值得收藏的影视。</p>
         </header>
         <div class="nt-discovery-banner">
           <div>
-            <h2>${bangumi ? "你的每周追番日历" : "海量影视资源，发现更多精彩"}</h2>
-            <p>${bangumi ? "选择星期快速定位，点击海报了解作品，搜索资源开始追番。" : "汇聚 TMDB 与豆瓣榜单，按类型、评分和地区探索感兴趣的作品。"}</p>
+            <h2>海量影视资源，发现更多精彩</h2>
+            <p>汇聚 TMDB 与豆瓣榜单，按类型、评分和地区探索感兴趣的作品。</p>
           </div>
           <div class="nt-discovery-banner__actions">
-            ${bangumi ? html`<button type="button" class="btn btn-primary" @click=${() => this._scrollToWeek(today)}>查看今日放送 →</button>` : html`
-              <button type="button" class="btn btn-primary" @click=${() => navmenu("tmdb_movie")}>浏览电影 →</button>
-              <button type="button" class="btn btn-outline-primary" @click=${() => navmenu("tmdb_tv")}>浏览剧集 →</button>`}
+            <button type="button" class="btn btn-primary" @click=${() => navmenu("tmdb_movie")}>浏览电影 →</button>
+            <button type="button" class="btn btn-outline-primary" @click=${() => navmenu("tmdb_tv")}>浏览剧集 →</button>
           </div>
-        </div>
+        </div>`}
         ${bangumi ? html`
-          <nav class="nt-discovery-week" aria-label="按星期浏览每日放送">
-            ${this._media_type_list.BANGUMI.map((item) => html`
-              <button type="button" aria-current=${item.week === today ? "date" : nothing}
-                @click=${() => this._scrollToWeek(item.week)}>${item.title}${item.week === today ? " · 今天" : ""}</button>`)}
+          <nav class="nt-explore-filters" aria-label="按星期浏览每日放送">
+            <div class="nt-explore-filter-row">
+              <span class="nt-explore-filter-label">放送</span>
+              <div class="nt-explore-filter-options">
+                ${this._media_type_list.BANGUMI.map((item) => html`
+                  <button type="button" class="nt-explore-chip" aria-current=${item.week === today ? "date" : nothing}
+                    @click=${() => this._scrollToWeek(item.week)}>${item.title}${item.week === today ? " · 今天" : ""}</button>`)}
+              </div>
+            </div>
           </nav>` : nothing}
         ${this._media_type_list[this.discovery_type]?.map((item) => html`
           <custom-slide data-discovery-week=${item.week || ""}

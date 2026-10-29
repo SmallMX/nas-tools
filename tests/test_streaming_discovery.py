@@ -1,4 +1,5 @@
 import copy
+import json
 import unittest
 from unittest.mock import Mock, patch
 from urllib.parse import parse_qs, urlsplit
@@ -39,7 +40,9 @@ def iqiyi_item(album_id=123, **changes):
 class StreamingDiscoveryTest(unittest.TestCase):
     def setUp(self):
         StreamingDiscovery._cache.clear()
+        StreamingDiscovery._filters_cache.clear()
         self.addCleanup(StreamingDiscovery._cache.clear)
+        self.addCleanup(StreamingDiscovery._filters_cache.clear)
         factory = patch("app.media.streaming.RequestUtils")
         self.addCleanup(factory.stop)
         self.request_factory = factory.start()
@@ -236,8 +239,92 @@ class StreamingDiscoveryTest(unittest.TestCase):
         self.discovery.discover("iqiyi", page=2)
         self.assertEqual(3, self.http.get_res.call_count)
 
+    def test_tencent_dynamic_type_area_and_year_groups_are_cached_per_category(self):
+        payload = tencent_page([])
+        entries = payload["data"]["module_list_datas"][0]["module_datas"][0]["item_data_lists"]["item_datas"]
+        for key, label, value, name in (("itype", "类型", "1", "爱情"), ("iarea", "地区", "0", "内地"),
+                                         ("iyear", "年份", "2026", "2026")):
+            entries.extend([{"item_type": "11", "item_params": {"index_item_key": key, "index_name": label,
+                            "option_value": option, "option_name": text}} for option, text in (("-1", label), (value, name))])
+        self.http.post.return_value = response(payload)
+        groups = self.discovery.filters("tencent")
+        by_key = {group["key"]: group for group in groups}
+        self.assertEqual(["category", "sort", "itype", "iarea", "iyear"], list(by_key))
+        self.assertEqual([{"value": "", "name": "全部"}, {"value": "0", "name": "内地"}], by_key["iarea"]["options"])
+        by_key["itype"]["options"].clear()
+        self.assertEqual(2, len(self.discovery.filters("tencent")[2]["options"]))
+        self.http.post.assert_called_once()
+        self.discovery.filters("tencent", "movie")
+        self.assertEqual(2, self.http.post.call_count)
+
+    def test_mgtv_choices_are_validated_and_extra_filters_reach_the_catalog(self):
+        self.http.get_res.side_effect = [response({"code": 200, "data": {"listItems": [
+            {"eName": "kind", "typeName": "类型", "items": [
+                {"tagId": "a1", "tagName": "全部"}, {"tagId": "3094", "tagName": "爱情"}]}]}}),
+            response({"code": 200, "data": {"hitDocs": [], "hasMore": False}})]
+        self.discovery.discover("mgtv", params={"kind": "3094"})
+        self.assertEqual("3094", self.http.get_res.call_args.kwargs["params"]["kind"])
+        calls = self.http.get_res.call_count
+        with self.assertRaises(StreamingDiscoveryError):
+            self.discovery.discover("mgtv", params={"kind": "unknown"})
+        self.assertEqual(calls, self.http.get_res.call_count)
+
+    def test_iqiyi_uses_legacy_page_ids_and_combines_independent_tag_groups(self):
+        page = response(None)
+        attributes = {
+            ":first-category-list": [{"id": 18002, "name": "地区", "child": [{"id": 15, "name": "内地"}]},
+                                     {"id": 18003, "name": "类型", "child": [{"id": 24, "name": "古装"}]}],
+            ":my-year": {"cid": ["2"], "list": [{"id": "", "name": "全部年份"}, {"id": "2026", "name": "2026"}]},
+            ":pay-status": {"cid": ["2"], "list": [{"id": "0", "name": "免费"}, {"id": "2", "name": "付费"}]},
+        }
+        page.text = '<div is="i71-list-category" ' + ' '.join(
+            f"{key}='{json.dumps(value, ensure_ascii=False)}'" for key, value in attributes.items()) + '></div>'
+        self.http.get_res.side_effect = [page, response({"code": "A00000", "data": {"list": [], "has_next": 0}})]
+        self.discovery.discover("iqiyi", params={"tag_18002": "15", "tag_18003": "24",
+                                               "market_release_date_level": "2026", "is_purchase": "2"})
+        params = self.http.get_res.call_args.kwargs["params"]
+        self.assertEqual("15;must,24;must", params["three_category_id"])
+        self.assertEqual("2026", params["market_release_date_level"])
+        self.assertEqual("1", params["is_purchase"])
+
+    def test_filter_failures_remain_retryable_and_base_catalog_still_works(self):
+        self.http.get_res.return_value = None
+        with self.assertRaises(StreamingDiscoveryError):
+            self.discovery.filters("mgtv")
+        self.http.get_res.return_value = response({"code": 200, "data": {"hitDocs": [], "hasMore": False}})
+        self.assertEqual([], self.discovery.discover("mgtv")["Items"])
+        self.http.get_res.return_value = response({"code": 200, "data": {"listItems": [
+            {"eName": "kind", "typeName": "类型", "items": [{"tagId": "3094", "tagName": "爱情"}]}]}})
+        self.assertIn("kind", [group["key"] for group in self.discovery.filters("mgtv")])
+
+    def test_extra_filters_do_not_share_a_result_cache_entry(self):
+        groups = [{"key": "kind", "options": [{"value": "1"}, {"value": "2"}]}]
+        self.http.get_res.return_value = response({"code": 200, "data": {"hitDocs": [], "hasMore": False}})
+        with patch.object(self.discovery, "filters", return_value=groups):
+            self.discovery.discover("mgtv", params={"kind": "1"})
+            self.discovery.discover("mgtv", params={"kind": "2"})
+            self.discovery.discover("mgtv", params={"kind": "1"})
+        self.assertEqual(2, self.http.get_res.call_count)
+
+    def test_selected_filter_failure_is_not_silently_ignored(self):
+        with patch.object(self.discovery, "filters", side_effect=StreamingDiscoveryError("筛选不可用")):
+            with self.assertRaisesRegex(StreamingDiscoveryError, "筛选不可用"):
+                self.discovery.discover("iqiyi", params={"tag_18002": "15"})
+        self.http.get_res.assert_not_called()
+
 
 class StreamingRecommendationActionTest(unittest.TestCase):
+    def test_filter_action_preserves_groups_and_recoverable_error(self):
+        groups = [{"key": "itype", "name": "类型", "options": [{"value": "1", "name": "爱情"}]}]
+        with patch("web.actions.search.StreamingDiscovery") as factory:
+            factory.return_value.filters.return_value = groups
+            self.assertEqual({"code": 0, "Filters": groups},
+                             SearchActions.get_streaming_filters({"source": "tencent", "category": "movie"}))
+            factory.return_value.filters.assert_called_once_with("tencent", "movie")
+            factory.return_value.filters.side_effect = StreamingDiscoveryError("筛选暂不可用")
+            self.assertEqual({"code": 1, "msg": "筛选暂不可用"},
+                             SearchActions.get_streaming_filters({"source": "tencent"}))
+
     def test_streaming_errors_are_returned_to_the_existing_retry_ui(self):
         actions = SearchActions(Mock(), Mock())
         with patch("web.actions.search.StreamingDiscovery") as factory:

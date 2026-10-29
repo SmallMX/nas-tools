@@ -154,6 +154,15 @@ class SearchActions:
             "org_string": media_info.org_string
         }
 
+    @staticmethod
+    def get_streaming_filters(data):
+        """获取当前平台和种类对应的筛选标签。"""
+        try:
+            fields = StreamingDiscovery().filters(data.get("source"), data.get("category") or "tv")
+        except StreamingDiscoveryError as error:
+            return {"code": 1, "msg": str(error)}
+        return {"code": 0, "Filters": fields}
+
     def get_recommend(self, data):
         Type = data.get("type")
         SubType = data.get("subtype")
