@@ -95,6 +95,49 @@ def tmdb_tv():
                            FilterConf=ModuleConf.DISCOVER_FILTER_CONF.get('tmdb_tv'))
 
 
+def _streaming_discovery(provider, title):
+    """渲染视频平台的探索列表，并保留筛选条件。"""
+    raw_params = request.args.get("params")
+    try:
+        params = json.loads(raw_params) if raw_params else {}
+    except (TypeError, ValueError):
+        return "推荐过滤参数不是有效的 JSON", 400
+    if not isinstance(params, dict):
+        return "推荐过滤参数必须是 JSON 对象", 400
+    params = {"category": "tv", "sort": "hot", **params}
+    filters = ModuleConf.DISCOVER_FILTER_CONF.get(provider)
+    if provider == "tencent" and params.get("category") == "children" and filters and "sort" in filters:
+        filters = {**filters, "sort": {**filters["sort"], "options": [
+            option for option in filters["sort"]["options"] if option["value"] != "score"
+        ]}}
+    return render_template("discovery/recommend.html",
+                           Type="STREAMING",
+                           SubType=provider,
+                           Title=title,
+                           SubTitle="按分类与排序浏览作品，点击海报前往平台详情，或搜索资源。",
+                           Filter=provider,
+                           FilterConf=filters,
+                           Params=params)
+
+
+@search_pages_bp.route('/tencent', methods=['POST', 'GET'])
+@login_required
+def tencent():
+    return _streaming_discovery("tencent", "腾讯视频")
+
+
+@search_pages_bp.route('/iqiyi', methods=['POST', 'GET'])
+@login_required
+def iqiyi():
+    return _streaming_discovery("iqiyi", "爱奇艺")
+
+
+@search_pages_bp.route('/mgtv', methods=['POST', 'GET'])
+@login_required
+def mgtv():
+    return _streaming_discovery("mgtv", "芒果视频")
+
+
 @search_pages_bp.route('/bangumi', methods=['POST', 'GET'])
 @login_required
 def discovery_bangumi():

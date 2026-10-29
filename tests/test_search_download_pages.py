@@ -29,6 +29,9 @@ class SearchDownloadPageContractTest(unittest.TestCase):
             "tmdb_movie": {"genre": ["movie"]},
             "tmdb_tv": {"genre": ["tv"]},
             "custom": {"language": ["zh"]},
+            "tencent": {"category": ["tv", "movie"]},
+            "iqiyi": {"category": ["tv", "movie"]},
+            "mgtv": {"category": ["tv", "movie"]},
         }
         self._patch("web.routes.search_pages.ModuleConf.DISCOVER_FILTER_CONF", self.filters)
 
@@ -88,6 +91,29 @@ class SearchDownloadPageContractTest(unittest.TestCase):
                 with self.subTest(path=path, method=method):
                     self.assert_render(path, method, self.search_render, template, expected,
                                        query={"type": "ignored", "page": "9"}, body={"title": "ignored"})
+
+    def test_streaming_pages_keep_provider_and_selected_filters(self):
+        for provider, title in (("tencent", "腾讯视频"), ("iqiyi", "爱奇艺"), ("mgtv", "芒果视频")):
+            for method in ("GET", "POST"):
+                for values in ({}, {"category": "movie", "sort": "new"}):
+                    with self.subTest(provider=provider, method=method, params=values):
+                        self.assert_render(f"/{provider}", method, self.search_render,
+                                           "discovery/recommend.html", {
+                            "Type": "STREAMING", "SubType": provider, "Title": title,
+                            "SubTitle": "按分类与排序浏览作品，点击海报前往平台详情，或搜索资源。",
+                            "Filter": provider, "FilterConf": self.filters[provider],
+                            "Params": {"category": "tv", "sort": "hot", **values},
+                        }, query={"params": json.dumps(values), "subtype": "ignored"},
+                            body={"params": "ignored"})
+
+    def test_streaming_pages_reject_invalid_filter_objects(self):
+        for provider in ("tencent", "iqiyi", "mgtv"):
+            for value in ("{", "[]", "null", "1", '"value"'):
+                with self.subTest(provider=provider, params=value):
+                    self.search_render.reset_mock()
+                    response = self.client.get(f"/{provider}", query_string={"params": value})
+                    self.assertEqual(400, response.status_code)
+                    self.search_render.assert_not_called()
 
     def test_media_and_person_pages_use_only_query_parameters(self):
         cases = (

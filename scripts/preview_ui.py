@@ -136,6 +136,8 @@ def search_results():
 PAGES = {
     "ranking": ("榜单推荐", "discovery/ranking.html"), "tmdb_movie": ("TMDB 电影", "discovery/recommend.html"),
     "tmdb_tv": ("TMDB 电视剧", "discovery/recommend.html"), "bangumi": ("每日放送", "discovery/ranking.html"),
+    "tencent": ("腾讯视频", "discovery/recommend.html"), "iqiyi": ("爱奇艺", "discovery/recommend.html"),
+    "mgtv": ("芒果视频", "discovery/recommend.html"),
     "recommend": ("推荐列表", "discovery/recommend.html"), "media_detail": ("媒体详情", "discovery/mediainfo.html"),
     "discovery_person": ("演员阵容", "discovery/person.html"), "search": ("资源搜索", "search.html"),
     "site": ("站点维护", "site/site.html"), "sitelist": ("站点资源", "site/sitelist.html"),
@@ -204,6 +206,17 @@ def page_context(page):
                        TotalUpload=sum(s["upload"] for s in STATISTICS), TotalDownload=sum(s["download"] for s in STATISTICS),
                        TotalSeeding=sum(s["seeding"] for s in STATISTICS), TotalSeedingSize=sum(s["seeding_size"] for s in STATISTICS))
     if page in {"tmdb_movie", "tmdb_tv"}: context.update(Type="DISCOVER", SubType="MOV" if page == "tmdb_movie" else "TV", Filter=page, FilterConf=DEFINITIONS["DISCOVER_FILTER_CONF"][page])
+    if page in {"tencent", "iqiyi", "mgtv"}:
+        params = json.loads(request.args.get("params", "{}"))
+        filters = DEFINITIONS["DISCOVER_FILTER_CONF"].get(page, {})
+        if page == "tencent" and params.get("category") == "children" and "sort" in filters:
+            filters = {**filters, "sort": {**filters["sort"], "options": [
+                option for option in filters["sort"]["options"] if option["value"] != "score"
+            ]}}
+        context.update(Type="STREAMING", SubType=page, Filter=page,
+                       SubTitle="按分类与排序浏览作品，点击海报前往平台详情，或搜索资源。",
+                       FilterConf=filters,
+                       Params={"category": "tv", "sort": "hot", **params})
     if page == "downloaded": context.update(Type="DOWNLOADED")
     return context
 
@@ -310,7 +323,14 @@ def create_preview_app():
         except (TypeError, ValueError): return jsonify(code=-1, msg="无效示例参数"), 400
         if not isinstance(params, dict): return jsonify(code=-1, msg="无效示例参数"), 400
         if cmd == "get_recommend":
-            return jsonify(code=0, Items=MEDIA if int(params.get("page") or 1) == 1 else [], preview=True)
+            items = MEDIA if int(params.get("page") or 1) == 1 else []
+            if params.get("type") == "STREAMING":
+                provider = params.get("subtype")
+                items = [dict(item, id="", source_id=str(item["id"]),
+                              detail_url=f"https://{provider}.example/preview/{item['id']}",
+                              site=PAGES.get(provider, ("示例平台",))[0]) for item in items]
+                return jsonify(code=0, Items=items, has_more=False, preview=True)
+            return jsonify(code=0, Items=items, preview=True)
         if cmd == "media_detail":
             detail = dict(MEDIA[0], tmdbid=1, background=["/preview/art/0/backdrop.svg"], runtime="128 分钟", genres="剧情 / 冒险",
                           link="", douban_link="", crews=[{"导演": "陈远（示例）"}, {"编剧": "林川（示例）"}],

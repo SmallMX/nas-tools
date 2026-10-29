@@ -1,6 +1,6 @@
 # Web 页面与状态清单
 
-清单以 [主路由](../../web/main.py)、[工具路由](../../web/routes/tool_pages.py)、Jinja 模板与 Lit 组件为依据。共有 **30 个应用页面 URL**：根路径 `/` 分别承载登录与已登录外壳，因此对应 **31 个应用视图**；再加 **403 / 404 / 500 三个错误视图**及 **一个独立 Swagger 文档视图**，提示词共编号 P01–P35。
+清单以 [主路由](../../web/main.py)、[工具路由](../../web/routes/tool_pages.py)、Jinja 模板与 Lit 组件为依据。共有 **33 个应用页面 URL**：根路径 `/` 分别承载登录与已登录外壳，因此对应 **34 个应用视图**；再加 **403 / 404 / 500 三个错误视图**及 **一个独立 Swagger 文档视图**，提示词共编号 P01–P38。
 
 应用仅支持配置中的一个管理员账号，登录后可使用全部业务页面和操作。API JSON 响应、上传、目录数据、健康检查和 Webhook 不作为普通页面重复计数，目录选择等可视交互计入弹层清单。
 
@@ -43,6 +43,9 @@
 | P33 | 404 页面不存在 | `404 错误处理器` | [404.html](../../web/templates/404.html) | 错误处理 |
 | P34 | 500 服务异常 | `500 错误处理器` | [500.html](../../web/templates/500.html) | 错误处理 |
 | P35 | Swagger API 文档 | `/api/v1/` | [web/apiv1.py](../../web/apiv1.py) | 文档及 API 执行遵循现有鉴权 |
+| P36 | 腾讯视频 | `/tencent?params=` | [discovery/recommend.html](../../web/templates/discovery/recommend.html) | 管理员登录 |
+| P37 | 爱奇艺 | `/iqiyi?params=` | [discovery/recommend.html](../../web/templates/discovery/recommend.html) | 管理员登录 |
+| P38 | 芒果视频 | `/mgtv?params=` | [discovery/recommend.html](../../web/templates/discovery/recommend.html) | 管理员登录 |
 
 ## 动态页面不可遗漏的变体
 
@@ -60,6 +63,8 @@
 | V08 | 近期下载来源 | `type=DOWNLOADED；独立入口 /downloaded` | 日期和来源站点 |
 
 `discovery/ranking.html` 还分别承载九个现有榜单分区与 Bangumi 周一至周日分区；`setting/basic.html` 通过 `SettingSection` 独立承载 system、media、service、security、laboratory 五个真实页面。每条路由保留独立标题和字段，不能渲染成一个无限长的混合设置页。
+
+三个视频平台使用 `type=STREAMING`，`subtype` 分别为 `tencent`、`iqiyi`、`mgtv`，并以 `params.category`、`params.sort` 保存分类与排序。腾讯包含电视剧、电影、综艺、动漫、少儿、纪录片；爱奇艺包含电视剧、电影、综艺、动漫；芒果视频还包含教育。排序按平台能力提供，腾讯少儿与芒果视频只提供最热、最新。海报链接打开平台详情，“搜索资源”按片名检索，不把平台 ID 传给 TMDB。
 
 ## 弹层、抽屉与附属画板
 

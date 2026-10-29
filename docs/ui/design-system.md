@@ -82,6 +82,10 @@
 
 Jinja 页面使用 [macro/ui.html](../../web/templates/macro/ui.html) 的 `UI.page_header(title, description='', eyebrow='', title_id='', count=none, description_id='')`，操作区通过 call block 传入；分区使用 `UI.section_heading(title, description='')`，空状态可使用 `UI.empty_state(title, description='')`。保留 `title_id`、`description_id` 能让动态文字绑定继续工作，避免在新标题外再留一份隐藏旧标题。
 
+`normal-card` 的 `card-detail-url` 可为视频平台提供 HTTP(S) 详情链接，使用新标签页并设置 `noopener noreferrer`；链接无效时不能导航到未知地址。平台列表的 `source_id` 仅用于去重，不能作为 TMDB ID。卡片继续保留独立的“搜索资源”按钮，以片名和影视类型发起检索。
+
+视频平台探索页复用推荐列表的加载、空、失败与重试状态。分类和排序选择写入该平台自身路由的 `params`，保留导航高亮；`has_more=false` 表示已到末页，部分条目过滤后的空页仍可继续加载。列表只显示已加载数量，不据此推算平台总量。
+
 ## 交互与状态
 
 ### 加载与错误

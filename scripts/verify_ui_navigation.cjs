@@ -10,7 +10,7 @@ if (!["127.0.0.1", "localhost"].includes(new URL(origin).hostname)) {
   throw new Error("导航验证仅允许本地只读预览。");
 }
 const chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const pages = ["ranking", "tmdb_movie", "tmdb_tv", "bangumi", "search", "site", "statistics",
+const pages = ["ranking", "tmdb_movie", "tmdb_tv", "tencent", "iqiyi", "mgtv", "bangumi", "search", "site", "statistics",
   "brushtask", "sitelist", "downloading", "downloaded", "torrent_remove", "tools", "service",
   "basic", "media_setting", "service_setting", "security_setting", "laboratory_setting",
   "notification", "downloader"];

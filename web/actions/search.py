@@ -5,6 +5,7 @@ import cn2an
 from app.helper import MetaHelper
 from app.media import Category, Media, Bangumi, DouBan
 from app.media.meta import MetaInfo, MetaBase
+from app.media.streaming import StreamingDiscovery, StreamingDiscoveryError
 from app.utils import StringUtils, ExceptionUtils
 from app.utils.types import MediaType, MovieTypes
 from web.backend.search_torrents import search_medias_for_web
@@ -157,6 +158,13 @@ class SearchActions:
         Type = data.get("type")
         SubType = data.get("subtype")
         CurrentPage = data.get("page")
+        if Type == "STREAMING":
+            try:
+                result = StreamingDiscovery().discover(SubType, page=CurrentPage if CurrentPage is not None else 1,
+                                                       params=data.get("params"))
+            except StreamingDiscoveryError as error:
+                return {"code": 1, "msg": str(error), "Items": []}
+            return {"code": 0, **result}
         if not CurrentPage:
             CurrentPage = 1
         else:

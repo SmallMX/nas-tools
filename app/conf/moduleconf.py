@@ -260,6 +260,55 @@ class ModuleConf(object):
 
     # 发现过滤器
     DISCOVER_FILTER_CONF = {
+        "tencent": {
+            "category": {
+                "name": "分类", "type": "dropdown",
+                "options": [{"value": "tv", "name": "电视剧"},
+                            {"value": "movie", "name": "电影"},
+                            {"value": "variety", "name": "综艺"},
+                            {"value": "anime", "name": "动漫"},
+                            {"value": "children", "name": "少儿"},
+                            {"value": "documentary", "name": "纪录片"}]
+            },
+            "sort": {
+                "name": "排序", "type": "dropdown",
+                "options": [{"value": "hot", "name": "最热"},
+                            {"value": "new", "name": "最新"},
+                            {"value": "score", "name": "高分"}]
+            }
+        },
+        "iqiyi": {
+            "category": {
+                "name": "分类", "type": "dropdown",
+                "options": [{"value": "tv", "name": "电视剧"},
+                            {"value": "movie", "name": "电影"},
+                            {"value": "variety", "name": "综艺"},
+                            {"value": "anime", "name": "动漫"}]
+            },
+            "sort": {
+                "name": "排序", "type": "dropdown",
+                "options": [{"value": "hot", "name": "最热"},
+                            {"value": "new", "name": "最新"},
+                            {"value": "score", "name": "高分"}]
+            }
+        },
+        "mgtv": {
+            "category": {
+                "name": "分类", "type": "dropdown",
+                "options": [{"value": "tv", "name": "电视剧"},
+                            {"value": "movie", "name": "电影"},
+                            {"value": "variety", "name": "综艺"},
+                            {"value": "anime", "name": "动漫"},
+                            {"value": "children", "name": "少儿"},
+                            {"value": "documentary", "name": "纪录片"},
+                            {"value": "education", "name": "教育"}]
+            },
+            "sort": {
+                "name": "排序", "type": "dropdown",
+                "options": [{"value": "hot", "name": "最热"},
+                            {"value": "new", "name": "最新"}]
+            }
+        },
         "tmdb_movie": {
             "with_genres": {
                 "name": "类型",

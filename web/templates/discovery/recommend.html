@@ -32,7 +32,7 @@
   let CurrentPage = {{ (CurrentPage or 1)|tojson }};
 
   // 类型
-  // MOV/TV/BANGUMI/SEARCH/DOWNLOADED/TRENDING/DISCOVER/DOUBANTAG
+  // MOV/TV/BANGUMI/SEARCH/DOWNLOADED/TRENDING/DISCOVER/DOUBANTAG/STREAMING
   const Type = {{ (Type or "")|tojson }};
 
   // 子类型
@@ -97,8 +97,10 @@
 
   function create_recommend_card(item) {
     const card = document.createElement("normal-card");
+    if (Type === "STREAMING" && item.source_id) card.dataset.sourceId = String(item.source_id);
     const attributes = {
       "card-tmdbid": item.id,
+      "card-detail-url": Type === "STREAMING" ? item.detail_url : undefined,
       "card-mediatype": item.type,
       "card-showsub": "1",
       "card-image": item.image,
@@ -124,6 +126,7 @@
   var loading = false;
   var recommend_finished = false;
   var recommend_failed = false;
+  const displayedSourceIds = new Set(Array.from(document.querySelectorAll("#recommend_content normal-card[data-source-id]"), card => card.dataset.sourceId));
 
   function update_recommend_status(message, actionLabel) {
     const status = document.getElementById("recommend_status");
@@ -164,11 +167,17 @@
         update_recommend_status(ret?.msg || "影视加载失败，请检查网络后重试。", "重新加载");
         return;
       }
-      const items = ret.Items;
-      if (items.length > 0) {
+      const items = ret.Items.filter(item => {
+        if (Type !== "STREAMING" || !item?.source_id) return true;
+        const id = String(item.source_id);
+        if (displayedSourceIds.has(id)) return false;
+        displayedSourceIds.add(id);
+        return true;
+      });
+      if (items.length > 0 || ret.has_more === true) {
         CurrentPage++;
         sessionStorage.CurrentPage = CurrentPage;
-        page_card_num = items.length;
+        page_card_num = items.length || 20;
         const fragment = document.createDocumentFragment();
         for (const item of items) fragment.appendChild(create_recommend_card(item || {}));
         requestContainer.appendChild(fragment);
@@ -179,6 +188,7 @@
           if (emptyTemplate) requestContainer.replaceChildren(emptyTemplate.content.cloneNode(true));
         }
       }
+      if (ret.has_more === false) recommend_finished = true;
       const count = requestContainer.querySelectorAll("normal-card").length;
       const reachedLimit = CurrentPage > 10;
       update_recommend_status(
@@ -188,7 +198,7 @@
         recommend_finished || reachedLimit ? "" : "加载更多"
       );
       window_history();
-      if (items.length > 0 && !reachedLimit) loading_data_max();
+      if (items.length > 0 && !recommend_finished && !reachedLimit) loading_data_max();
     });
   }
 
@@ -210,6 +220,7 @@
   // 带过滤参数刷新页面
   function filter_refresh(filterkey, value) {
     Params[filterkey] = value;
+    if (Type === "STREAMING" && filterkey === "category") Params.sort = "hot";
     const params = new URLSearchParams({
       type: String(Type || ""),
       subtype: String(SubType || ""),
@@ -218,7 +229,11 @@
       filter: String(Filter || ""),
       params: JSON.stringify(Params || {}),
     });
-    navmenu(`recommend?${params.toString()}`);
+    if (Type === "STREAMING" && ["tencent", "iqiyi", "mgtv"].includes(SubType)) {
+      navmenu(`${SubType}?${new URLSearchParams({params: JSON.stringify(Params)})}`);
+    } else {
+      navmenu(`recommend?${params.toString()}`);
+    }
   }
 
 

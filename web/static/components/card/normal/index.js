@@ -6,6 +6,7 @@ import { CustomElement, Golbal } from "../../utility/utility.js";
 export class NormalCard extends CustomElement {
   static properties = {
     tmdb_id: { attribute: "card-tmdbid" },
+    detail_url: { attribute: "card-detail-url" },
     res_type: { attribute: "card-restype" },
     media_type: { attribute: "card-mediatype" },
     show_sub: { attribute: "card-showsub" },
@@ -38,12 +39,25 @@ export class NormalCard extends CustomElement {
 
   render() {
     const detailPath = Golbal.build_nav_path("media_detail", { type: this.media_type, id: this.tmdb_id });
+    let externalUrl = "";
+    if (this.detail_url) {
+      try {
+        const url = new URL(this.detail_url);
+        if (["https:", "http:"].includes(url.protocol) && !url.username && !url.password) externalUrl = url.href;
+      } catch (_) { /* Invalid platform links must not become navigable URLs. */ }
+    }
+    const detailAvailable = Boolean(externalUrl || this.tmdb_id);
     const title = this.title || "未命名影视";
     const meta = [this.year, this.site || this.res_type].filter(Boolean).join(" · ");
     return html`
       <article class="nt-media-card">
-        <a class="nt-media-card__link" href=${Golbal.build_nav_path("/", { next: detailPath })} aria-label=${`查看《${title}》详情`}
+        <a class="nt-media-card__link" href=${externalUrl || (detailAvailable ? Golbal.build_nav_path("/", { next: detailPath }) : nothing)}
+          target=${externalUrl ? "_blank" : nothing} rel=${externalUrl ? "noopener noreferrer" : nothing}
+          aria-disabled=${detailAvailable ? nothing : "true"}
+          aria-label=${externalUrl ? `在${this.site || "视频平台"}查看《${title}》详情（新标签页）` : `查看《${title}》详情`}
           @click=${(event) => {
+            if (!detailAvailable) { event.preventDefault(); return; }
+            if (externalUrl) return;
             if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
             event.preventDefault();
             navmenu(detailPath);

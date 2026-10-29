@@ -751,10 +751,10 @@ class ConfigInfo(ClientResource):
 class RecommendList(ClientResource):
     parser = reqparse.RequestParser()
     parser.add_argument('type', type=str,
-                        help='内容类型（MOV/TV/SEARCH/DOWNLOADED/TRENDING/DISCOVER/DOUBANTAG）',
+                        help='内容类型（MOV/TV/SEARCH/DOWNLOADED/TRENDING/DISCOVER/DOUBANTAG/STREAMING）',
                         location='form', required=True)
     parser.add_argument('subtype', type=str,
-                        help='子类型（hm/ht/nm/nt/dbom/dbhm/dbht/dbdh/dbnm/dbtop/dbzy/bangumi 等）',
+                        help='子类型（hm/ht/nm/nt/dbom/dbhm/dbht/dbdh/dbnm/dbtop/dbzy/bangumi；STREAMING 使用 tencent/iqiyi/mgtv）',
                         location='form')
     parser.add_argument('page', type=int, help='页码', location='form', default=1)
     parser.add_argument('week', type=str, help='星期', location='form')

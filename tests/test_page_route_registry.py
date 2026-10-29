@@ -50,7 +50,7 @@ EXPECTED_ROUTES = {
         /downloading /laboratory_setting /media_detail /media_setting /notification /ranking
         /recommend /resources /search /security_setting /service /service_setting /site /sitelist
         /statistics /tmdb_movie /tmdb_tv /tmdbcache /tools /tools/site-signin /torrent_remove
-        /userdownloader
+        /userdownloader /tencent /iqiyi /mgtv
     """.split(),
 }
 
@@ -63,6 +63,9 @@ PAGE_ROUTES = {
         ("/tmdb_movie", "tmdb_movie"),
         ("/tmdb_tv", "tmdb_tv"),
         ("/bangumi", "discovery_bangumi"),
+        ("/tencent", "tencent"),
+        ("/iqiyi", "iqiyi"),
+        ("/mgtv", "mgtv"),
         ("/media_detail", "media_detail"),
         ("/discovery_person", "discovery_person"),
     ),
@@ -98,11 +101,11 @@ class PageRouteRegistryTest(unittest.TestCase):
     def test_expected_urls_and_methods_are_registered(self):
         expected = Counter((url, methods) for methods, urls in EXPECTED_ROUTES.items() for url in urls)
         actual = Counter((rule.rule, tuple(sorted(rule.methods))) for rule in main.App.url_map.iter_rules())
-        self.assertEqual(116, expected.total())
+        self.assertEqual(119, expected.total())
         self.assertEqual(expected, actual)
 
     def test_pages_use_explicit_blueprint_endpoints_without_changing_paths(self):
-        self.assertEqual(27, sum(map(len, PAGE_ROUTES.values())))
+        self.assertEqual(30, sum(map(len, PAGE_ROUTES.values())))
         with main.App.test_request_context():
             for blueprint, routes in PAGE_ROUTES.items():
                 self.assertEqual(f"web.routes.{blueprint}", main.App.blueprints[blueprint].import_name)
