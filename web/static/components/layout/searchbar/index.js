@@ -49,6 +49,7 @@ export class LayoutSearchbar extends CustomElement {
     super.connectedCallback();
     this._shortcut = (event) => {
       if (!event.isComposing && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        if (document.querySelector('.modal.show, .offcanvas.show, dialog[open]')) return;
         event.preventDefault();
         this.input?.focus();
       }

@@ -40,6 +40,27 @@
         <button class="btn" type="button" data-nt-click="reset-download-filters">重置筛选</button>
         <p class="text-muted mb-0 nt-download-filter-summary" id="download_filter_summary" role="status" aria-live="polite"></p>
       </div>
+      <div class="nt-download-bulk-bar" role="group" aria-label="批量控制下载任务">
+        <button class="btn" type="button" id="download_select_visible" data-nt-click="select-visible-downloads">选择可见任务</button>
+        <button class="btn" type="button" id="download_clear_selection" data-nt-click="clear-download-selection" disabled>清空选择</button>
+        <button class="btn btn-outline-primary" type="button" id="download_bulk_pause" data-nt-click="pause-selected-downloads" disabled>暂停所选</button>
+        <button class="btn btn-outline-primary" type="button" id="download_bulk_start" data-nt-click="start-selected-downloads" disabled>继续所选</button>
+        <p class="text-muted mb-0 nt-download-selection-summary" id="download_selection_summary" role="status" aria-live="polite">已选 0 项；仅操作当前可见的已选任务。</p>
+      </div>
+      <section class="card nt-download-bulk-results mb-3" id="download_bulk_results" aria-labelledby="download_bulk_title" hidden>
+        <div class="card-header">
+          <h2 class="card-title mb-0" id="download_bulk_title">批量操作结果</h2>
+          <div class="btn-list ms-auto">
+            <button class="btn btn-sm" type="button" id="download_bulk_stop" data-nt-click="stop-download-batch" hidden>停止后续操作</button>
+            <button class="btn btn-sm" type="button" id="download_bulk_retry" data-nt-click="retry-download-batch" hidden>重试失败项</button>
+          </div>
+        </div>
+        <div class="card-body py-3">
+          <p id="download_bulk_summary" class="mb-1" role="status" aria-live="polite"></p>
+          <p class="text-muted mb-0">成功表示下载器已接受操作；任务状态以刷新后的结果为准。</p>
+        </div>
+        <ul class="list-group list-group-flush" id="download_bulk_items"></ul>
+      </section>
       <div class="alert alert-warning nt-download-poll-status" id="download_poll_status" hidden>
         <span id="download_poll_message"></span>
         <button class="btn btn-sm" type="button" data-nt-click="refresh-downloads">立即刷新</button>
@@ -53,6 +74,12 @@
                data-download-state="{{ 'paused' if Paused else 'complete' if Complete else 'active' if Torrent.state == 'Downloading' else 'unknown' }}">
             <div class="card-body">
               <div class="nt-download-row">
+                {% if not Torrent.nomenu %}
+                  <label class="nt-download-select">
+                    <input class="form-check-input m-0" type="checkbox" data-download-select="{{ Torrent.id }}"
+                           data-nt-change="select-download" aria-label="选择任务 {{ Torrent.title }}">
+                  </label>
+                {% endif %}
                 {% if Torrent.image %}
                   <img src="{{ Torrent.image }}" class="nt-download-poster" alt="" loading="lazy">
                 {% endif %}
@@ -131,17 +158,205 @@
     element => [element.dataset.downloadId, element]));
   const queryInput = document.getElementById('download_task_query');
   const stateInput = document.getElementById('download_task_state');
+  const selectedDownloads = new Set();
+  let selectionNotice = '';
+  let batchRunning = false;
+  let batchStopRequested = false;
+  let batchCommand = '';
+  let batchResults = [];
+  let singleRequests = 0;
+  const batchResultNodes = new Map();
+  const batchLocks = new Map();
+
+  function is_current_download_page() {
+    return NasToolsUI.pageVersion === pageVersion;
+  }
+
+  function update_download_selection() {
+    const summary = document.getElementById('download_selection_summary');
+    if (!summary) return;
+    let visibleCount = 0;
+    tasks.forEach((task, id) => {
+      const checkbox = task.querySelector('[data-download-select]');
+      if (!checkbox) return;
+      if (!task.hidden) visibleCount += 1;
+      checkbox.checked = selectedDownloads.has(id);
+    });
+    const message = `已选 ${selectedDownloads.size} 项；仅操作当前可见的已选任务。${selectionNotice}`;
+    if (summary.textContent !== message) summary.textContent = message;
+    const busy = batchRunning || singleRequests > 0;
+    document.getElementById('download_select_visible').disabled = busy || visibleCount === 0;
+    document.getElementById('download_clear_selection').disabled = busy || selectedDownloads.size === 0;
+    document.getElementById('download_bulk_pause').disabled = busy || selectedDownloads.size === 0;
+    document.getElementById('download_bulk_start').disabled = busy || selectedDownloads.size === 0;
+    const retry = document.getElementById('download_bulk_retry');
+    retry.hidden = !batchResults.some(result => result.state === 'failed');
+    retry.disabled = busy;
+    const stop = document.getElementById('download_bulk_stop');
+    stop.hidden = !batchRunning;
+    stop.disabled = batchStopRequested;
+  }
+
+  function select_visible_downloads() {
+    if (batchRunning || singleRequests) return;
+    selectionNotice = '';
+    tasks.forEach((task, id) => {
+      if (!task.hidden && task.querySelector('[data-download-select]')) selectedDownloads.add(id);
+    });
+    update_download_selection();
+  }
+
+  function clear_download_selection() {
+    if (batchRunning || singleRequests) return;
+    selectedDownloads.clear();
+    selectionNotice = '';
+    update_download_selection();
+  }
+
+  function set_download_batch_locked(locked) {
+    if (locked) {
+      document.querySelectorAll('#page_content [data-download-select], #page_content .nt-download-actions button, #download_task_query, #download_task_state, #page_content [data-nt-click="reset-download-filters"], #page_content [data-nt-click="show-download"]').forEach(element => {
+        batchLocks.set(element, element.disabled);
+        element.disabled = true;
+      });
+    } else {
+      batchLocks.forEach((disabled, element) => {
+        if (element.isConnected) element.disabled = disabled;
+      });
+      batchLocks.clear();
+    }
+    update_download_selection();
+  }
+
+  function render_download_batch_results() {
+    const container = document.getElementById('download_bulk_results');
+    container.hidden = false;
+    document.getElementById('download_bulk_title').textContent = batchCommand === 'pt_stop' ? '批量暂停结果' : '批量继续结果';
+    const list = document.getElementById('download_bulk_items');
+    list.replaceChildren();
+    batchResultNodes.clear();
+    batchResults.forEach(result => {
+      const row = document.createElement('li');
+      row.className = 'list-group-item nt-download-bulk-result';
+      const name = document.createElement('span');
+      name.className = 'nt-download-bulk-name';
+      name.textContent = result.name;
+      const status = document.createElement('span');
+      row.append(name, status);
+      list.append(row);
+      batchResultNodes.set(result.id, status);
+      update_download_batch_result(result);
+    });
+    update_download_batch_summary();
+  }
+
+  function update_download_batch_result(result) {
+    const status = batchResultNodes.get(result.id);
+    if (!status) return;
+    const label = {pending: '等待执行', running: '执行中', success: '成功', failed: '失败', skipped: '未执行'}[result.state];
+    status.textContent = result.message ? `${label}：${result.message}` : label;
+    status.className = result.state === 'failed' ? 'text-danger' : result.state === 'success' ? 'text-primary' : 'text-muted';
+  }
+
+  function update_download_batch_summary() {
+    const count = state => batchResults.filter(result => result.state === state).length;
+    const finished = count('success') + count('failed') + count('skipped');
+    const summary = document.getElementById('download_bulk_summary');
+    summary.textContent = batchRunning
+      ? `${batchStopRequested ? '当前操作完成后停止' : '正在逐项执行'}，已处理 ${finished} / ${batchResults.length} 项。`
+      : `本次操作完成：成功 ${count('success')} 项，失败 ${count('failed')} 项，未执行 ${count('skipped')} 项。`;
+    update_download_selection();
+  }
+
+  async function run_download_batch(command, ids, retry = false) {
+    if (batchRunning || singleRequests || !is_current_download_page() || !['pt_start', 'pt_stop'].includes(command)) return;
+    const uniqueIds = [...new Set(ids.map(String))];
+    if (!uniqueIds.length) return;
+    batchCommand = command;
+    if (!retry) {
+      batchResults = uniqueIds.map(id => ({id, name: tasks.get(id)?.dataset.downloadName || tasks.get(id)?.dataset.downloadTitle || id,
+        state: 'pending', message: ''}));
+    } else {
+      batchResults.forEach(result => {
+        if (uniqueIds.includes(result.id) && result.state === 'failed') {
+          result.state = 'pending';
+          result.message = '';
+        }
+      });
+    }
+    batchRunning = true;
+    batchStopRequested = false;
+    set_download_batch_locked(true);
+    render_download_batch_results();
+    try {
+      for (const result of batchResults) {
+        if (result.state !== 'pending') continue;
+        if (!is_current_download_page() || batchStopRequested) break;
+        if (!tasks.has(result.id)) {
+          result.state = 'skipped';
+          result.message = '任务已从当前列表移除';
+          update_download_batch_result(result);
+          continue;
+        }
+        result.state = 'running';
+        update_download_batch_result(result);
+        try {
+          // 使用已有单任务接口；串行请求让失败与每个任务一一对应。
+          const response = await pageAction(command, {id: result.id}, undefined, true, false);
+          result.state = response?.retcode === 0 || response?.retcode === '0' ? 'success' : 'failed';
+          result.message = result.state === 'failed' ? (response?.retmsg || response?.msg || '下载器未确认操作，请检查连接后重试') : '';
+        } catch (error) {
+          result.state = 'failed';
+          result.message = error?.message || '请求失败，请重试';
+        }
+        if (!is_current_download_page()) break;
+        update_download_batch_result(result);
+        update_download_batch_summary();
+      }
+    } finally {
+      batchResults.forEach(result => {
+        if (result.state === 'pending') {
+          result.state = 'skipped';
+          result.message = is_current_download_page() ? '已停止后续操作' : '已离开下载任务页';
+        }
+      });
+      batchRunning = false;
+      if (is_current_download_page()) {
+        batchResults.forEach(update_download_batch_result);
+        set_download_batch_locked(false);
+        update_download_batch_summary();
+        const requested = batchResults.filter(result => result.state === 'success' || result.state === 'failed').map(result => result.id);
+        if (requested.length) get_torrent_info(requested);
+      }
+    }
+  }
+
+  function run_selected_downloads(command) {
+    const visibleIds = [...selectedDownloads].filter(id => tasks.has(id) && !tasks.get(id).hidden);
+    return run_download_batch(command, visibleIds);
+  }
+
+  function retry_failed_downloads() {
+    const ids = batchResults.filter(result => result.state === 'failed').map(result => result.id);
+    return run_download_batch(batchCommand, ids, true);
+  }
 
   function filter_downloads() {
     if (!queryInput || !stateInput) return;
+    for (const id of selectedDownloads) {
+      if (!tasks.has(id)) selectedDownloads.delete(id);
+    }
     const query = queryInput.value.trim().toLocaleLowerCase();
     const state = stateInput.value;
     let visible = 0;
-    tasks.forEach(element => {
+    let cleared = 0;
+    tasks.forEach((element, id) => {
       const name = `${element.dataset.downloadTitle} ${element.dataset.downloadName}`.toLocaleLowerCase();
       element.hidden = !((!query || name.includes(query)) && (!state || element.dataset.downloadState === state));
       if (!element.hidden) visible += 1;
+      if (element.hidden && selectedDownloads.delete(id)) cleared += 1;
     });
+    if (cleared) selectionNotice = `筛选隐藏的 ${cleared} 项已取消选择。`;
     const summary = document.getElementById('download_filter_summary');
     const message = `显示 ${visible} / ${tasks.size} 个任务`;
     if (summary.textContent !== message) summary.textContent = message;
@@ -150,6 +365,7 @@
     document.getElementById('download_filter_empty_description').textContent = tasks.size
       ? '换个名称或状态，或重置筛选查看全部任务。' : '当前任务已移除，可添加种子文件或磁力链接。';
     document.getElementById('download_filter_empty_reset').hidden = tasks.size === 0;
+    update_download_selection();
   }
 
   function reset_download_filters() {
@@ -177,13 +393,19 @@
 
   // 下载控制
   function control_pt_download(command, id, button) {
+    if (batchRunning) return;
+    singleRequests += 1;
+    update_download_selection();
     return NasToolsUI.withButton(button, null, () => pageAction(command, {"id": id}, function (ret) {
       if (Number(ret.retcode) === 0) {
         get_torrent_info(ret.id || id);
       } else {
         show_fail_modal(ret.retmsg || ret.msg || '操作失败，请检查下载器连接后重试。');
       }
-    }));
+    })).finally(() => {
+      singleRequests -= 1;
+      if (is_current_download_page()) update_download_selection();
+    });
   }
 
   function remove_pt_download(id, name) {
@@ -292,12 +514,28 @@
     'show-download': (element) => show_torrent_download_modal(element.dataset.downloadType),
     'start-download': (element) => control_pt_download('pt_start', NasToolsUI.args(element)[0], element),
     'stop-download': (element) => control_pt_download('pt_stop', NasToolsUI.args(element)[0], element),
-    'remove-download': (element) => remove_pt_download(...NasToolsUI.args(element)),
+    'remove-download': (element) => { if (!batchRunning) remove_pt_download(...NasToolsUI.args(element)); },
+    'select-visible-downloads': select_visible_downloads,
+    'clear-download-selection': clear_download_selection,
+    'pause-selected-downloads': () => run_selected_downloads('pt_stop'),
+    'start-selected-downloads': () => run_selected_downloads('pt_start'),
+    'stop-download-batch': () => { batchStopRequested = true; update_download_batch_summary(); },
+    'retry-download-batch': retry_failed_downloads,
     'reset-download-filters': reset_download_filters,
     'refresh-downloads': () => get_torrent_info(Array.from(tasks.keys()))
   }, input: {
     'filter-downloads': (element, event) => { if (!event.isComposing) filter_downloads(); }
-  }, compositionend: {'filter-downloads': filter_downloads}, change: {'filter-downloads': filter_downloads}});
+  }, compositionend: {'filter-downloads': filter_downloads}, change: {
+    'filter-downloads': filter_downloads,
+    'select-download': element => {
+      if (batchRunning) return;
+      const id = element.dataset.downloadSelect;
+      if (element.checked && tasks.has(id) && !tasks.get(id).hidden) selectedDownloads.add(id);
+      else selectedDownloads.delete(id);
+      selectionNotice = '';
+      update_download_selection();
+    }
+  }});
 
 })();
 </script>

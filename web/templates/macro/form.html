@@ -16,7 +16,7 @@
           </span>
         </label>
         {% else %}
-        <label class="form-label {% if FieldAttr.required %}required{% endif %}">{{ FieldAttr.title }}
+        <label class="form-label {% if FieldAttr.required %}required{% endif %}" for="{{ FieldAttr.id }}">{{ FieldAttr.title }}
           {% if FieldAttr.tooltip %}
           <span class="form-help" title="{{ FieldAttr.tooltip }}" data-bs-toggle="tooltip">?</span>
           {% endif %}
@@ -57,7 +57,7 @@
             </span>
           </label>
           {% else %}
-            <label class="form-label {% if FieldAttr.required %}required{% endif %}">{{ FieldAttr.title }}
+            <label class="form-label {% if FieldAttr.required %}required{% endif %}" for="{{ FieldAttr.id }}">{{ FieldAttr.title }}
               {% if FieldAttr.tooltip %}
               <span class="form-help" title="{{ FieldAttr.tooltip }}" data-bs-toggle="tooltip">?</span>
               {% endif %}

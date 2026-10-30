@@ -379,7 +379,7 @@ def create_preview_app():
         if cmd == "get_site_favicon": return jsonify(code=0, data={s["name"]: "/static/img/logo.png" for s in SITES})
         if cmd == "get_download_setting": return jsonify(code=0, data=DOWNLOAD_SETTINGS[1] if params.get("sid") else list(DOWNLOAD_SETTINGS.values()), default=1)
         if cmd == "get_download_dirs": return jsonify(code=0, paths=["/demo/downloads"])
-        if cmd == "get_categories": return jsonify(code=0, data=["剧情", "纪录片"], categories=["剧情", "纪录片"])
+        if cmd == "get_categories": return jsonify(code=0, category=["剧情", "纪录片"], id=params.get("id"), value=params.get("value"))
         if cmd == "get_tvseason_list": return jsonify(code=0, seasons=[1, 2, 3])
         if cmd == "get_site_history":
             dataset = [["site", "upload", "download"], *[[s["name"], (24 + i * 5) * GIB, (4 + i) * GIB] for i, s in enumerate(SITES)]] if int(params.get("days") or 7) == 1 else [["date", "upload", "download"], *[[f"09-{i:02}", (25 + i * 4) * GIB, (5 + i) * GIB] for i in range(3, 10)]]

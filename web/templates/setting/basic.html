@@ -2,14 +2,14 @@
 {% import 'macro/svg.html' as SVG %}
 {% set CookieCloudCfg = CookieCloudCfg|default({}) %}
 {% set CookieCloudInterval = CookieCloudCfg.interval|default(180) %}
-{{ UI.page_header(SettingTitle, {'system': '配置访问方式、账号与日志，保持系统稳定运行。', 'media': '管理媒体信息来源与识别规则。', 'service': '设置识别服务、CookieCloud 与搜索、下载行为。', 'security': '管理访问来源、会话与接口凭据。', 'laboratory': '按需开启实验功能，调整媒体识别与搜索策略。'}.get(SettingSection, ''), eyebrow='系统设置') }}
+{{ UI.page_header(SettingTitle, {'system': '配置访问方式、账号与日志，保持系统稳定运行。', 'media': '管理媒体信息来源与识别规则。', 'service': '设置识别服务、CookieCloud 与搜索、下载行为。', 'security': '管理访问来源、会话与接口凭据。', 'laboratory': '按需开启实验功能，调整媒体识别与搜索策略。'}.get(SettingSection, '')) }}
 <!-- 业务页面代码 -->
 <div class="page-body">
   <div class="container-xl">
     <div class="row row-cards">
       {% if SettingSection == "system" %}
       <div class="col-md-12">
-        <div class="card nt-settings-card" id="basic_system">
+        <div class="card nt-settings-card" id="basic_system" data-unsaved-label="基础设置">
           <div class="card-header">
             <h3 class="card-title"><strong>系统</strong></h3>
           </div>
@@ -131,7 +131,8 @@
               </div>
             </div>
           </div>
-          <div class="card-footer nt-settings-footer">
+          <div class="card-footer nt-settings-footer flex-wrap gap-3">
+            <p class="nt-form-save-status text-muted mb-0 me-auto" data-save-status role="status" aria-live="polite">修改后请保存本分区。</p>
             <div class="row align-items-center">
               <div class="col-auto">
                 <a href="#" class="btn d-none d-sm-inline-block" data-bs-toggle="modal" data-bs-target="#modal-user-script">
@@ -144,7 +145,7 @@
               <div class="col"></div>
               <div class="col-auto">
                 <a id="basic_system_btn" href="#" data-nt-click="save-basic" data-section="basic_system" class="btn btn-primary">
-                  保存
+                  保存基础设置
                 </a>
               </div>
             </div>
@@ -154,7 +155,7 @@
       {% endif %}
       {% if SettingSection == "media" %}
       <div class="col-md-12">
-        <div class="card nt-settings-card" id="basic_media">
+        <div class="card nt-settings-card" id="basic_media" data-unsaved-label="媒体设置">
           <div class="card-header">
             <h3 class="card-title"><strong>媒体</strong></h3>
           </div>
@@ -266,7 +267,8 @@
               </div>
             </div>
           </div>
-          <div class="card-footer nt-settings-footer">
+          <div class="card-footer nt-settings-footer flex-wrap gap-3">
+            <p class="nt-form-save-status text-muted mb-0 me-auto" data-save-status role="status" aria-live="polite">修改后请保存本分区。</p>
             <div class="row align-items-center">
               <div class="col-auto">
                 <a href="#" data-nt-click="tmdb-cache" class="btn d-none d-sm-inline-block">
@@ -285,7 +287,7 @@
               <div class="col"></div>
               <div class="col-auto">
                 <a id="basic_media_btn" href="#" data-nt-click="save-basic" data-section="basic_media" class="btn btn-primary">
-                  保存
+                  保存媒体设置
                 </a>
               </div>
             </div>
@@ -295,7 +297,7 @@
       {% endif %}
       {% if SettingSection == "service" %}
       <div class="col-md-12">
-        <div class="card nt-settings-card" id="basic_service">
+        <div class="card nt-settings-card" id="basic_service" data-unsaved-label="服务设置">
           <div class="card-header">
             <h3 class="card-title"><strong>服务</strong></h3>
           </div>
@@ -347,12 +349,13 @@
               </div>
             </div>
           </div>
-          <div class="card-footer nt-settings-footer">
+          <div class="card-footer nt-settings-footer flex-wrap gap-3">
+            <p class="nt-form-save-status text-muted mb-0 me-auto" data-save-status role="status" aria-live="polite">修改后请保存本分区。</p>
             <div class="row align-items-center">
               <div class="col"></div>
               <div class="col-auto">
                 <a id="basic_service_btn" href="#" data-nt-click="save-basic" data-section="basic_service" class="btn btn-primary">
-                  保存
+                  保存服务设置
                 </a>
               </div>
             </div>
@@ -360,7 +363,7 @@
         </div>
       </div>
       <div class="col-md-12">
-        <div class="card nt-settings-card" id="cookiecloud_settings">
+        <div class="card nt-settings-card" id="cookiecloud_settings" data-unsaved-label="CookieCloud 配置">
           <div class="card-body">
             {{ UI.section_heading('CookieCloud', '保存浏览器插件的同步配置，按同步周期更新 Cookie，也可随时立即同步。') }}
             <div class="row">
@@ -400,6 +403,7 @@
             <p class="text-muted mb-0">已保存的 KEY 和密码不会显示在页面中，留空可沿用。更换服务器时需重新填写两项凭据；修改后请先保存，再立即同步。</p>
           </div>
           <div class="card-footer nt-settings-footer d-flex flex-wrap gap-2 justify-content-between">
+            <p class="nt-form-save-status text-muted mb-0 me-auto" data-save-status role="status" aria-live="polite">修改后请保存 CookieCloud 配置。</p>
             <a href="#" data-nt-click="cookiecloud-sites" class="btn btn-outline-primary">前往站点维护</a>
             <div class="btn-list">
               <button type="button" id="cookiecloud_sync_btn" data-nt-click="sync-cookiecloud" class="btn btn-outline-primary">立即同步</button>
@@ -411,7 +415,7 @@
       {% endif %}
       {% if SettingSection == "security" %}
       <div class="col-md-12">
-        <div class="card nt-settings-card" id="security">
+        <div class="card nt-settings-card" id="security" data-unsaved-label="安全设置">
           <div class="card-header">
             <h3 class="card-title"><strong>安全</strong></h3>
           </div>
@@ -458,12 +462,13 @@
               </div>
             </div>
           </div>
-          <div class="card-footer nt-settings-footer">
+          <div class="card-footer nt-settings-footer flex-wrap gap-3">
+            <p class="nt-form-save-status text-muted mb-0 me-auto" data-save-status role="status" aria-live="polite">修改后请保存本分区。</p>
             <div class="row align-items-center">
               <div class="col"></div>
               <div class="col-auto">
                 <a id="security_btn" href="#" data-nt-click="save-basic" data-section="security" class="btn btn-primary">
-                  保存
+                  保存安全设置
                 </a>
               </div>
             </div>
@@ -473,7 +478,7 @@
       {% endif %}
       {% if SettingSection == "laboratory" %}
       <div class="col-md-12">
-        <div class="card nt-settings-card" id="laboratory">
+        <div class="card nt-settings-card" id="laboratory" data-unsaved-label="实验室设置">
           <div class="card-header">
             <h3 class="card-title"><strong>实验室</strong></h3>
           </div>
@@ -536,12 +541,13 @@
               </div>
             </div>
           </div>
-          <div class="card-footer nt-settings-footer">
+          <div class="card-footer nt-settings-footer flex-wrap gap-3">
+            <p class="nt-form-save-status text-muted mb-0 me-auto" data-save-status role="status" aria-live="polite">修改后请保存本分区。</p>
             <div class="row align-items-center">
               <div class="col"></div>
               <div class="col-auto">
                 <a id="laboratory_btn" href="#" data-nt-click="save-basic" data-section="laboratory" class="btn btn-primary">
-                  保存
+                  保存实验室设置
                 </a>
               </div>
             </div>
@@ -554,7 +560,7 @@
 </div>
 {% if SettingSection == "system" %}
 <div class="modal modal-blur fade" id="modal-user-script" tabindex="-1" role="dialog" aria-hidden="true"
-     data-bs-backdrop="static" data-bs-keyboard="false">
+     data-bs-backdrop="static" data-unsaved-label="自定义 CSS/JavaScript" aria-label="自定义 CSS/JavaScript">
   <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
     <div class="card modal-content" style="border-top-left-radius:var(--tblr-modal-inner-border-radius) !important; border-top-right-radius:var(--tblr-modal-inner-border-radius) !important">
       <div class="card-header" style="border-top-left-radius:var(--tblr-modal-inner-border-radius) !important; border-top-right-radius:var(--tblr-modal-inner-border-radius) !important">
@@ -585,9 +591,10 @@
         </div>
       </div>
       <div class="modal-footer">
+        <p class="nt-form-save-status text-muted mb-0 me-auto" data-save-status role="status" aria-live="polite">修改后请保存自定义脚本。</p>
         <button type="button" class="btn btn-link" data-bs-dismiss="modal">取消</button>
         <a id="user_script_save_btn" href="#" data-nt-click="save-script" class="btn btn-primary ms-auto">
-          保存
+          保存自定义脚本
         </a>
       </div>
     </div>
@@ -595,26 +602,27 @@
 </div>
 {% endif %}
 {% if SettingSection == "media" %}
-<div class="modal modal-blur fade" id="modal-release-groups" tabindex="-1" role="dialog" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+<div class="modal modal-blur fade" id="modal-release-groups" tabindex="-1" role="dialog" aria-hidden="true" data-bs-backdrop="static" data-unsaved-label="制作组/字幕组" aria-labelledby="release_groups_title">
   <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">自定义制作组/字幕组 <span class="form-help" title="无法识别的制作组/字幕组在此添加" data-bs-toggle="tooltip">?</span></h5>
+        <h2 class="modal-title" id="release_groups_title">自定义制作组/字幕组 <span class="form-help" title="无法识别的制作组/字幕组在此添加" data-bs-toggle="tooltip">?</span></h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
       <div class="modal-body nt-form-body">
         <div class='row'>
           <div class="col-lg-12">
             <div class="mb-3">
-              <textarea class="form-control" id="release_groups" rows="5" placeholder="多个制作组/字幕组请用;分隔，支持正则表达式，特殊字符注意转义">{{ Config.laboratory.release_groups or '' }}</textarea>
+              <textarea class="form-control" id="release_groups" rows="5" aria-label="制作组和字幕组" placeholder="多个制作组/字幕组请用;分隔，支持正则表达式，特殊字符注意转义">{{ Config.laboratory.release_groups or '' }}</textarea>
             </div>
           </div>
         </div>
       </div>
       <div class="modal-footer">
+        <p class="nt-form-save-status text-muted mb-0 me-auto" data-save-status role="status" aria-live="polite">修改后请保存制作组设置。</p>
         <button type="button" class="btn btn-link me-auto" data-bs-dismiss="modal">取消</button>
         <a id="release_groups_save_btn" href="#" data-nt-click="save-release-groups" class="btn btn-primary">
-          保存
+          保存制作组设置
         </a>
       </div>
     </div>
@@ -644,13 +652,34 @@
   });
   {% endif %}
 
+  const formTrackers = new Map();
+  document.querySelectorAll('#page_content [data-unsaved-label]').forEach((root) => {
+    const options = {label: root.dataset.unsavedLabel, status: root.querySelector('[data-save-status]')};
+    {% if SettingSection == "system" %}
+    if (root.id === 'modal-user-script') {
+      options.read = () => ({css: css_editor.getValue(), javascript: javascript_editor.getValue()});
+    }
+    {% endif %}
+    formTrackers.set(root.id, NasToolsUI.trackForm(root, options));
+  });
+  {% if SettingSection == "system" %}
+  const scriptTracker = formTrackers.get('modal-user-script');
+  css_editor.session.on('change', () => scriptTracker.refresh());
+  javascript_editor.session.on('change', () => scriptTracker.refresh());
+  {% endif %}
+
   // 保存基础设置
   function save_basic_config(type, flag=true) {
-    let params = input_select_GetVal(type);
+    const params = input_select_GetVal(type);
+    const tracker = formTrackers.get(type);
+    const snapshot = tracker.capture();
+    tracker.setStatus('正在保存本分区…', 'saving');
     const save = () => pageAction("update_config", params, function (ret) {
       if (ret.code !== 0) {
-        show_fail_modal(ret.msg || "配置保存失败");
+        tracker.setStatus(ret.msg || '保存失败，请检查输入后重试。', 'error');
+        return;
       }
+      tracker.markSaved(snapshot);
     });
     return flag ? NasToolsUI.withButton(document.getElementById(`${type}_btn`), '保存中...', save) : save();
   }
@@ -658,11 +687,18 @@
   {% if SettingSection == "media" %}
   // 保存自定义制作组/字幕组配置
   function save_release_groups_config(){
-    let params = {'laboratory.release_groups': $("#release_groups").val().replace(/;$/g, '')};
+    const params = {'laboratory.release_groups': $("#release_groups").val().replace(/;$/g, '')};
+    const tracker = formTrackers.get('modal-release-groups');
+    const snapshot = tracker.capture();
+    tracker.setStatus('正在保存制作组设置…', 'saving');
     return NasToolsUI.withButton('#release_groups_save_btn', '保存中...', () => {
-      const request = pageAction("update_config", params);
-      $("#modal-release-groups").modal("hide");
-      return request;
+      return pageAction("update_config", params, (ret) => {
+        if (ret.code !== 0) {
+          tracker.setStatus(ret.msg || '制作组设置保存失败，请重试。', 'error');
+          return;
+        }
+        tracker.markSaved(snapshot);
+      });
     });
   }
   {% endif %}
@@ -670,12 +706,19 @@
   {% if SettingSection == "system" %}
   // 保存自定义CSS/JavaScript配置
   function save_user_script(){
-    let css_text = css_editor.getValue();
-    let javascript_text = javascript_editor.getValue();
+    const css_text = css_editor.getValue();
+    const javascript_text = javascript_editor.getValue();
+    const tracker = formTrackers.get('modal-user-script');
+    const snapshot = tracker.capture();
+    tracker.setStatus('正在保存自定义脚本…', 'saving');
     return NasToolsUI.withButton('#user_script_save_btn', '保存中...', () => {
-      const request = pageAction("save_user_script", {css: css_text, javascript: javascript_text});
-      $("#modal-user-script").modal("hide");
-      return request;
+      return pageAction("save_user_script", {css: css_text, javascript: javascript_text}, (ret) => {
+        if (ret.code !== 0) {
+          tracker.setStatus(ret.msg || '自定义脚本保存失败，请重试。', 'error');
+          return;
+        }
+        tracker.markSaved(snapshot);
+      });
     });
   }
   {% endif %}
@@ -705,23 +748,31 @@
     passwordInput.classList.toggle('is-invalid', !validPassword);
     intervalInput.classList.toggle('is-invalid', !validInterval);
     if (!validServer || !validKey || !validPassword || !validInterval) return;
+    const tracker = formTrackers.get('cookiecloud_settings');
+    const snapshot = tracker.capture();
+    tracker.setStatus('正在保存 CookieCloud 配置…', 'saving');
     return NasToolsUI.withButton('#cookiecloud_save_btn', '保存中...', () => pageAction('cookiecloud_save', {server, key, password, interval}, function (ret) {
       if (ret.code !== 0) {
-        show_fail_modal(ret.msg || 'CookieCloud 配置保存失败，请重试。');
+        tracker.setStatus(ret.msg || 'CookieCloud 配置保存失败，请重试。', 'error');
         return;
       }
-      serverInput.value = server;
+      const unchanged = tracker.capture() === snapshot;
       serverInput.defaultValue = server;
-      intervalInput.value = String(interval);
       intervalInput.defaultValue = String(interval);
       document.getElementById('cookiecloud_schedule_status').textContent = interval > 0
         ? `已保存：每 ${interval} 分钟自动同步一次。` : '已保存：自动同步已关闭。';
       [keyInput, passwordInput].forEach(input => {
-        input.value = '';
         input.dataset.configured = 'true';
         input.placeholder = '已保存，留空沿用';
       });
-      show_success_modal(ret.msg || 'CookieCloud 配置已保存。');
+      if (unchanged) {
+        serverInput.value = server;
+        intervalInput.value = String(interval);
+        keyInput.value = passwordInput.value = '';
+        tracker.markSaved(tracker.capture());
+      } else {
+        tracker.markSaved(snapshot);
+      }
     }));
   }
 

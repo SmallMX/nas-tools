@@ -54,7 +54,7 @@
         </table>
       </div>
     </div>
-    <details class="card nt-settings-disclosure mt-3" id="site_signin_settings">
+    <details class="card nt-settings-disclosure mt-3" id="site_signin_settings" data-unsaved-label="签到执行策略">
       <summary class="nt-details-summary">执行策略与通知设置</summary>
       <div class="card-body">
         <p class="text-muted">签到和保号登录站点在“站点维护”中选择；此处只保存执行策略，不保存或展示站点 Cookie。</p>
@@ -105,7 +105,8 @@
           </div>
         </div>
       </div>
-      <div class="card-footer d-flex justify-content-end">
+      <div class="card-footer d-flex flex-wrap gap-3 justify-content-end">
+        <p class="nt-form-save-status text-muted mb-0 me-auto" data-save-status role="status" aria-live="polite">修改后请保存执行策略。</p>
         <button class="btn btn-primary" id="site_signin_save" type="button">保存执行策略</button>
       </div>
     </details>
@@ -115,6 +116,11 @@
 <script type="text/javascript">
   (() => {
     const pageVersion = NasToolsUI.pageVersion;
+    const settingsRoot = document.getElementById('site_signin_settings');
+    const settingsTracker = NasToolsUI.trackForm(settingsRoot, {
+      label: settingsRoot.dataset.unsavedLabel,
+      status: settingsRoot.querySelector('[data-save-status]')
+    });
     let followUpPolls = 0;
     let pollTimer = null;
     let running = false;
@@ -324,12 +330,14 @@
     function saveConfig() {
       const button = document.querySelector("#site_signin_save");
       const config = input_select_GetVal("site_signin_settings", "site_signin_");
-      NasToolsUI.withButton(button, "保存中...", () => NasToolsUI.pageAction("tool_site_signin_config_update", config, (ret) => {
+      const snapshot = settingsTracker.capture();
+      settingsTracker.setStatus('正在保存执行策略…', 'saving');
+      return NasToolsUI.withButton(button, "保存中...", () => NasToolsUI.pageAction("tool_site_signin_config_update", config, (ret) => {
         if (ret.code !== 0) {
-          show_fail_modal(ret.msg || "工具设置保存失败");
+          settingsTracker.setStatus(ret.msg || '执行策略保存失败，请重试。', 'error');
           return;
         }
-        show_success_modal(ret.msg || "工具设置已保存");
+        settingsTracker.markSaved(snapshot);
       }));
     }
 

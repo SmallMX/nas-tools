@@ -1,7 +1,7 @@
 {% import 'macro/ui.html' as UI %}
 {% import 'macro/svg.html' as SVG %}
 {% import 'macro/form.html' as FORM %}
-{% call UI.page_header('下载器', '连接下载客户端，配置保存目录和默认下载参数。', eyebrow='系统设置') %}
+{% call UI.page_header('下载器', '连接下载客户端，配置保存目录和默认下载参数。') %}
 <div class="btn-list">
           <a href="#" data-nt-click="show-directories" class="btn btn-primary">
             {{ SVG.folders() }}
@@ -24,7 +24,7 @@
             <img class="nt-connector-logo" src="{{ Downloader.img_url }}" alt="">
             <div>
               <h3 class="card-title mb-1">{{ Downloader.name }}</h3>
-              {% if Config.pt.pt_client == Type %}<span class="badge bg-green-lt">默认下载器</span>{% endif %}
+              <span class="badge bg-green-lt" data-downloader-default="{{ Type }}"{% if Config.pt.pt_client != Type %} hidden{% endif %}>默认下载器</span>
             </div>
           </div>
           <p class="text-muted mb-3">配置服务器地址、访问账号与连接选项。</p>
@@ -37,23 +37,24 @@
 </div>
 {% for Type, Downloader in DownloaderConf.items() %}
 <div class="modal modal-blur fade" id="modal-{{ Type }}" tabindex="-1" role="dialog" aria-hidden="true"
-     data-bs-backdrop="static" data-bs-keyboard="false">
+     data-bs-backdrop="static" data-unsaved-label="{{ Downloader.name }} 连接设置" aria-labelledby="downloader_title_{{ Type }}">
   <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">{{ Downloader.name }}</h5>
+        <h2 class="modal-title" id="downloader_title_{{ Type }}">{{ Downloader.name }}</h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
       <div class="modal-body nt-form-body">
       {{ FORM.gen_form_config_elements(Type, Config, Downloader.config) }}
       </div>
       <div class="modal-footer">
+        <p class="nt-form-save-status text-muted mb-0 me-auto" data-save-status role="status" aria-live="polite">修改后请保存连接设置。</p>
         <button data-nt-click="test-downloader" data-nt-args='{{ [Type]|tojson }}' id="{{ Type }}_test_btn" class="btn me-auto">
-          测试
+          测试已保存连接
         </button>
         <button data-nt-click="save-downloader" data-nt-args='{{ [Type]|tojson }}' id="{{ Type }}_save_btn"
            class="btn btn-primary">
-          确定
+          保存连接设置
         </button>
       </div>
     </div>
@@ -61,11 +62,11 @@
 </div>
 {% endfor %}
 <div class="modal modal-blur fade" id="modal-downloaddir" tabindex="-1" role="dialog" aria-hidden="true"
-     data-bs-backdrop="static" data-bs-keyboard="false">
+     data-bs-backdrop="static" data-unsaved-label="下载目录" aria-labelledby="downloaddir_title">
   <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" role="document">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">下载目录配置</h5>
+        <h2 class="modal-title" id="downloaddir_title">下载目录配置</h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
       <div class="modal-body nt-form-body">
@@ -78,7 +79,7 @@
               {% for attr in Config.downloaddir %}
                 <div class="row" id="dirdiv_{{ loop.index0 }}">
                   <div class="col-12 col-lg-2 mb-1">
-                    <select class="form-select" name="dir_type" id="dir_type_{{ loop.index0 }}"
+                    <select class="form-select" name="dir_type" aria-label="媒体类型" id="dir_type_{{ loop.index0 }}"
                             data-nt-change="get-categories">
                       <option value="" {% if not attr.type %}selected{% endif %}>全部</option>
                       <option value="电影" {% if attr.type=='电影' %}selected{% endif %}>电影</option>
@@ -88,20 +89,20 @@
                   </div>
                   <div class="col-12 col-lg-2 mb-1">
                     <input type="hidden" id="dir_subtype_{{ loop.index0 }}" value="{{ attr['category'] or '' }}">
-                    <select class="form-select" name="dir_subtype" id="dir_subtype_value_{{ loop.index0 }}">
-                      <option value="" selected>全部</option>
+                    <select class="form-select" name="dir_subtype" aria-label="二级分类" id="dir_subtype_value_{{ loop.index0 }}">
+                      <option value="{{ attr['category'] or '' }}" selected>{{ attr['category'] or '全部' }}</option>
                     </select>
                   </div>
                   <div class="col-12 col-lg mb-1">
-                    <input type="text" value="{{ attr.save_path or '' }}" name="save_path" class="form-control"
+                    <input type="text" value="{{ attr.save_path or '' }}" name="save_path" aria-label="下载保存目录" class="form-control"
                            placeholder="下载保存目录" autocomplete="off">
                   </div>
                   <div class="col-12 col-lg mb-1">
-                    <input type="text" value="{{ attr.container_path or '' }}" name="container_path"
+                    <input type="text" value="{{ attr.container_path or '' }}" name="container_path" aria-label="访问目录"
                            class="form-control filetree-folders-only" placeholder="访问目录" autocomplete="off">
                   </div>
                   <div class="col-12 col-lg mb-1">
-                    <input type="text" value="{{ attr.label or '' }}" name="path_label" class="form-control"
+                    <input type="text" value="{{ attr.label or '' }}" name="path_label" aria-label="分类标签" class="form-control"
                            placeholder="分类标签" autocomplete="off">
                   </div>
                   <div class="col-12 col-lg-1 mb-1 mt-2">
@@ -114,7 +115,7 @@
             {% else %}
               <div class="row" id="dirdiv_0">
                 <div class="col-12 col-lg-2 mb-1">
-                  <select class="form-select" name="dir_type" id="dir_type_0" data-nt-change="get-categories">
+                  <select class="form-select" name="dir_type" aria-label="媒体类型" id="dir_type_0" data-nt-change="get-categories">
                     <option value="" selected>全部</option>
                     <option value="电影">电影</option>
                     <option value="电视剧">电视剧</option>
@@ -123,20 +124,20 @@
                 </div>
                 <div class="col-12 col-lg-2 mb-1">
                   <input type="hidden" id="dir_subtype_0" value="">
-                  <select class="form-select" name="dir_subtype" id="dir_subtype_value_0">
+                  <select class="form-select" name="dir_subtype" aria-label="二级分类" id="dir_subtype_value_0">
                     <option value="" selected>全部</option>
                   </select>
                 </div>
                 <div class="col-12 col-lg mb-1">
-                  <input type="text" value="" name="save_path" class="form-control" placeholder="下载保存目录"
+                  <input type="text" value="" name="save_path" aria-label="下载保存目录" class="form-control" placeholder="下载保存目录"
                          autocomplete="off">
                 </div>
                 <div class="col-12 col-lg mb-1">
-                  <input type="text" value="" name="container_path" class="form-control filetree-folders-only"
+                  <input type="text" value="" name="container_path" aria-label="访问目录" class="form-control filetree-folders-only"
                          placeholder="访问目录" autocomplete="off">
                 </div>
                 <div class="col-12 col-lg mb-1">
-                  <input type="text" value="" name="path_label" class="form-control" placeholder="分类标签"
+                  <input type="text" value="" name="path_label" aria-label="分类标签" class="form-control" placeholder="分类标签"
                          autocomplete="off">
                 </div>
                 <div class="col-12 col-lg-1 mb-1 mt-2">
@@ -157,8 +158,9 @@
         </div>
       </div>
       <div class="modal-footer">
+        <p class="nt-form-save-status text-muted mb-0 me-auto" data-save-status role="status" aria-live="polite">修改后请保存下载目录。</p>
         <button type="button" class="btn btn-link me-auto" data-bs-dismiss="modal">取消</button>
-        <a href="#" data-nt-click="save-directories" id="downloaddir_save_btn" class="btn btn-primary">确定</a>
+        <a href="#" data-nt-click="save-directories" id="downloaddir_save_btn" class="btn btn-primary">保存下载目录</a>
       </div>
     </div>
   </div>
@@ -166,6 +168,14 @@
 <script type="text/javascript">
 (function () {
   const {pageAction} = NasToolsUI;
+  const formTrackers = new Map();
+  document.querySelectorAll('#page_content [data-unsaved-label]').forEach((root) => {
+    formTrackers.set(root.id, NasToolsUI.trackForm(root, {
+      label: root.dataset.unsavedLabel,
+      status: root.querySelector('[data-save-status]'),
+      read: root.id === 'modal-downloaddir' ? readDirectoryRows : undefined
+    }));
+  });
   // 保存配置
   function save_config(type, func, test) {
     const params = input_select_GetVal(`modal-${type}`)
@@ -174,24 +184,35 @@
     return pageAction("update_config", params, func);
   }
 
-  //保存配置、关闭和刷新页面
+  // 保存成功后保留编辑区域；提交期间的新输入继续显示为未保存。
   function save_downloader_config(type) {
+    const tracker = formTrackers.get(`modal-${type}`);
+    const snapshot = tracker.capture();
+    tracker.setStatus('正在保存连接设置…', 'saving');
     return NasToolsUI.withButton(document.getElementById(`${type}_save_btn`), '保存中...', () => {
-      $("#modal-" + type).modal('hide');
       return save_config(type, function (ret) {
-        window_history_refresh();
+        if (ret.code !== 0) {
+          tracker.setStatus(ret.msg || '连接设置保存失败，请重试。', 'error');
+          return;
+        }
+        tracker.markSaved(snapshot);
+        document.querySelectorAll('[data-downloader-default]').forEach((badge) => {
+          badge.hidden = badge.dataset.downloaderDefault !== type;
+        });
       });
     });
   }
 
-  //保存配置和测试配置
+  // test_connection 读取已保存配置，不把尚未提交的草稿描述成已测试。
   function test_downloader_config(type) {
     const button = document.getElementById(`${type}_test_btn`);
-    let resultText;
-    return NasToolsUI.withButton(button, '测试中...', async () => {
-      let active = false;
-      await save_config(type, () => { active = true; }, true);
-      if (!active) return;
+    const tracker = formTrackers.get(`modal-${type}`);
+    if (tracker.isDirty()) {
+      tracker.setStatus('请先保存连接设置，再测试已保存的连接。', 'info');
+      return;
+    }
+    tracker.setStatus('正在测试已保存的连接…', 'saving');
+    return NasToolsUI.withButton(button, '测试中...', () => {
       let command;
       {% for Type, Downloader in DownloaderConf.items() %}
       if (type === "{{ Type }}") {
@@ -199,10 +220,8 @@
       }
       {% endfor %}
       return pageAction("test_connection", {"command": command}, function (ret) {
-        resultText = ret.code === 0 ? '测试成功' : '测试失败！';
+        tracker.setStatus(ret.code === 0 ? '已保存的连接测试成功。' : (ret.msg || '连接测试失败，请检查配置后重试。'), ret.code === 0 ? 'success' : 'error');
       });
-    }).then(() => {
-      if (resultText !== undefined && button.isConnected) button.textContent = resultText;
     });
   }
 
@@ -221,10 +240,9 @@
     }
   }
 
-  //保存下载目录配置
-  function save_downloaddir_config() {
-    let download_dir = [];
-    $("[name='save_path']").each(function () {
+  function readDirectoryRows() {
+    const download_dir = [];
+    $("#modal-downloaddir [name='save_path']").each(function () {
       let save_path = $(this).val();
       let type = get_dir_item_value(this, 'dir_type');
       let category = get_dir_item_value(this, 'dir_subtype');
@@ -238,55 +256,84 @@
         "label": label
       });
     });
+    return download_dir;
+  }
+
+  // 保存下载目录配置
+  function save_downloaddir_config() {
+    const download_dir = readDirectoryRows();
+    const tracker = formTrackers.get('modal-downloaddir');
+    const snapshot = tracker.capture();
+    tracker.setStatus('正在保存下载目录…', 'saving');
     return NasToolsUI.withButton('#downloaddir_save_btn', '保存中...', () => {
-      $("#modal-downloaddir").modal('hide');
-      return pageAction("update_config", {downloaddir: download_dir}, function () {
-        window_history_refresh();
+      return pageAction("update_config", {downloaddir: download_dir}, function (ret) {
+        if (ret.code !== 0) {
+          tracker.setStatus(ret.msg || '下载目录保存失败，请重试。', 'error');
+          return;
+        }
+        tracker.markSaved(snapshot);
       });
     });
   }
 
   //删除下载目录
   function del_downloaddir(id) {
-    if (id) {
+    if (id !== undefined && id !== null) {
       $("#dirdiv_" + id).remove();
+      formTrackers.get('modal-downloaddir').refresh();
     }
   }
 
-  //获取二级分类
-  function get_categories(obj) {
+  // 分类选项异步刷新时，仅采纳当前媒体类型的最后一次响应。
+  const categoryRequests = new WeakMap();
+  function get_categories(obj, initial = false) {
     let obj_id = $(obj).attr("id");
     if (!obj_id) {
       return;
     }
     let id = obj_id.replace("dir_type_", "");
-    let value = $("#dir_subtype_" + id).val();
+    const value = initial ? $("#dir_subtype_" + id).val() : '';
+    const mediaType = $(obj).val();
+    const requestId = (categoryRequests.get(obj) || 0) + 1;
+    categoryRequests.set(obj, requestId);
+    const select = $("#dir_subtype_value_" + id);
     if (!id) {
       return;
     }
-    if (!$(obj).val()) {
-      $("#dir_subtype_value_" + id).empty()
-          .append('<option value="" selected>全部</option>');
+    if (!initial || !mediaType) {
+      select.empty();
+      append_safe_option(select, '', '全部', true);
+    }
+    formTrackers.get('modal-downloaddir').refresh();
+    if (!mediaType) {
+      select.prop('disabled', false);
       return;
     }
-    pageAction("get_categories", {"type": $(obj).val(), "id": id, "value": value}, function (ret) {
-      $("#dir_subtype_value_" + ret.id).empty()
-          .append('<option value="" selected>全部</option>');
-      if (ret.category) {
-        for (let i = 0; i < ret.category.length; i++) {
-          $("#dir_subtype_value_" + ret.id).append('<option value="' + ret.category[i] + '">' + ret.category[i] + '</option>');
-        }
+    select.prop('disabled', true);
+    return pageAction("get_categories", {"type": mediaType, "id": id, "value": value}, function (ret) {
+      if (!obj.isConnected || categoryRequests.get(obj) !== requestId || $(obj).val() !== mediaType) return;
+      select.prop('disabled', false);
+      if (ret.code !== 0) {
+        formTrackers.get('modal-downloaddir').setStatus(ret.msg || '分类加载失败，请重新选择媒体类型重试。', 'error');
+        return;
       }
-      if (ret.value) {
-        $("#dir_subtype_value_" + ret.id).val(ret.value);
+      select.empty();
+      append_safe_option(select, '', '全部', !value);
+      const categories = Array.isArray(ret.category) ? ret.category : [];
+      for (const category of categories) {
+        append_safe_option(select, category, category, category === value);
       }
+      if (value && !categories.includes(value)) {
+        append_safe_option(select, value, `${value}（当前配置）`, true);
+      }
+      formTrackers.get('modal-downloaddir').refresh();
     });
   }
 
   //获取所有二级分类
   var CURRENT_DIRDIV_LEVEL = 0;
   $("[name='dir_type']").each(function () {
-    get_categories(this);
+    get_categories(this, true);
     CURRENT_DIRDIV_LEVEL = CURRENT_DIRDIV_LEVEL + 1;
   });
 
@@ -296,6 +343,7 @@
     $("#dirdiv_add").before(html.replaceAll('{DIRDIV_LEVEL}', CURRENT_DIRDIV_LEVEL));
     CURRENT_DIRDIV_LEVEL = CURRENT_DIRDIV_LEVEL + 1;
     init_filetree_element();
+    formTrackers.get('modal-downloaddir').refresh();
   }
 
   NasToolsUI.bindActions('#page_content', {
@@ -316,7 +364,7 @@
 <script id="dirdiv_template" type="text/html">
 <div class="row" id="dirdiv_{DIRDIV_LEVEL}">
   <div class="col-12 col-lg-2 mb-1">
-    <select class="form-select" name="dir_type" id="dir_type_{DIRDIV_LEVEL}" data-nt-change="get-categories">
+    <select class="form-select" name="dir_type" aria-label="媒体类型" id="dir_type_{DIRDIV_LEVEL}" data-nt-change="get-categories">
       <option value="" selected>全部</option>
       <option value="电影">电影</option>
       <option value="电视剧">电视剧</option>
@@ -325,18 +373,18 @@
   </div>
   <div class="col-12 col-lg-2 mb-1">
     <input type="hidden" id="dir_subtype_{DIRDIV_LEVEL}" value="">
-    <select class="form-select" name="dir_subtype" id="dir_subtype_value_{DIRDIV_LEVEL}">
+    <select class="form-select" name="dir_subtype" aria-label="二级分类" id="dir_subtype_value_{DIRDIV_LEVEL}">
       <option value="" selected>全部</option>
     </select>
   </div>
   <div class="col-12 col-lg mb-1">
-    <input type="text" value="" name="save_path" class="form-control" placeholder="下载保存目录" autocomplete="off">
+    <input type="text" value="" name="save_path" aria-label="下载保存目录" class="form-control" placeholder="下载保存目录" autocomplete="off">
   </div>
   <div class="col-12 col-lg mb-1">
-    <input type="text" value="" name="container_path" class="form-control filetree-folders-only" placeholder="访问目录" autocomplete="off">
+    <input type="text" value="" name="container_path" aria-label="访问目录" class="form-control filetree-folders-only" placeholder="访问目录" autocomplete="off">
   </div>
   <div class="col-12 col-lg mb-1">
-    <input type="text" value="" name="path_label" class="form-control" placeholder="分类标签" autocomplete="off">
+    <input type="text" value="" name="path_label" aria-label="分类标签" class="form-control" placeholder="分类标签" autocomplete="off">
   </div>
   <div class="col-12 col-lg-1 mb-1 mt-2">
     <a href="#" data-nt-click="delete-directory" data-directory-id="{DIRDIV_LEVEL}" class="btn-icon text-red" title="删除目录">

@@ -160,15 +160,27 @@
     </div>
   </div>
 </div>
+<dialog class="nt-unsaved-dialog" id="system-unsaved-dialog" aria-labelledby="system_unsaved_title" aria-describedby="system_unsaved_message">
+  <form method="dialog">
+    <div class="nt-unsaved-body">
+      <h2 id="system_unsaved_title">有未保存的更改</h2>
+      <p id="system_unsaved_message"></p>
+    </div>
+    <div class="nt-unsaved-actions">
+      <button class="btn" value="stay" autofocus>继续编辑</button>
+      <button class="btn nt-unsaved-leave" id="system_unsaved_leave" value="leave">放弃修改并离开</button>
+    </div>
+  </form>
+</dialog>
 <!-- 成功带后续操作提示框 -->
-<div class="modal modal-blur fade" id="system-success-action-modal" tabindex="-1" role="dialog" aria-hidden="true">
+<div class="modal modal-blur fade" id="system-success-action-modal" tabindex="-1" role="dialog" aria-hidden="true" aria-labelledby="system_success_action_title" aria-describedby="system_success_action_message">
   <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
     <div class="modal-content">
       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       <div class="modal-status bg-success"></div>
       <div class="modal-body text-center py-4">
         <span class="mb-2 text-green">{{ SVG.circle_check('icon-lg') }}</span>
-        <h3>成功</h3>
+        <h3 id="system_success_action_title">添加成功</h3>
         <div class="text-muted text-wrap" id="system_success_action_message" style="overflow: hidden">操作成功！</div>
       </div>
       <div class="modal-footer">
@@ -191,11 +203,11 @@
   </div>
 </div>
 <!-- 询问框 -->
-<div class="modal modal-blur fade" id="system-ask-modal" tabindex="-1" role="dialog" aria-hidden="true">
+<div class="modal modal-blur fade" id="system-ask-modal" tabindex="-1" role="dialog" aria-hidden="true" aria-labelledby="system_ask_title" aria-describedby="system_ask_message">
   <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
     <div class="modal-content">
       <div class="modal-body">
-        <div class="modal-title">询问</div>
+        <h2 class="modal-title" id="system_ask_title">确认操作</h2>
         <div id="system_ask_message" class="text-wrap" style="overflow: hidden">是否执行？</div>
       </div>
       <div class="modal-footer">
@@ -206,14 +218,14 @@
   </div>
 </div>
 <!-- 成功提示 -->
-<div class="modal modal-blur fade" id="system-success-modal" tabindex="-1" role="dialog" aria-hidden="true">
+<div class="modal modal-blur fade" id="system-success-modal" tabindex="-1" role="dialog" aria-hidden="true" aria-labelledby="system_success_title" aria-describedby="system_success_message">
   <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
     <div class="modal-content">
       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       <div class="modal-status bg-success"></div>
       <div class="modal-body text-center py-4">
         <span class="mb-2 text-green">{{ SVG.circle_check('icon-lg') }}</span>
-        <h3>成功</h3>
+        <h3 id="system_success_title">操作成功</h3>
         <div class="text-muted text-wrap" id="system_success_message" style="overflow: hidden">成功！</div>
       </div>
       <div class="modal-footer">
@@ -232,21 +244,21 @@
   </div>
 </div>
 <!-- 失败提示 -->
-<div class="modal modal-blur fade" id="system-fail-modal" tabindex="-1" role="dialog" aria-hidden="true">
+<div class="modal modal-blur fade" id="system-fail-modal" tabindex="-1" role="dialog" aria-hidden="true" aria-labelledby="system_fail_title" aria-describedby="system_fail_message">
   <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
     <div class="modal-content">
       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       <div class="modal-status bg-warning"></div>
       <div class="modal-body text-center py-4">
         <span class="mb-2 text-warning">{{ SVG.alert_triangle('icon-lg') }}</span>
-        <h3>失败</h3>
+        <h3 id="system_fail_title">操作失败</h3>
         <div class="text-muted text-wrap" id="system_fail_message" style="overflow:hidden">失败！</div>
       </div>
       <div class="modal-footer">
         <div class="w-100">
           <div class="row">
             <div class="col">
-              <a href="#" id="system_fail_modal_btn" class="btn btn-warning w-100" data-bs-dismiss="modal">
+              <a href="#" id="system_fail_modal_btn" class="btn w-100" data-bs-dismiss="modal">
                 确定
               </a>
             </div>
@@ -300,12 +312,12 @@
 </div>
 <!-- 实时日志 -->
 <div class="modal modal-blur fade" id="modal-logging" tabindex="-1" role="dialog" aria-hidden="true"
-     data-bs-backdrop="static" data-bs-keyboard="false">
+     data-bs-backdrop="static" aria-labelledby="logging_title">
   <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" role="document">
     <div class="modal-content">
       <div class="modal-header">
         <div class="select_logger">
-          <h5 class="modal-title">实时日志</h5>
+          <h2 class="modal-title" id="logging_title">实时日志</h2>
            <div class="dropdown">
               <a href='#' class="btn-action" data-bs-toggle="dropdown" aria-expanded="false" data-nt-click="logging-sources">
                 {{ SVG.log_select() }}
@@ -389,11 +401,11 @@
   </div>
 </div>
 <div class="modal modal-blur fade" id="modal-search-advanced" tabindex="-1" role="dialog" aria-hidden="true"
-     data-bs-backdrop="static" data-bs-keyboard="false">
+     data-bs-backdrop="static" aria-labelledby="advanced_search_title">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">高级搜索</h5>
+        <h2 class="modal-title" id="advanced_search_title">高级搜索</h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
       <div class="modal-body">
@@ -564,6 +576,28 @@
   }
 
   // 显示确认提示框
+  let unsavedPrompt = null;
+  function show_unsaved_dialog(message, actionLabel) {
+    if (unsavedPrompt) return unsavedPrompt;
+    const dialog = document.getElementById('system-unsaved-dialog');
+    document.getElementById('system_unsaved_message').textContent = message;
+    document.getElementById('system_unsaved_leave').textContent = actionLabel;
+    dialog.returnValue = 'stay';
+    // 放入当前 Bootstrap 弹窗，避免其焦点陷阱与顶层 dialog 争夺焦点。
+    const parent = document.querySelector('.modal.show') || document.body;
+    parent.append(dialog);
+    unsavedPrompt = new Promise(resolve => {
+      dialog.addEventListener('close', () => {
+        const allowed = dialog.returnValue === 'leave';
+        document.body.append(dialog);
+        unsavedPrompt = null;
+        resolve(allowed);
+      }, {once: true});
+      dialog.showModal();
+    });
+    return unsavedPrompt;
+  }
+
   function show_confirm_modal(title, func, confirmLabel = '确定') {
     $("#system_confirm_message").text(title);
     $("#system_confirm_btn").text(confirmLabel).unbind('click').click(func);
@@ -1003,7 +1037,7 @@
         function (file) {
           if (on_files) {
             p.val(file);
-            p.trigger('change');
+            p[0].dispatchEvent(new Event('change', {bubbles: true}));
             if (close_on_select) {
               closeTree();
             }
@@ -1012,7 +1046,7 @@
         function (folder) {
           if (on_folders) {
             p.val(folder);
-            p.trigger('change');
+            p[0].dispatchEvent(new Event('change', {bubbles: true}));
             if (close_on_select) {
               closeTree();
             }
@@ -1077,6 +1111,9 @@
 <script type="text/javascript">
   //当前页面地址
   let CURRENT_PAGE_URI = "";
+  let CURRENT_HISTORY_INDEX = Number.isInteger(window.history.state?.ntIndex) ? window.history.state.ntIndex : 0;
+  let CURRENT_HISTORY_STATE = window.history.state;
+  let restoring_history_position = false;
 
   function window_history_refresh() {
     if (window.history.state?.page) {
@@ -1085,13 +1122,17 @@
   }
 
   function window_history(newflag=false, extra=undefined){
+    const reloadForm = Boolean(document.querySelector('#page_content [data-unsaved-label]'));
     const state = {
       title: document.title,
-      html: $("#page_content").html(),         // 页面内容
-      scroll: $(".page").scrollTop(),  // 页面滚动位置
+      // 表单返回时重取已保存数据，不缓存密码草稿或过时的 value 属性。
+      html: reloadForm ? '' : $("#page_content").html(),
+      reloadForm: reloadForm,
+      scroll: window.scrollY || $(".page").scrollTop(),
       CurrentPage: sessionStorage.CurrentPage, // 页面当前页码
       page: CURRENT_PAGE_URI,                  // 当前页面地址
       extra: extra,                            // 额外的保存数据
+      ntIndex: newflag ? CURRENT_HISTORY_INDEX + 1 : CURRENT_HISTORY_INDEX,
     };
     if (newflag) {
       window.history.pushState(state, "");
@@ -1102,6 +1143,8 @@
       }
       window.history.replaceState(state, "");
     }
+    CURRENT_HISTORY_INDEX = state.ntIndex;
+    CURRENT_HISTORY_STATE = state;
   }
 
   //刷新LOG标志
@@ -1335,9 +1378,12 @@
   }
 
   let page_navigation_request = null;
+  let page_navigation_intent = 0;
 
   function begin_page_navigation() {
     const version = NasToolsUI.beginPage();
+    // 已确认离开后关闭旧页面的弹窗，避免把编辑层或确认按钮带到下一页。
+    document.querySelectorAll('.modal.show').forEach(modal => window.bootstrap?.Modal?.getInstance(modal)?.hide());
     $(document).off("mouseup.nt-filetree-open");
     $(".filetree-folders-only, .filetree-files-only").off("keydown.nt-filetree-open");
     $(".fileTree").remove();
@@ -1348,7 +1394,13 @@
   }
 
   // 只允许最后一次导航写入 DOM 和历史，过时片段中的脚本也不会执行。
-  function navmenu(page, newflag=false) {
+  async function navmenu(page, newflag=false) {
+    const intent = ++page_navigation_intent;
+    if (!await NasToolsUI.confirmLeave() || intent !== page_navigation_intent) return;
+    return load_page_fragment(page, newflag);
+  }
+
+  function load_page_fragment(page, newflag=false, restoreScroll=undefined) {
     if (!newflag) window_history();
     sessionStorage.removeItem("CurrentPage");
     const version = begin_page_navigation();
@@ -1371,6 +1423,7 @@
           $(window).scrollTop(0);
           CURRENT_PAGE_URI = page;
         }
+        if (restoreScroll !== undefined) $(window).scrollTop(restoreScroll);
         window_history(!newflag);
       })
       .fail(function (xhr, status) {
@@ -1406,8 +1459,32 @@
 
   //事件
   $(document).ready(function () {
-    window.addEventListener('popstate', function(e) {
+    window.addEventListener('popstate', async function(e) {
+        if (restoring_history_position) {
+          restoring_history_position = false;
+          return;
+        }
         if (e.state) {
+          const intent = ++page_navigation_intent;
+          const allowed = await NasToolsUI.confirmLeave();
+          if (intent !== page_navigation_intent) return;
+          if (!allowed) {
+            if (Number.isInteger(e.state.ntIndex) && e.state.ntIndex !== CURRENT_HISTORY_INDEX) {
+              restoring_history_position = true;
+              window.history.go(CURRENT_HISTORY_INDEX - e.state.ntIndex);
+            } else if (CURRENT_HISTORY_STATE) {
+              // 兼容本轮导航之前留下的无位置索引历史项，保留当前编辑内容。
+              window.history.pushState(CURRENT_HISTORY_STATE, '');
+            }
+            return;
+          }
+          CURRENT_HISTORY_INDEX = Number.isInteger(e.state.ntIndex) ? e.state.ntIndex : CURRENT_HISTORY_INDEX;
+          CURRENT_HISTORY_STATE = e.state;
+          if (e.state.reloadForm) {
+            document.title = e.state.title;
+            load_page_fragment(e.state.page, true, e.state.scroll);
+            return;
+          }
           begin_page_navigation();
           // 开始还原页面
           if (e.state.CurrentPage) {
