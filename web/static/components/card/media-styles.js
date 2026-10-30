@@ -62,6 +62,10 @@ if (!document.getElementById("nt-media-styles")) {
     .nt-explore-source { flex: 0 0 auto; min-height: 44px; display: inline-flex; align-items: center; padding: var(--nt-space-3) var(--nt-space-1); border-bottom: 2px solid transparent; color: var(--nt-muted); font-weight: 600; text-decoration: none; white-space: nowrap; }
     .nt-explore-source:hover { color: var(--nt-primary); text-decoration: none; }
     .nt-explore-source[aria-current="page"] { color: var(--nt-primary); border-bottom-color: var(--nt-primary); }
+    .nt-ranking-category { background: transparent; border-top: 0; border-left: 0; border-right: 0; }
+    .nt-ranking-category[aria-pressed="true"] { color: var(--nt-primary); border-bottom-color: var(--nt-primary); }
+    .nt-ranking-page .nt-slide__track > * { flex-basis: 144px; width: 144px; }
+    .nt-ranking-page .nt-media-state { padding: var(--nt-space-4); }
     .nt-explore-filters { padding: var(--nt-space-4) 0; margin-bottom: var(--nt-space-4); border-bottom: 1px solid var(--nt-border); }
     .nt-explore-filter-row { display: flex; align-items: flex-start; gap: var(--nt-space-4); padding: var(--nt-space-1) 0; min-width: 0; }
     .nt-explore-filter-label { flex: 0 0 56px; padding: var(--nt-space-2) 0; color: var(--nt-muted); line-height: 20px; font-size: 14px; }

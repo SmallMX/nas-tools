@@ -1,4 +1,5 @@
 import random
+import math
 from threading import Lock
 from time import sleep
 
@@ -308,6 +309,18 @@ class DouBan:
             return []
         return self.__dict_items(infos.get("subject_collection_items"))
 
+    def get_douban_latest_movie(self, page=1):
+        """读取按首播时间排序的电影，不与即将上映列表混用。"""
+        infos = self.doubanapi.movie_recommend(start=(page - 1) * self._movie_num,
+                                             count=self._movie_num, sort="R")
+        return self.__dict_items(infos.get("items"))
+
+    def get_douban_latest_tv(self, page=1):
+        """读取按首播时间排序的剧集。"""
+        infos = self.doubanapi.tv_recommend(start=(page - 1) * self._tv_num,
+                                          count=self._tv_num, sort="R")
+        return self.__dict_items(infos.get("items"))
+
     def get_douban_top250_movie(self, page=1):
         if not self.doubanapi:
             return []
@@ -359,16 +372,21 @@ class DouBan:
         """
         # ID
         ret_infos = []
-        for info in infos:
+        for info in infos if isinstance(infos, list) else []:
+            if not isinstance(info, dict):
+                continue
             rid = info.get("id")
+            title = info.get('title')
+            if not rid or not isinstance(title, str) or not title.strip():
+                continue
             # 评分
             rating = info.get('rating')
-            if rating:
-                vote_average = float(rating.get("value"))
-            else:
+            try:
+                vote_average = float(rating.get("value") or 0) if isinstance(rating, dict) else 0
+                if not math.isfinite(vote_average) or not 0 <= vote_average <= 10:
+                    vote_average = 0
+            except (TypeError, ValueError):
                 vote_average = 0
-            # 标题
-            title = info.get('title')
             # 年份
             year = info.get('year')
 
@@ -379,21 +397,15 @@ class DouBan:
             else:
                 mtype = media_type
 
-            if mtype == MediaType.MOVIE:
-                type_str = "MOV"
-                # 海报
-                poster_path = info.get('cover', {}).get("url")
-                if not poster_path:
-                    poster_path = info.get('cover_url')
-                if not poster_path:
-                    poster_path = info.get('pic', {}).get("large")
-            else:
-                type_str = "TV"
-                # 海报
-                poster_path = info.get('pic', {}).get("normal")
+            type_str = "MOV" if mtype == MediaType.MOVIE else "TV"
+            cover = info.get('cover') if isinstance(info.get('cover'), dict) else {}
+            pictures = info.get('pic') if isinstance(info.get('pic'), dict) else {}
+            poster_path = next((value for value in (
+                cover.get("url"), info.get('cover_url'), pictures.get("large"), pictures.get("normal"))
+                if isinstance(value, str) and value), "")
 
             # 简介
-            overview = info.get("card_subtitle") or ""
+            overview = info.get("card_subtitle") if isinstance(info.get("card_subtitle"), str) else ""
             if not year and overview:
                 if overview.split("/")[0].strip().isdigit():
                     year = overview.split("/")[0].strip()
@@ -408,7 +420,7 @@ class DouBan:
                 'title': title,
                 'type': type_str,
                 'media_type': mtype.value,
-                'year': year[:4] if year else "",
+                'year': str(year)[:4] if year else "",
                 'vote': vote_average,
                 'image': poster_path,
                 'overview': overview

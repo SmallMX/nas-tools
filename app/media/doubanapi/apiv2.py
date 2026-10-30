@@ -2,16 +2,24 @@
 import base64
 import hashlib
 import hmac
+import re
+from copy import deepcopy
 from datetime import datetime
 from functools import lru_cache
 from random import choice
 from urllib import parse
 
 import requests
+from cacheout import Cache
 
 from app.utils import RequestUtils
 from app.utils.commons import singleton
 from config import Config
+import log
+
+
+class DoubanRecommendationError(ValueError):
+    """A public Douban recommendation request did not return a usable page."""
 
 
 @singleton
@@ -142,9 +150,93 @@ class DoubanApi(object):
         "api-client/1 com.douban.frodo/7.3.0(207) Android/22 product/MI 9 vendor/Xiaomi model/MI 9 brand/Android  rom/miui6  network/wifi platform/mobile nd/1"]
     _base_url = "https://frodo.douban.com/api/v2"
     _session = requests.Session()
+    _recommend_base_url = "https://m.douban.com/rexxar/api/v2"
+    _recommend_cache = Cache(maxsize=128, ttl=600)
+    _public_detail_cache = Cache(maxsize=256, ttl=1800)
 
     def __init__(self):
         pass
+
+    @staticmethod
+    def _valid_detail(payload, subject_id, media_type):
+        """Accept only an identified movie or TV detail, not an error or another subject."""
+        return (isinstance(payload, dict)
+                and payload.get("code") in (None, 0, "0") and not payload.get("localized_message")
+                and str(payload.get("id")) == subject_id and payload.get("type") == media_type
+                and isinstance(payload.get("title"), str) and bool(payload["title"].strip()))
+
+    def _detail(self, subject_id, media_type):
+        """Prefer configured Frodo details, then read the matching public detail."""
+        subject_id = str(subject_id)
+        if not re.fullmatch(r"[0-9]+", subject_id):
+            return None
+        path = f"/{media_type}/{subject_id}"
+        try:
+            payload = self.__invoke(path)
+        except (TypeError, ValueError):
+            payload = None
+        if self._valid_detail(payload, subject_id, media_type):
+            return payload
+        cache_key = (media_type, subject_id)
+        cached = self._public_detail_cache.get(cache_key)
+        if cached is not None:
+            return deepcopy(cached)
+        response = RequestUtils(headers={
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                          "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "Referer": "https://m.douban.com/movie/",
+        }, timeout=15).get_res(url=self._recommend_base_url + path)
+        if response is None:
+            log.warn("【Douban】公开详情服务暂不可用")
+            return None
+        try:
+            if response.status_code != 200:
+                log.warn(f"【Douban】公开详情请求失败（HTTP {response.status_code}）")
+                return None
+            try:
+                payload = response.json()
+            except (TypeError, ValueError):
+                log.warn("【Douban】公开详情返回了无效数据")
+                return None
+            if not self._valid_detail(payload, subject_id, media_type):
+                return None
+            self._public_detail_cache.set(cache_key, deepcopy(payload))
+            return payload
+        finally:
+            response.close()
+
+    @classmethod
+    def __invoke_recommend(cls, url, **kwargs):
+        """Read public charts without requiring Frodo application credentials."""
+        params = {key: value for key, value in kwargs.items() if key != "_ts"}
+        cache_key = (url, tuple(sorted(params.items())))
+        cached = cls._recommend_cache.get(cache_key)
+        if cached is not None:
+            return deepcopy(cached)
+        response = RequestUtils(headers={
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                          "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "Referer": "https://m.douban.com/movie/",
+        }, timeout=15).get_res(url=cls._recommend_base_url + url, params=params)
+        if response is None:
+            raise DoubanRecommendationError("无法连接豆瓣榜单，请稍后重试")
+        try:
+            if response.status_code != 200:
+                raise DoubanRecommendationError(f"豆瓣榜单请求失败（HTTP {response.status_code}），请稍后重试")
+            try:
+                payload = response.json()
+            except (TypeError, ValueError) as error:
+                raise DoubanRecommendationError("豆瓣榜单返回了无效数据，请稍后重试") from error
+            field = "subject_collection_items" if url.startswith("/subject_collection/") else "items"
+            if (not isinstance(payload, dict) or payload.get("code") not in (None, 0, "0")
+                    or payload.get("error") or not isinstance(payload.get(field), list)):
+                raise DoubanRecommendationError("豆瓣榜单暂不可用，请稍后重试")
+            # A temporary empty response must not become a long-lived empty chart.
+            if payload[field]:
+                cls._recommend_cache.set(cache_key, deepcopy(payload))
+            return payload
+        finally:
+            response.close()
 
     @classmethod
     def __sign(cls, url: str, ts: int, api_secret_key: str, method='GET') -> str:
@@ -200,37 +292,37 @@ class DoubanApi(object):
         return self.__invoke(self._urls["group_search"], q=keyword, start=start, count=count, _ts=ts)
 
     def movie_showing(self, start=0, count=20, ts=datetime.strftime(datetime.now(), '%Y%m%d')):
-        return self.__invoke(self._urls["movie_showing"], start=start, count=count, _ts=ts)
+        return self.__invoke_recommend(self._urls["movie_showing"], start=start, count=count, _ts=ts)
 
     def movie_soon(self, start=0, count=20, ts=datetime.strftime(datetime.now(), '%Y%m%d')):
-        return self.__invoke(self._urls["movie_soon"], start=start, count=count, _ts=ts)
+        return self.__invoke_recommend(self._urls["movie_soon"], start=start, count=count, _ts=ts)
 
     def movie_hot_gaia(self, start=0, count=20, ts=datetime.strftime(datetime.now(), '%Y%m%d')):
-        return self.__invoke(self._urls["movie_hot_gaia"], start=start, count=count, _ts=ts)
+        return self.__invoke_recommend(self._urls["movie_hot_gaia"], start=start, count=count, _ts=ts)
 
     def tv_hot(self, start=0, count=20, ts=datetime.strftime(datetime.now(), '%Y%m%d')):
-        return self.__invoke(self._urls["tv_hot"], start=start, count=count, _ts=ts)
+        return self.__invoke_recommend(self._urls["tv_hot"], start=start, count=count, _ts=ts)
 
     def tv_animation(self, start=0, count=20, ts=datetime.strftime(datetime.now(), '%Y%m%d')):
-        return self.__invoke(self._urls["tv_animation"], start=start, count=count, _ts=ts)
+        return self.__invoke_recommend(self._urls["tv_animation"], start=start, count=count, _ts=ts)
 
     def tv_variety_show(self, start=0, count=20, ts=datetime.strftime(datetime.now(), '%Y%m%d')):
-        return self.__invoke(self._urls["tv_variety_show"], start=start, count=count, _ts=ts)
+        return self.__invoke_recommend(self._urls["tv_variety_show"], start=start, count=count, _ts=ts)
 
     def tv_rank_list(self, start=0, count=20, ts=datetime.strftime(datetime.now(), '%Y%m%d')):
         return self.__invoke(self._urls["tv_rank_list"], start=start, count=count, _ts=ts)
 
     def show_hot(self, start=0, count=20, ts=datetime.strftime(datetime.now(), '%Y%m%d')):
-        return self.__invoke(self._urls["show_hot"], start=start, count=count, _ts=ts)
+        return self.__invoke_recommend(self._urls["show_hot"], start=start, count=count, _ts=ts)
 
     def movie_detail(self, subject_id):
-        return self.__invoke(self._urls["movie_detail"] + subject_id)
+        return self._detail(subject_id, "movie")
 
     def movie_celebrities(self, subject_id):
         return self.__invoke(self._urls["movie_celebrities"] % subject_id)
 
     def tv_detail(self, subject_id):
-        return self.__invoke(self._urls["tv_detail"] + subject_id)
+        return self._detail(subject_id, "tv")
 
     def tv_celebrities(self, subject_id):
         return self.__invoke(self._urls["tv_celebrities"] % subject_id)
@@ -239,16 +331,16 @@ class DoubanApi(object):
         return self.__invoke(self._urls["book_detail"] + subject_id)
 
     def movie_top250(self, start=0, count=20, ts=datetime.strftime(datetime.now(), '%Y%m%d')):
-        return self.__invoke(self._urls["movie_top250"], start=start, count=count, _ts=ts)
+        return self.__invoke_recommend(self._urls["movie_top250"], start=start, count=count, _ts=ts)
 
     def movie_recommend(self, tags='', sort='T', start=0, count=20, ts=datetime.strftime(datetime.now(), '%Y%m%d')):
-        return self.__invoke(self._urls["movie_recommend"], tags=tags, sort=sort, start=start, count=count, _ts=ts)
+        return self.__invoke_recommend(self._urls["movie_recommend"], tags=tags, sort=sort, start=start, count=count, _ts=ts)
 
     def tv_recommend(self, tags='', sort='T', start=0, count=20, ts=datetime.strftime(datetime.now(), '%Y%m%d')):
-        return self.__invoke(self._urls["tv_recommend"], tags=tags, sort=sort, start=start, count=count, _ts=ts)
+        return self.__invoke_recommend(self._urls["tv_recommend"], tags=tags, sort=sort, start=start, count=count, _ts=ts)
 
     def tv_chinese_best_weekly(self, start=0, count=20, ts=datetime.strftime(datetime.now(), '%Y%m%d')):
-        return self.__invoke(self._urls["tv_chinese_best_weekly"], start=start, count=count, _ts=ts)
+        return self.__invoke_recommend(self._urls["tv_chinese_best_weekly"], start=start, count=count, _ts=ts)
 
     def tv_global_best_weekly(self, start=0, count=20, ts=datetime.strftime(datetime.now(), '%Y%m%d')):
-        return self.__invoke(self._urls["tv_global_best_weekly"], start=start, count=count, _ts=ts)
+        return self.__invoke_recommend(self._urls["tv_global_best_weekly"], start=start, count=count, _ts=ts)

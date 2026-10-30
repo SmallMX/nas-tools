@@ -8,6 +8,7 @@ export class CustomSlide extends CustomElement {
     slide_click: { attribute: "slide-click" },
     slide_status: { attribute: "slide-status" },
     slide_error: { attribute: "slide-error" },
+    slide_empty_retry: { attribute: "slide-empty-retry" },
     lazy: { attribute: "lazy" },
     slide_card: { type: Array },
     _disabled: { state: true },
@@ -42,7 +43,10 @@ export class CustomSlide extends CustomElement {
             <button class="btn btn-outline-primary btn-sm" type="button"
               @click=${() => this.dispatchEvent(new CustomEvent("retry", { bubbles: true }))}>重新加载</button>
           </div>` : this.slide_status !== "loading" && !cards.length ? html`
-          <div class="nt-media-state" role="status"><p>暂无内容，稍后再来看看。</p></div>` : nothing}
+          <div class="nt-media-state" role="status"><p>暂无内容，稍后再来看看。</p>
+            ${this.slide_empty_retry === "1" ? html`<button class="btn btn-outline-primary btn-sm" type="button"
+              @click=${() => this.dispatchEvent(new CustomEvent("retry", { bubbles: true }))}>重新加载</button>` : nothing}
+          </div>` : nothing}
         <div class="nt-slide__viewport media-slide-hide-scrollbar" tabindex="0" role="region"
           aria-label=${`${this.slide_title}，可左右滚动浏览`} aria-busy=${this.slide_status === "loading" ? "true" : "false"}
           ?hidden=${this.slide_status === "error" || (!cards.length && this.slide_status !== "loading")}
@@ -63,6 +67,7 @@ export class CustomSlide extends CustomElement {
   }
 
   updated(changedProperties) {
+    if (changedProperties.has("slide_title") && this._scrollbar) this._scrollbar.scrollLeft = 0;
     if (changedProperties.has("slide_card") || changedProperties.has("slide_status")) this._countMaxNumber();
   }
 

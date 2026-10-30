@@ -61,7 +61,8 @@ class WebUtils:
                 media_info = Media().get_media_info(title=f"{title} {year}",
                                                     mtype=mtype,
                                                     append_to_response="all")
-            media_info.douban_id = doubanid
+            if media_info:
+                media_info.douban_id = doubanid
         elif str(mediaid).startswith("BG:"):
             # BANGUMI
             bangumiid = str(mediaid)[3:]

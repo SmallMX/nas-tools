@@ -2,8 +2,12 @@ import json
 import os.path
 import re
 import cn2an
+import requests
 from app.helper import MetaHelper
 from app.media import Category, Media, Bangumi, DouBan
+from app.media.bangumi import BangumiRecommendationError
+from app.media.doubanapi import DoubanRecommendationError
+from app.media.tmdbv3api import TMDbException
 from app.media.meta import MetaInfo, MetaBase
 from app.media.streaming import StreamingDiscovery, StreamingDiscoveryError
 from app.utils import StringUtils, ExceptionUtils
@@ -174,53 +178,48 @@ class SearchActions:
             except StreamingDiscoveryError as error:
                 return {"code": 1, "msg": str(error), "Items": []}
             return {"code": 0, **result}
-        if not CurrentPage:
-            CurrentPage = 1
-        else:
-            CurrentPage = int(CurrentPage)
+        try:
+            CurrentPage = int(CurrentPage or 1)
+        except (TypeError, ValueError):
+            return {"code": 1, "msg": "页码必须是整数", "Items": []}
+        if not 1 <= CurrentPage <= 10000:
+            return {"code": 1, "msg": "页码超出允许范围", "Items": []}
+
+        douban_charts = {
+            "dbom": "get_douban_online_movie", "dbhm": "get_douban_hot_movie",
+            "dbht": "get_douban_hot_tv", "dbdh": "get_douban_hot_anime",
+            "dbnm": "get_douban_new_movie", "dbtop": "get_douban_top250_movie",
+            "dbzy": "get_douban_hot_show", "dbct": "get_douban_chinese_weekly_tv",
+            "dbgt": "get_douban_weekly_tv_global", "dbnewmovie": "get_douban_latest_movie",
+            "dbnewtv": "get_douban_latest_tv",
+        }
+        tmdb_charts = {
+            "hm": ("movie", "get_tmdb_hot_movies"), "ht": ("tv", "get_tmdb_hot_tvs"),
+            "nm": ("movie", "get_tmdb_new_movies"), "nt": ("tv", "get_tmdb_new_tvs"),
+        }
+        if Type in ("MOV", "TV") and SubType in douban_charts:
+            try:
+                items = getattr(DouBan(), douban_charts[SubType])(CurrentPage)
+            except DoubanRecommendationError as error:
+                return {"code": 1, "msg": str(error), "Items": []}
+            return {"code": 0, "Items": items}
+        if Type == "TRENDING" or (Type in ("MOV", "TV") and SubType in tmdb_charts):
+            component, method = ("trending", "get_tmdb_trending_all_week") if Type == "TRENDING" else tmdb_charts[SubType]
+            media = Media()
+            if getattr(media, component, None) is None:
+                return {"code": 1, "msg": "尚未配置 TMDB API Key，请在媒体设置中配置后重试。", "Items": []}
+            try:
+                items = getattr(media, method)(CurrentPage)
+            except (TMDbException, requests.RequestException, ValueError, TypeError):
+                # The TMDB client caches HTTP responses, including unsuccessful ones.
+                # Evict a failed response so the section's retry reaches the service again.
+                media.tmdb.cache_clear()
+                return {"code": 1, "msg": "TMDB 榜单加载失败，请检查网络和 API 配置后重试。", "Items": []}
+            return {"code": 0, "Items": items}
 
         res_list = []
         if Type in ['MOV', 'TV']:
-            if SubType == "hm":
-                # TMDB热门电影
-                res_list = Media().get_tmdb_hot_movies(CurrentPage)
-            elif SubType == "ht":
-                # TMDB热门电视剧
-                res_list = Media().get_tmdb_hot_tvs(CurrentPage)
-            elif SubType == "nm":
-                # TMDB最新电影
-                res_list = Media().get_tmdb_new_movies(CurrentPage)
-            elif SubType == "nt":
-                # TMDB最新电视剧
-                res_list = Media().get_tmdb_new_tvs(CurrentPage)
-            elif SubType == "dbom":
-                # 豆瓣正在上映
-                res_list = DouBan().get_douban_online_movie(CurrentPage)
-            elif SubType == "dbhm":
-                # 豆瓣热门电影
-                res_list = DouBan().get_douban_hot_movie(CurrentPage)
-            elif SubType == "dbht":
-                # 豆瓣热门电视剧
-                res_list = DouBan().get_douban_hot_tv(CurrentPage)
-            elif SubType == "dbdh":
-                # 豆瓣热门动画
-                res_list = DouBan().get_douban_hot_anime(CurrentPage)
-            elif SubType == "dbnm":
-                # 豆瓣最新电影
-                res_list = DouBan().get_douban_new_movie(CurrentPage)
-            elif SubType == "dbtop":
-                # 豆瓣TOP250电影
-                res_list = DouBan().get_douban_top250_movie(CurrentPage)
-            elif SubType == "dbzy":
-                # 豆瓣最新电视剧
-                res_list = DouBan().get_douban_hot_show(CurrentPage)
-            elif SubType == "dbct":
-                # 华语口碑剧集榜
-                res_list = DouBan().get_douban_chinese_weekly_tv(CurrentPage)
-            elif SubType == "dbgt":
-                # 全球口碑剧集榜
-                res_list = DouBan().get_douban_weekly_tv_global(CurrentPage)
-            elif SubType == "sim":
+            if SubType == "sim":
                 # 相似推荐
                 TmdbId = data.get("tmdbid")
                 res_list = self.media_similar({
@@ -247,7 +246,10 @@ class SearchActions:
             elif SubType == "bangumi":
                 # Bangumi每日放送
                 Week = data.get("week")
-                res_list = Bangumi().get_bangumi_calendar(page=CurrentPage, week=Week)
+                try:
+                    res_list = Bangumi().get_bangumi_calendar(page=CurrentPage, week=Week)
+                except BangumiRecommendationError as error:
+                    return {"code": 1, "msg": str(error), "Items": []}
         elif Type == "SEARCH":
             # 搜索词条
             Keyword = data.get("keyword")
@@ -260,9 +262,6 @@ class SearchActions:
             res_list = self.downloads.get_downloaded({
                 "page": CurrentPage
             }).get("Items")
-        elif Type == "TRENDING":
-            # TMDB流行趋势
-            res_list = Media().get_tmdb_trending_all_week(page=CurrentPage)
         elif Type == "DISCOVER":
             # TMDB发现
             mtype = MediaType.MOVIE if SubType in MovieTypes else MediaType.TV
@@ -279,10 +278,13 @@ class SearchActions:
             # 选中的分类
             tags = params.get("tags") or ""
             # 过滤参数
-            res_list = DouBan().get_douban_disover(mtype=mtype,
-                                                   sort=sort,
-                                                   tags=tags,
-                                                   page=CurrentPage)
+            try:
+                res_list = DouBan().get_douban_disover(mtype=mtype,
+                                                       sort=sort,
+                                                       tags=tags,
+                                                       page=CurrentPage)
+            except DoubanRecommendationError as error:
+                return {"code": 1, "msg": str(error), "Items": []}
 
         return {"code": 0, "Items": res_list}
 
