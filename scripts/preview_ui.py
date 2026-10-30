@@ -122,7 +122,9 @@ def search_results():
     torrents = [{"id": str(i + 1), "site": SITES[i]["name"], "torrent_name": TORRENTS[0]["title"],
                  "description": "示例资源 · 中文字幕 / 杜比视界", "video_encode": "H265", "reseffect": "HDR10",
                  "size": f"{24 + i * 3}.6 GB", "releasegroup": "DEMO", "uploadvalue": 1.0,
-                 "downloadvalue": 0.0, "seeders": 156 - i * 24, "pageurl": "", "enclosure": ""}
+                 "downloadvalue": 0.0, "seeders": 156 - i * 24,
+                 "pageurl": f"https://site-{i + 1}.example/details/{i + 1}",
+                 "enclosure": f"https://site-{i + 1}.example/download/{i + 1}"}
                 for i in range(3)]
     group = {"group_info": {"restype": "WEB-DL", "respix": "2160p"}, "group_total": len(torrents),
              "group_torrents": {"demo": {"torrent_list": torrents}}}
@@ -143,7 +145,7 @@ PAGES = {
     "site": ("站点维护", "site/site.html"), "sitelist": ("站点资源", "site/sitelist.html"),
     "resources": ("单站资源", "site/resources.html"), "statistics": ("数据统计", "site/statistics.html"),
     "brushtask": ("刷流任务", "site/brushtask.html"), "userdownloader": ("自定义下载器", "download/userdownloader.html"),
-    "downloading": ("正在下载", "download/downloading.html"), "downloaded": ("近期下载", "discovery/recommend.html"),
+    "downloading": ("下载任务", "download/downloading.html"), "downloaded": ("近期下载", "discovery/recommend.html"),
     "torrent_remove": ("自动删种", "download/torrent_remove.html"), "tools": ("工具", "tools/index.html"),
     "tools/site-signin": ("站点自动签到", "tools/site_signin.html"), "service": ("服务", "service.html"),
     "tmdbcache": ("TMDB 缓存", "rename/tmdbcache.html"), "basic": ("基础设置", "setting/basic.html"),

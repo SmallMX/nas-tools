@@ -197,8 +197,8 @@
   function download_site_resource(id) {
     const name = $(`#title_${id}`).val() || "";
     show_download_modal(id, name, resourceSiteTitle, function(){
-      $("#modal-search-download").modal('hide');
-      download_resource(id, false);
+      $("#search_download_error").prop('hidden', true);
+      return NasToolsUI.withButton('#search_download_btn', '添加中…', () => download_resource(id, false));
     })
   }
 
@@ -207,6 +207,7 @@
   var current_download = 0;
 
   function download_resource(id, batch) {
+    const modalVersion = downloadModalVersion;
     const site = resourceSiteTitle;
     const enclosure = $(`#enclosure_${id}`).val();
     const title = $(`#title_${id}`).val();
@@ -229,12 +230,13 @@
       uploadvolumefactor: uploadvolumefactor,
       downloadvolumefactor: downloadvolumefactor
     };
-    NasToolsUI.pageAction("download_link", params, function (ret) {
+    return NasToolsUI.pageAction("download_link", params, function (ret) {
       if (!batch) {
+        if (modalVersion !== downloadModalVersion) return;
         if (ret.code === 0) {
-          show_success_modal(`${title} 添加下载成功！`);
+          show_download_success(title);
         } else {
-          show_fail_modal(`${title} 添加下载失败 ${ret.msg}`);
+          $("#search_download_error").text(`添加下载失败：${ret.msg || '请检查连接后重试'}`).prop('hidden', false);
         }
       } else {
         current_download = current_download + 1;

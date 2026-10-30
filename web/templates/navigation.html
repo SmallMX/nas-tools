@@ -131,14 +131,14 @@
   </div>
 </div>
 <!-- 危险确认提示框 -->
-<div class="modal modal-blur fade" id="system-confirm-modal" tabindex="-1" role="dialog" aria-hidden="true">
+<div class="modal modal-blur fade" id="system-confirm-modal" tabindex="-1" role="dialog" aria-hidden="true" aria-labelledby="system_confirm_title" aria-describedby="system_confirm_message">
   <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
     <div class="modal-content">
       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       <div class="modal-status bg-danger"></div>
       <div class="modal-body text-center py-4">
        <span class="mb-2 text-danger">{{ SVG.alert_triangle('icon-lg') }}</span>
-        <h3>确认</h3>
+        <h3 id="system_confirm_title">确认操作</h3>
         <div class="text-muted text-wrap" id="system_confirm_message" style="overflow: hidden">是否确定？</div>
       </div>
       <div class="modal-footer">
@@ -180,8 +180,8 @@
               </button>
             </div>
             <div class="col">
-              <button class="btn btn-success w-100" data-bs-dismiss="modal">
-                确定
+              <button class="btn w-100" data-bs-dismiss="modal">
+                继续浏览
               </button>
             </div>
           </div>
@@ -339,29 +339,35 @@
   </div>
 </div>
 <!-- 手动下载 -->
-<div class="modal modal-blur fade" id="modal-search-download" tabindex="-1" role="dialog" aria-hidden="true">
+<div class="modal modal-blur fade" id="modal-search-download" tabindex="-1" role="dialog" aria-hidden="true" aria-labelledby="search_download_title" aria-describedby="search_download_message">
   <div class="modal-dialog modal-md modal-dialog-centered" role="document">
     <input type="hidden" id="search_download_id">
     <input type="hidden" id="search_download_name">
     <div class="modal-content">
       <div class="modal-body">
-        <div class="modal-title">添加下载</div>
+        <h2 class="modal-title" id="search_download_title">添加下载</h2>
+        <div class="nt-download-summary mt-3">
+          <p id="search_download_message" class="mb-1"></p>
+          <p id="search_download_metadata" class="text-muted mb-0" hidden></p>
+        </div>
         <div class="row mt-3">
           <div class="col-md">
             <div class="form-floating mb-1">
               <select class="form-select" id="search_download_setting" aria-label="下载设置"
                   >
               </select>
-              <label for="floatingSelect">下载设置</label>
+              <label for="search_download_setting">下载设置</label>
             </div>
           </div>
           <div class="col-md">
             <div class="form-floating mb-1">
               <select class="form-select" id="search_download_dir" aria-label="保存目录"></select>
-              <label for="floatingSelect">保存目录</label>
+              <label for="search_download_dir">保存目录</label>
             </div>
           </div>
         </div>
+        <p class="form-hint mt-2" id="search_download_rule">选择“自动”时，将按下载设置和目录匹配规则选择保存位置。</p>
+        <p class="text-danger mt-2 mb-0" id="search_download_error" role="alert" hidden></p>
         <form class="dropzone mt-2" id="torrent_files" action="/upload">
           <div class="fallback">
             <input name="file" type="file" accept=".torrent" />
@@ -558,9 +564,9 @@
   }
 
   // 显示确认提示框
-  function show_confirm_modal(title, func) {
+  function show_confirm_modal(title, func, confirmLabel = '确定') {
     $("#system_confirm_message").text(title);
-    $("#system_confirm_btn").unbind('click').click(func);
+    $("#system_confirm_btn").text(confirmLabel).unbind('click').click(func);
     $("#system-confirm-modal").modal("show");
   }
 
@@ -570,9 +576,9 @@
   }
 
   // 显示询问提示框
-  function show_ask_modal(title, func) {
+  function show_ask_modal(title, func, confirmLabel = '确定') {
     $("#system_ask_message").text(title);
-    $("#system_ask_btn").unbind('click').click(func);
+    $("#system_ask_btn").text(confirmLabel).unbind('click').click(func);
     $("#system-ask-modal").modal("show");
   }
 
@@ -807,10 +813,18 @@
   }
 
   // 显示下载提示框
-  function show_download_modal(id, name, site=undefined, func=undefined, show_type=undefined) {
+  let downloadModalVersion = 0;
+  function show_download_modal(id, name, site=undefined, func=undefined, show_type=undefined, details={}) {
+    downloadModalVersion += 1;
     $("#search_download_id").val(id);
     $("#search_download_name").val(name);
-    $("#search_download_message").text(`新增下载 ${name}`);
+    $("#search_download_message").text(name || (show_type === 'magnet' ? '添加磁力链接，可每行填写一个。' : '选择需要下载的种子文件。'));
+    const metadata = [site, details.quality, details.size].filter(Boolean).join(' · ');
+    $("#search_download_metadata").text(metadata).prop('hidden', !metadata);
+    $("#search_download_error").text('').prop('hidden', true);
+    $("#search_download_rule").text(site
+      ? '“站点设置”沿用该站点的下载预设；“自动”将按下载设置和目录匹配规则选择保存位置。'
+      : '“默认”沿用默认下载预设；“自动”将按下载设置和目录匹配规则选择保存位置。');
     // 根据下载设置刷新下载目录选项；事件参数通过闭包传递，不生成动态 JavaScript。
     const isDefault = Boolean(show_type);
     const selectedSite = isDefault ? "" : (site || "");
@@ -851,20 +865,40 @@
     $("#modal-search-download").modal('show');
   }
 
+  function show_download_success(name) {
+    const present = () => {
+      $("#system_success_action_message").text(`${name} 已添加到下载器。`);
+      $("#system_success_action_btn").text('查看下载任务').addClass('btn-primary')
+        .off('click').on('click', function () {
+          $("#system-success-action-modal").modal('hide');
+          navmenu('downloading');
+        });
+      $("#system-success-action-modal").modal('show');
+    };
+    const modal = $("#modal-search-download");
+    if (modal.hasClass('show')) {
+      modal.one('hidden.bs.modal', present).modal('hide');
+    } else {
+      present();
+    }
+  }
+
   //点击链接下载
   function download_link() {
+    const version = downloadModalVersion;
     const id = $("#search_download_id").val();
     const name = $("#search_download_name").val();
     const dir = $("#search_download_dir").val();
     const setting = $("#search_download_setting").val();
-    $("#modal-search-download").modal('hide');
-    NasToolsUI.pageAction("download", {"id": id, "dir": dir, "setting": setting}, function (ret) {
+    $("#search_download_error").prop('hidden', true);
+    return NasToolsUI.withButton('#search_download_btn', '添加中…', () => NasToolsUI.pageAction("download", {"id": id, "dir": dir, "setting": setting}, function (ret) {
+      if (version !== downloadModalVersion) return;
       if (ret.retcode === 0) {
-        show_success_modal(`${name} 添加下载成功！`);
+        show_download_success(name);
       } else {
-        show_fail_modal(`${name} 添加下载失败 ${ret.retmsg}！`);
+        $("#search_download_error").text(`添加下载失败：${ret.retmsg || ret.msg || '请检查连接后重试'}`).prop('hidden', false);
       }
-    });
+    }));
   }
 
   // 显示高级搜索框

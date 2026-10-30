@@ -1,7 +1,7 @@
 {% import 'macro/ui.html' as UI %}
 {% import 'macro/svg.html' as SVG %}
 {% import 'macro/oops.html' as OOPS %}
-{% call UI.page_header('站点维护', '统一管理站点连接、访问凭据与自动化用途。', eyebrow='站点管理') %}
+{% call UI.page_header('站点维护', '统一管理站点连接、访问凭据与自动化用途。') %}
 <div class="btn-list">
           <a href="#" data-nt-click="site-add" class="btn btn-primary">
             {{ SVG.plus() }}
@@ -12,20 +12,24 @@
             CookieCloud 同步
           </button>
           <a href="#" data-nt-click="site-cookie-settings" class="btn">CookieCloud 设置</a>
+          <a href="/?next=tools%2Fsite-signin" data-site-page="tools/site-signin" class="btn">签到状态</a>
           <a href="#" data-nt-click="site-test-modal" class="btn">
             {{ SVG.activity_heartbeat() }}
             站点测试
           </a>
         </div>
 {% endcall %}
+<div class="container-xl"><p id="site_target_notice" class="text-muted" role="status" hidden></p></div>
 {% if Sites %}
 <div class="page-body">
   <div class="container-xl">
     <div class="d-grid gap-3 grid-info-card">
       {% for Site in Sites %}
-      <div class="card card-link-pop nt-resource-card">
+      <div class="card card-link-pop nt-resource-card nt-site-card" id="site-card-{{ Site.id }}"
+           data-site-id="{{ Site.id }}" data-site-name="{{ Site.name }}" tabindex="-1"
+           aria-labelledby="site-card-title-{{ Site.id }}">
         <div class="card-header">
-          <h3 class="card-title">
+          <h3 class="card-title" id="site-card-title-{{ Site.id }}">
             <span class="badge badge-pill bg-teal"><small>{{ Site.pri }}</small></span>
             {% set SiteSignUrl = (Site.signurl or '')|trim %}
             {% set SiteSignUrlLower = SiteSignUrl|lower %}
@@ -103,6 +107,13 @@
             </div>
           </div>
         </div>
+        {% if (Site.signin_enable or Site.login_enable) and (Site.signurl or Site.rssurl) %}
+        {% set SiteSigninPage = 'tools/site-signin?' ~ ({'site_id': Site.id, 'site_name': Site.name}|urlencode) %}
+        <div class="card-footer">
+          <a href="/?next={{ SiteSigninPage|urlencode }}" data-site-page="{{ SiteSigninPage }}"
+             class="btn btn-sm" aria-label="查看{{ Site.name }}的签到状态">查看签到状态</a>
+        </div>
+        {% endif %}
       </div>
       {% endfor %}
     </div>
@@ -414,6 +425,34 @@
 </div>
 <script type="text/javascript">
 (() => {
+  const targetSiteId = {{ request.args.get('site_id', '')|tojson }};
+  const targetSiteName = {{ request.args.get('site_name', '')|tojson }};
+
+  document.querySelectorAll("[data-site-page]").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      navmenu(link.dataset.sitePage);
+    });
+  });
+
+  if (targetSiteId || targetSiteName) {
+    const cards = Array.from(document.querySelectorAll(".nt-site-card"));
+    const matches = cards.filter((card) => targetSiteId ? card.dataset.siteId === targetSiteId : card.dataset.siteName === targetSiteName);
+    const notice = document.querySelector("#site_target_notice");
+    notice.hidden = false;
+    notice.textContent = matches.length ? `已定位${targetSiteName ? `「${targetSiteName}」` : "所选站点"}，可检查配置或更新凭据。${matches.length > 1 ? "存在同名站点，请核对地址。" : ""}`
+      : "未找到所选站点，可能已被删除或更名。请从当前列表选择需要维护的站点。";
+    matches.forEach((card) => card.classList.add("nt-site-highlight"));
+    if (matches.length) {
+      // navmenu 会在片段脚本之后重置滚动；稍后再定位，返回历史页同样生效。
+      NasToolsUI.pageTimeout(() => {
+        matches[0].focus({preventScroll: true});
+        matches[0].scrollIntoView({block: "center"});
+      }, 0);
+    }
+  }
+
   //打开新增站点框
   function show_site_modal() {
     $("#site_id").val('');

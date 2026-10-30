@@ -1,7 +1,7 @@
 {% import 'macro/ui.html' as UI %}
 {% import 'macro/svg.html' as SVG %}
 {% import 'macro/oops.html' as OOPS %}
-{{ UI.page_header('资源搜索', '比较站点资源，按季、质量与促销条件找到合适的版本。', eyebrow='资源搜索', count=Count) }}
+{{ UI.page_header('资源搜索', '比较站点资源，按季、质量与促销条件找到合适的版本。', count=Count) }}
 <!-- 业务页面代码 -->
 {% if Count > 0 and Results|length > 0 %}
   <div class="page-body">
@@ -172,9 +172,9 @@
                                   data-video="{{ torrent.video_encode }}"
                                   data-group-total-id="{{ group_total_id }}"
                                   data-group-item-id="{{ group_item_id }}">
-                                  <div class="row g-2 align-items-center">
+                                  <div class="row g-2 align-items-center nt-resource-row">
                                     <div class="col-auto">
-                                      <a {% if torrent.pageurl and torrent.pageurl.startswith('http') %}href="{{ torrent.pageurl }}" target="_blank" rel="noopener noreferrer"{% else %}href="#"{% endif %}>
+                                      <a {% if torrent.pageurl and torrent.pageurl.startswith('http') %}href="{{ torrent.pageurl }}" target="_blank" rel="noopener noreferrer"{% else %}href="#"{% endif %} aria-label="查看 {{ torrent.site }} 的种子详情">
                                         <span class="avatar avatar-sm rounded siteicon-{{ torrent.site|hash }}" style="overflow: hidden;">
                                         {% if SiteDict[torrent.site|hash] %}
                                           {% if SiteDict[torrent.site|hash].public or not SiteDict[torrent.site|hash].builtin %}
@@ -186,56 +186,55 @@
                                         </span>
                                       </a>
                                     </div>
-                                    <div class="col">
-                                      <a href="#" class="search-download-action" data-nt-click="search-download"
-                                         data-torrent-id="{{ torrent.id }}"
-                                         data-torrent-title="【{{ torrent.site }}】{{ torrent.torrent_name }}"
-                                         data-torrent-site="{{ torrent.site }}">{{ torrent.torrent_name }}</a>
+                                    <div class="col nt-resource-content">
+                                      {% if torrent.pageurl and torrent.pageurl.startswith('http') %}
+                                      <a href="{{ torrent.pageurl }}" target="_blank" rel="noopener noreferrer" class="nt-resource-title" aria-label="查看 {{ torrent.torrent_name }} 的种子详情">{{ torrent.torrent_name }}</a>
+                                      {% else %}
+                                      <span class="nt-resource-title">{{ torrent.torrent_name }}</span>
+                                      {% endif %}
                                       <div class="text-muted">
                                         {{ torrent.description or '' }}
                                       </div>
-                                      <div>
-                                        <span class="badge bg-black text-dark-fg mb-1">{{ torrent.site }}</span>
+                                      <div class="nt-resource-meta">
+                                        <span class="badge nt-metadata-badge mb-1">{{ torrent.site }}</span>
                                         {% if torrent.video_encode %}
-                                        <span class="badge text-white bg-orange mb-1">{{ torrent.video_encode }}</span>
+                                        <span class="badge nt-metadata-badge mb-1">{{ torrent.video_encode }}</span>
                                         {% endif %}
                                         {% if torrent.reseffect %}
-                                          <span class="badge text-white bg-purple mb-1">{{ torrent.reseffect }}</span>
+                                        <span class="badge nt-metadata-badge mb-1">{{ torrent.reseffect }}</span>
                                         {% endif %}
                                         {% if torrent.size %}
-                                          <span class="badge text-white bg-yellow mb-1">{{ torrent.size }}</span>
+                                          <span class="badge nt-metadata-badge mb-1">{{ torrent.size }}</span>
                                         {% endif %}
                                         {% if torrent.releasegroup %}
-                                          <span class="badge text-white bg-cyan mb-1">{{ torrent.releasegroup }}</span>
+                                          <span class="badge nt-metadata-badge mb-1">{{ torrent.releasegroup }}</span>
                                         {% endif %}
                                         {% if torrent.uploadvalue != 1.0 %}
-                                        <span class="badge text-white bg-azure mb-1">{{ (torrent.uploadvalue * 100) | int }}%UL</span>
+                                        <span class="badge bg-primary-lt mb-1">{{ (torrent.uploadvalue * 100) | int }}%UL</span>
                                         {% endif %}
                                         {% if torrent.downloadvalue != 1.0 %}
                                           {% if torrent.downloadvalue == 0.0 %}
-                                            <span class="badge text-white bg-lime mb-1">FREE</span>
+                                            <span class="badge bg-primary-lt mb-1">FREE</span>
                                           {% else %}
-                                            <span class="badge text-white bg-indigo mb-1">{{ (torrent.downloadvalue * 100) | int }}%DL</span>
+                                            <span class="badge bg-primary-lt mb-1">{{ (torrent.downloadvalue * 100) | int }}%DL</span>
                                           {% endif %}
                                         {% endif %}
                                         {% if torrent.seeders %}
-                                        <span class="badge text-white mb-1">{{ torrent.seeders }}{{ UPCHAR }}</span>
+                                        <span class="badge nt-metadata-badge mb-1">{{ torrent.seeders }}{{ UPCHAR }}</span>
                                         {% endif %}
                                       </div>
                                     </div>
-                                    <div class="col-auto ms-2 d-none d-md-inline-block">
-                                      <a href="#" class="link-secondary search-download-action" data-nt-click="search-download" title="下载"
+                                    <div class="col-auto nt-resource-actions">
+                                      <button type="button" class="btn btn-outline-primary search-download-action" data-nt-click="search-download" aria-label="下载 {{ torrent.torrent_name }}"
                                          data-torrent-id="{{ torrent.id }}"
                                          data-torrent-title="【{{ torrent.site }}】{{ torrent.torrent_name }}"
-                                         data-torrent-site="{{ torrent.site }}">
-                                        {{ SVG.download() }}
-                                      </a>
-                                    </div>
-                                    <div class="col-auto lh-1 ms-2 d-none d-md-inline-block">
+                                         data-torrent-site="{{ torrent.site }}" data-torrent-size="{{ torrent.size or '' }}"
+                                         data-torrent-quality="{{ [torrent.video_encode or '', torrent.reseffect or '']|select|join(' / ') }}">
+                                        {{ SVG.download() }} 下载
+                                      </button>
+                                      {% if (torrent.enclosure and torrent.enclosure.startswith('http')) or (torrent.pageurl and torrent.pageurl.startswith('http')) %}
                                       <div class="dropdown">
-                                        <a href="#" class="link-secondary" data-bs-toggle="dropdown" aria-expanded="false">
-                                          {{ SVG.dots() }}
-                                        </a>
+                                        <button type="button" class="btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="更多操作：{{ torrent.torrent_name }}">更多</button>
                                         <div class="dropdown-menu dropdown-menu-end" style="">
                                           {% if torrent.enclosure and torrent.enclosure.startswith('http') %}
                                           <a class="dropdown-item" href="{{ torrent.enclosure }}" target="_blank" rel="noopener noreferrer">
@@ -249,6 +248,7 @@
                                           {% endif %}
                                         </div>
                                       </div>
+                                      {% endif %}
                                     </div>
                                   </div>
                                 </div>
@@ -502,7 +502,8 @@
         if (target) $(target).slideToggle();
       },
       'search-download': element => show_download_modal(
-        element.dataset.torrentId || '', element.dataset.torrentTitle || '', element.dataset.torrentSite || '')
+        element.dataset.torrentId || '', element.dataset.torrentTitle || '', element.dataset.torrentSite || '', undefined, undefined,
+        {size: element.dataset.torrentSize || '', quality: element.dataset.torrentQuality || ''})
     },
     change: {'search-filter': element => filter_medias(element, ...NasToolsUI.args(element))}
   });

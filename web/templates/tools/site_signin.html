@@ -1,22 +1,63 @@
 {% import 'macro/ui.html' as UI %}
-{% call UI.page_header('站点自动签到', '按日跳过成功站点，并自动重试符合条件的失败站点。', eyebrow='工具') %}
-<button class="btn" id="site_signin_refresh" type="button">刷新</button>
-        <button class="btn btn-outline-primary" id="site_signin_retry" type="button">执行待签与重试</button>
-        <button class="btn btn-primary" id="site_signin_force" type="button">强制全部执行</button>
+{% call UI.page_header('站点自动签到', '查看今日结果，优先处理待执行和失败站点。') %}
+<div class="btn-list">
+  <button class="btn btn-primary" id="site_signin_retry" type="button">执行待签与重试</button>
+  <button class="btn" id="site_signin_refresh" type="button">刷新</button>
+  <a class="btn" href="/?next=site" data-signin-page="site">站点维护</a>
+  <button class="btn btn-outline-danger" id="site_signin_force" type="button">强制全部执行</button>
+</div>
 {% endcall %}
 
 <div class="page-body">
   <div class="container-xl">
-    <div class="alert alert-info mb-3" role="alert">
-      签到和保号登录站点在“站点维护”中选择；本工具只保存执行策略，不保存或展示站点 Cookie。
+    <dl class="nt-signin-summary mb-3" id="site_signin_summary" aria-label="今日签到摘要">
+      <div><dt class="nt-signin-stat-label">今日状态</dt><dd class="nt-signin-stat-value">正在加载...</dd></div>
+    </dl>
+    <p id="site_signin_target_notice" class="text-muted" role="status" hidden></p>
+
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center">
+        <h3 class="card-title">今日状态</h3>
+        <span class="badge ms-auto" id="site_signin_running"></span>
+      </div>
+      <div class="table-responsive nt-table-region">
+        <table class="table table-vcenter card-table">
+          <thead>
+            <tr>
+              <th>站点</th>
+              <th>任务</th>
+              <th>状态</th>
+              <th>结果</th>
+              <th>时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="site_signin_items"></tbody>
+        </table>
+      </div>
     </div>
 
-    <div class="card mb-3" id="site_signin_settings">
-      <div class="card-header d-flex align-items-center">
-        <h3 class="card-title">工具设置</h3>
-        <button class="btn btn-primary ms-auto" id="site_signin_save" type="button">保存设置</button>
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">最近执行记录</h3></div>
+      <div class="table-responsive nt-table-region">
+        <table class="table table-vcenter card-table">
+          <thead>
+            <tr>
+              <th>执行时间</th>
+              <th>站点</th>
+              <th>任务</th>
+              <th>结果</th>
+              <th>耗时</th>
+            </tr>
+          </thead>
+          <tbody id="site_signin_history"></tbody>
+        </table>
       </div>
+    </div>
+    <details class="card nt-settings-disclosure mt-3" id="site_signin_settings">
+      <summary class="nt-details-summary">执行策略与通知设置</summary>
       <div class="card-body">
+        <p class="text-muted">签到和保号登录站点在“站点维护”中选择；此处只保存执行策略，不保存或展示站点 Cookie。</p>
         <div class="row">
           <div class="col-md-6 col-xl-3">
             <div class="mb-3">
@@ -64,58 +105,53 @@
           </div>
         </div>
       </div>
-    </div>
-
-    <div class="row row-cards mb-3" id="site_signin_summary">
-      <div class="col-6 col-lg-3"><div class="card card-sm"><div class="card-body text-muted">正在加载...</div></div></div>
-    </div>
-
-    <div class="card mb-3">
-      <div class="card-header d-flex align-items-center">
-        <h3 class="card-title">今日状态</h3>
-        <span class="badge ms-auto" id="site_signin_running"></span>
+      <div class="card-footer d-flex justify-content-end">
+        <button class="btn btn-primary" id="site_signin_save" type="button">保存执行策略</button>
       </div>
-      <div class="table-responsive nt-table-region">
-        <table class="table table-vcenter card-table">
-          <thead>
-            <tr>
-              <th>站点</th>
-              <th>任务</th>
-              <th>状态</th>
-              <th>结果</th>
-              <th>时间</th>
-            </tr>
-          </thead>
-          <tbody id="site_signin_items"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header"><h3 class="card-title">最近执行记录</h3></div>
-      <div class="table-responsive nt-table-region">
-        <table class="table table-vcenter card-table">
-          <thead>
-            <tr>
-              <th>执行时间</th>
-              <th>站点</th>
-              <th>任务</th>
-              <th>结果</th>
-              <th>耗时</th>
-            </tr>
-          </thead>
-          <tbody id="site_signin_history"></tbody>
-        </table>
-      </div>
-    </div>
+    </details>
   </div>
 </div>
 
 <script type="text/javascript">
   (() => {
+    const pageVersion = NasToolsUI.pageVersion;
     let followUpPolls = 0;
     let pollTimer = null;
+    let running = false;
+    let submitting = false;
+    let targetFocused = false;
+    const targetSiteId = {{ request.args.get('site_id', '')|tojson }};
+    const targetSiteName = {{ request.args.get('site_name', '')|tojson }};
+    const retryButton = document.querySelector("#site_signin_retry");
+    const forceButton = document.querySelector("#site_signin_force");
     const text = (value) => document.createTextNode(value ?? "");
+
+    function navigateToPage(event, page) {
+      if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      navmenu(page);
+    }
+
+    function sitePage(item) {
+      const params = new URLSearchParams();
+      if (item.site_id !== undefined && item.site_id !== null) params.set("site_id", String(item.site_id));
+      if (item.site) params.set("site_name", item.site);
+      return params.size ? `site?${params}` : "site";
+    }
+
+    function siteLink(item, label) {
+      const link = document.createElement("a");
+      const page = sitePage(item);
+      link.href = `/?next=${encodeURIComponent(page)}`;
+      link.textContent = label;
+      link.setAttribute("aria-label", `维护站点：${item.site || "未命名站点"}`);
+      link.addEventListener("click", (event) => navigateToPage(event, page));
+      return link;
+    }
+
+    function updateRunControls() {
+      retryButton.disabled = forceButton.disabled = running || submitting;
+    }
 
     function cell(value, className = "") {
       const item = document.createElement("td");
@@ -158,22 +194,15 @@
         ["今日失败", summary.failed ?? 0, "red"],
         ["今日待执行", summary.pending ?? 0, "yellow"],
       ].forEach(([label, value, color]) => {
-        const column = document.createElement("div");
-        column.className = "col-6 col-lg-3";
-        const card = document.createElement("div");
-        card.className = "card card-sm h-100";
-        const body = document.createElement("div");
-        body.className = "card-body";
-        const labelNode = document.createElement("div");
-        labelNode.className = "text-muted";
+        const group = document.createElement("div");
+        const labelNode = document.createElement("dt");
+        labelNode.className = "nt-signin-stat-label";
         labelNode.append(text(label));
-        const valueNode = document.createElement("div");
-        valueNode.className = `h1 mb-0 text-${color}`;
+        const valueNode = document.createElement("dd");
+        valueNode.className = `nt-signin-stat-value text-${color}`;
         valueNode.append(text(String(value)));
-        body.append(labelNode, valueNode);
-        card.append(body);
-        column.append(card);
-        container.append(column);
+        group.append(labelNode, valueNode);
+        container.append(group);
       });
     }
 
@@ -181,17 +210,52 @@
       const body = document.querySelector("#site_signin_items");
       body.replaceChildren();
       if (!items.length) {
-        body.append(emptyRow("尚未配置签到或保号登录站点", 5));
+        body.append(emptyRow("尚未配置签到或保号登录站点，请在站点维护中启用。", 6));
+        showTargetNotice(false);
         return;
       }
-      items.forEach((item) => {
+      const priority = (item) => item.success === false ? 0 : item.success === null ? 1 : 2;
+      let targetRow;
+      [...items].sort((a, b) => priority(a) - priority(b)).forEach((item) => {
         const row = document.createElement("tr");
-        row.append(cell(item.site), cell(item.action_name));
+        const site = document.createElement("td");
+        site.append(siteLink(item, item.site || "未命名站点"));
+        row.append(site, cell(item.action_name));
         const status = document.createElement("td");
         status.append(badge(item.success));
         row.append(status, cell(item.message, item.success === false ? "text-danger" : ""), cell(item.created_at || "-"));
+        const action = document.createElement("td");
+        if (item.success === false) {
+          const link = siteLink(item, "维护站点");
+          link.className = "btn btn-sm";
+          action.append(link);
+        } else {
+          action.append(text("—"));
+        }
+        row.append(action);
+        const matchesTarget = targetSiteId && item.site_id !== undefined && item.site_id !== null
+          ? String(item.site_id) === targetSiteId
+          : Boolean(targetSiteName && item.site === targetSiteName);
+        if (matchesTarget) {
+          row.classList.add("nt-signin-target");
+          row.tabIndex = -1;
+          targetRow ||= row;
+        }
         body.append(row);
       });
+      showTargetNotice(Boolean(targetRow));
+      if (targetRow && !targetFocused) {
+        targetFocused = true;
+        targetRow.focus({preventScroll: true});
+        targetRow.scrollIntoView({block: "center"});
+      }
+    }
+
+    function showTargetNotice(found) {
+      const notice = document.querySelector("#site_signin_target_notice");
+      notice.hidden = !targetSiteId && !targetSiteName;
+      notice.textContent = found ? `已定位${targetSiteName ? `「${targetSiteName}」` : "所选站点"}的今日状态；下方仍显示全部任务。`
+        : "当前签到任务中未找到所选站点，请在站点维护中检查签到或保号登录是否启用。";
     }
 
     function renderHistory(history) {
@@ -228,27 +292,32 @@
         renderSummary(ret.summary || {});
         renderItems(ret.items || []);
         renderHistory(ret.history || []);
-        const running = document.querySelector("#site_signin_running");
-        running.className = ret.running ? "badge bg-blue-lt ms-auto" : "badge bg-green-lt ms-auto";
-        running.textContent = ret.running ? "运行中" : "空闲";
-        document.querySelector("#site_signin_retry").disabled = Boolean(ret.running);
-        document.querySelector("#site_signin_force").disabled = Boolean(ret.running);
-        schedulePoll(Boolean(ret.running));
+        running = Boolean(ret.running);
+        const runningLabel = document.querySelector("#site_signin_running");
+        runningLabel.className = running ? "badge bg-blue-lt ms-auto" : "badge bg-green-lt ms-auto";
+        runningLabel.textContent = running ? "运行中" : "空闲";
+        updateRunControls();
+        schedulePoll(running);
       }, true, false);
     }
 
     function runSignin(force) {
-      document.querySelector("#site_signin_retry").disabled = true;
-      document.querySelector("#site_signin_force").disabled = true;
-      NasToolsUI.pageAction("tool_site_signin_run", {force}, (ret) => {
+      if (NasToolsUI.pageVersion !== pageVersion || running || submitting) return;
+      submitting = true;
+      updateRunControls();
+      return NasToolsUI.pageAction("tool_site_signin_run", {force}, (ret) => {
         if (ret.code !== 0) {
           show_fail_modal(ret.msg || "签到任务启动失败");
           loadStatus();
           return;
         }
+        running = true;
         show_success_modal(ret.msg);
         followUpPolls = 5;
         NasToolsUI.pageTimeout(loadStatus, 500);
+      }).finally(() => {
+        submitting = false;
+        updateRunControls();
       });
     }
 
@@ -266,8 +335,17 @@
 
     document.querySelector("#site_signin_refresh")?.addEventListener("click", loadStatus);
     document.querySelector("#site_signin_retry")?.addEventListener("click", () => runSignin(false));
-    document.querySelector("#site_signin_force")?.addEventListener("click", () => runSignin(true));
+    document.querySelector("#site_signin_force")?.addEventListener("click", () => {
+      if (running || submitting) return;
+      show_confirm_modal("强制执行所有已配置的签到和保号登录任务？今日已成功的站点也会再次执行。日常检查请优先使用“执行待签与重试”。", () => {
+        hide_confirm_modal();
+        runSignin(true);
+      }, "强制全部执行");
+    });
     document.querySelector("#site_signin_save")?.addEventListener("click", saveConfig);
+    document.querySelectorAll("[data-signin-page]").forEach((link) => {
+      link.addEventListener("click", (event) => navigateToPage(event, link.dataset.signinPage));
+    });
     loadStatus();
   })();
 </script>

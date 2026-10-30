@@ -1,7 +1,7 @@
 {% import 'macro/ui.html' as UI %}
 {% import 'macro/svg.html' as SVG %}
 {% import 'macro/oops.html' as OOPS %}
-{% call UI.page_header('正在下载', '查看任务进度与传输速度，管理下载任务。', eyebrow='下载管理', count=DownloadCount) %}
+{% call UI.page_header('下载任务', '查看进度与传输速度，按名称或状态定位任务。', count=DownloadCount) %}
 <div class="btn-list">
           <button data-bs-toggle="dropdown" type="button"
               class="btn btn-primary dropdown-toggle">
@@ -21,25 +21,53 @@
 {% if DownloadCount > 0 %}
   <div class="page-body">
     <div class="container-xl">
+      <div class="nt-download-toolbar">
+        <div class="nt-download-search">
+          <label class="form-label" for="download_task_query">任务名称</label>
+          <input type="search" class="form-control" id="download_task_query" placeholder="搜索片名或资源文件名"
+                 autocomplete="off" data-nt-input="filter-downloads" data-nt-compositionend="filter-downloads">
+        </div>
+        <div class="nt-download-state-filter">
+          <label class="form-label" for="download_task_state">任务状态</label>
+          <select class="form-select" id="download_task_state" data-nt-change="filter-downloads">
+            <option value="">全部状态</option>
+            <option value="active">进行中</option>
+            <option value="paused">已暂停</option>
+            <option value="complete">已完成</option>
+            <option value="unknown">状态未知</option>
+          </select>
+        </div>
+        <button class="btn" type="button" data-nt-click="reset-download-filters">重置筛选</button>
+        <p class="text-muted mb-0 nt-download-filter-summary" id="download_filter_summary" role="status" aria-live="polite"></p>
+      </div>
+      <div class="alert alert-warning nt-download-poll-status" id="download_poll_status" hidden>
+        <span id="download_poll_message"></span>
+        <button class="btn btn-sm" type="button" data-nt-click="refresh-downloads">立即刷新</button>
+      </div>
       <div class="nt-download-list">
         {% for Torrent in Torrents %}
-          <div class="card nt-download-item">
+          {% set Paused = Torrent.state in ['Stoped', 'Stopped', 'Paused'] %}
+          {% set Complete = Torrent.progress|float >= 100 or Torrent.state == 'Seeding' %}
+          <div class="card nt-download-item" data-download-id="{{ Torrent.id }}"
+               data-download-title="{{ Torrent.title }}" data-download-name="{{ Torrent.name|default(Torrent.title, true) }}"
+               data-download-state="{{ 'paused' if Paused else 'complete' if Complete else 'active' if Torrent.state == 'Downloading' else 'unknown' }}">
             <div class="card-body">
-              <div class="row align-items-center">
+              <div class="nt-download-row">
                 {% if Torrent.image %}
-                  <div class="col-auto">
-                    <img src="{{ Torrent.image }}" class="nt-download-poster" alt="" loading="lazy">
-                  </div>
+                  <img src="{{ Torrent.image }}" class="nt-download-poster" alt="" loading="lazy">
                 {% endif %}
-                <div class="col nt-download-content">
-                  <h3 class="card-title mb-1">
-                    {{ Torrent.title }}
-                  </h3>
+                <div class="nt-download-content">
+                  <div class="nt-download-title-row">
+                    <h3 class="card-title mb-0">{{ Torrent.title }}</h3>
+                    <span class="badge {{ 'bg-secondary-lt' if Paused else 'bg-primary-lt' }}" data-download-status>
+                      {{ '已暂停' if Paused else '已完成' if Complete else '进行中' if Torrent.state == 'Downloading' else '状态未知' }}
+                    </span>
+                  </div>
                   <div class="text-muted" id="speed_text_{{ Torrent.id }}">
                     {{ Torrent.speed }}
                   </div>
                   {% if not Torrent.noprogress %}
-                    <div class="mt-3 nt-download-progress">
+                    <div class="mt-2 nt-download-progress">
                       <div class="row g-2 align-items-center">
                         <div class="col-auto" id="progress_text_{{ Torrent.id }}">
                           {{ Torrent.progress }}%
@@ -49,7 +77,7 @@
                             <div class="progress-bar" id="progress_{{ Torrent.id }}"
                                 style="width: {{ Torrent.progress }}%"
                                 role="progressbar" aria-valuenow="{{ Torrent.progress }}" aria-valuemin="0"
-                                aria-valuemax="100">
+                                aria-valuemax="100" aria-label="{{ Torrent.title }} 下载进度">
                               <span class="visually-hidden"></span>
                             </div>
                           </div>
@@ -58,95 +86,174 @@
                     </div>
                   {% endif %}
                 </div>
-                <div class="col-auto">
+                {% if not Torrent.nomenu %}
+                <div class="nt-download-actions">
+                  <button type="button" data-nt-click="start-download" data-nt-args='{{ [Torrent.id|string]|tojson }}'
+                          id="start_btn_{{ Torrent.id }}" class="btn btn-outline-primary"
+                          aria-label="继续任务 {{ Torrent.title }}"{% if not Paused %} hidden{% endif %}>继续</button>
+                  <button type="button" data-nt-click="stop-download" data-nt-args='{{ [Torrent.id|string]|tojson }}'
+                          id="stop_btn_{{ Torrent.id }}" class="btn"
+                          aria-label="暂停任务 {{ Torrent.title }}"{% if Paused %} hidden{% endif %}>暂停</button>
                   <div class="dropdown">
-                    {% if not Torrent.nomenu %}
-                      <a href="#" class="btn-action" data-bs-toggle="dropdown" aria-expanded="false" aria-label="管理下载任务">
+                      <button type="button" class="btn-action nt-download-more" data-bs-toggle="dropdown" aria-expanded="false"
+                              aria-label="更多操作：{{ Torrent.title }}">
                         {{ SVG.dots_vertical() }}
-                      </a>
+                      </button>
                       <div class="dropdown-menu dropdown-menu-end">
-                        <a href="#" data-nt-click="start-download" data-nt-args='{{ [Torrent.id|string]|tojson }}' id="start_btn_{{ Torrent.id }}"
-                          class="dropdown-item"
-                          style="{% if Torrent.state == 'Downloading' %}display:none{% endif %}">开始</a>
-                        <a href="#" data-nt-click="stop-download" data-nt-args='{{ [Torrent.id|string]|tojson }}' id="stop_btn_{{ Torrent.id }}"
-                          class="dropdown-item"
-                          style="{% if Torrent.state == 'Stoped' %}display:none{% endif %}">暂停</a>
-                        <a href="#" data-nt-click="remove-download" data-nt-args='{{ [Torrent.id|string]|tojson }}'
-                          class="dropdown-item text-danger">删除</a>
+                        <button type="button" data-nt-click="remove-download"
+                                data-nt-args='{{ [Torrent.id|string, Torrent.name|default(Torrent.title, true)]|tojson }}'
+                                class="dropdown-item text-danger">删除任务及文件</button>
                       </div>
-                    {% endif %}
                   </div>
                 </div>
+                {% endif %}
                 <input type="hidden" class="download_ids" id="id_{{ Torrent.id }}" value="{{ Torrent.id }}">
               </div>
             </div>
           </div>
         {% endfor %}
       </div>
+      <div class="empty" id="download_filter_empty" hidden>
+        <p class="empty-title" id="download_filter_empty_title">没有符合条件的任务</p>
+        <p class="empty-subtitle text-muted" id="download_filter_empty_description">换个名称或状态，或重置筛选查看全部任务。</p>
+        <button class="btn" id="download_filter_empty_reset" type="button" data-nt-click="reset-download-filters">重置筛选</button>
+      </div>
     </div>
   </div>
 {% else %}
-{{ OOPS.nodatafound('没有下载任务', '当前下载器中没有正在下载的任务。') }}
+{{ OOPS.nodatafound('没有下载任务', '当前下载器中没有可显示的任务，可添加种子文件或磁力链接。') }}
 {% endif %}
 <script type="text/javascript">
 (function () {
   const {pageAction, pageTimeout} = NasToolsUI;
+  const pageVersion = NasToolsUI.pageVersion;
+  const tasks = new Map(Array.from(document.querySelectorAll('#page_content [data-download-id]'),
+    element => [element.dataset.downloadId, element]));
+  const queryInput = document.getElementById('download_task_query');
+  const stateInput = document.getElementById('download_task_state');
+
+  function filter_downloads() {
+    if (!queryInput || !stateInput) return;
+    const query = queryInput.value.trim().toLocaleLowerCase();
+    const state = stateInput.value;
+    let visible = 0;
+    tasks.forEach(element => {
+      const name = `${element.dataset.downloadTitle} ${element.dataset.downloadName}`.toLocaleLowerCase();
+      element.hidden = !((!query || name.includes(query)) && (!state || element.dataset.downloadState === state));
+      if (!element.hidden) visible += 1;
+    });
+    const summary = document.getElementById('download_filter_summary');
+    const message = `显示 ${visible} / ${tasks.size} 个任务`;
+    if (summary.textContent !== message) summary.textContent = message;
+    document.getElementById('download_filter_empty').hidden = visible !== 0;
+    document.getElementById('download_filter_empty_title').textContent = tasks.size ? '没有符合条件的任务' : '没有下载任务';
+    document.getElementById('download_filter_empty_description').textContent = tasks.size
+      ? '换个名称或状态，或重置筛选查看全部任务。' : '当前任务已移除，可添加种子文件或磁力链接。';
+    document.getElementById('download_filter_empty_reset').hidden = tasks.size === 0;
+  }
+
+  function reset_download_filters() {
+    if (!queryInput || !stateInput) return;
+    queryInput.value = '';
+    stateInput.value = '';
+    filter_downloads();
+    queryInput.focus();
+  }
+
+  function show_poll_result(ret) {
+    const status = document.getElementById('download_poll_status');
+    const success = Number(ret.retcode) === 0 && Array.isArray(ret.torrents);
+    if (status) {
+      status.hidden = success;
+      if (!success) document.getElementById('download_poll_message').textContent =
+        `任务状态更新失败，正在显示上次结果：${ret.retmsg || ret.msg || '请检查下载器连接后重试。'}`;
+    }
+    if (success) {
+      ret.torrents.forEach(update_torrent_ui);
+      filter_downloads();
+    }
+    return success;
+  }
+
   // 下载控制
   function control_pt_download(command, id, button) {
     return NasToolsUI.withButton(button, null, () => pageAction(command, {"id": id}, function (ret) {
-      get_torrent_info(ret.id);
+      if (Number(ret.retcode) === 0) {
+        get_torrent_info(ret.id || id);
+      } else {
+        show_fail_modal(ret.retmsg || ret.msg || '操作失败，请检查下载器连接后重试。');
+      }
     }));
   }
 
-  function remove_pt_download(id, button) {
-    return NasToolsUI.withButton(button, null, () => pageAction("pt_remove", {"id": id}, function (ret) {
-      window_history_refresh();
-    }));
+  function remove_pt_download(id, name) {
+    show_confirm_modal(`删除下载任务「${name}」及其已下载文件？文件将从下载器保存目录删除，此操作无法撤销。`, function () {
+      if (NasToolsUI.pageVersion !== pageVersion || !tasks.has(String(id))) {
+        hide_confirm_modal();
+        return;
+      }
+      return NasToolsUI.withButton('#system_confirm_btn', '删除中...', () => pageAction('pt_remove', {id}, function (ret) {
+        hide_confirm_modal();
+        if (Number(ret.retcode) !== 0) {
+          show_fail_modal(ret.retmsg || ret.msg || '删除失败，请检查下载器连接后重试。');
+          return;
+        }
+        tasks.get(String(id))?.remove();
+        tasks.delete(String(id));
+        const count = document.querySelector('#page_content .nt-count');
+        if (count) count.textContent = tasks.size;
+        filter_downloads();
+      }));
+    }, '删除任务及文件');
   }
 
   //更新所有种子页面信息
   function get_all_torrents_info() {
-    let ids = [];
-    $(".download_ids").each(function () {
-      ids.push($(this).val());
-    });
+    const ids = Array.from(tasks.keys());
     if (ids.length == 0) {
       return;
     }
     pageAction("pt_info", {"ids": ids}, function (ret) {
-      if (ret.retcode == "0") {
-        for (let torrent of ret.torrents) {
-          update_torrent_ui(torrent);
-        }
-        pageTimeout(get_all_torrents_info, 2000);
-      }
+      const success = show_poll_result(ret);
+      pageTimeout(get_all_torrents_info, success ? 2000 : 5000);
     }, true, false);
   }
 
   //更新一个种子页面信息
   function get_torrent_info(id) {
     pageAction("pt_info", {"ids": id}, function (ret) {
-      if (ret.retcode == "0") {
-        for (let torrent of ret.torrents) {
-          update_torrent_ui(torrent);
-        }
-      }
+      show_poll_result(ret);
     }, true, false);
   }
 
   //更新单个种子的页面信息
   function update_torrent_ui(info) {
-    $(`#speed_text_${info.id}`).text(info.speed);
-    $(`#progress_text_${info.id}`).text(`${info.progress}%`);
-    $(`#progress_${info.id}`).attr("style", `width: ${info.progress}%`)
-        .attr("aria-valuenow", info.progress);
-    if (info.state === "Stoped") {
-      $(`#start_btn_${info.id}`).show()
-      $(`#stop_btn_${info.id}`).hide()
-    } else {
-      $(`#start_btn_${info.id}`).hide()
-      $(`#stop_btn_${info.id}`).show()
+    const task = tasks.get(String(info.id));
+    if (!task) return;
+    const paused = ['Stoped', 'Stopped', 'Paused'].includes(info.state);
+    const progress = Number(info.progress);
+    const complete = progress >= 100 || info.state === 'Seeding';
+    const state = paused ? 'paused' : complete ? 'complete' : info.state === 'Downloading' ? 'active' : 'unknown';
+    task.dataset.downloadState = state;
+    const badge = task.querySelector('[data-download-status]');
+    badge.textContent = {paused: '已暂停', complete: '已完成', active: '进行中', unknown: '状态未知'}[state];
+    badge.className = `badge ${paused || state === 'unknown' ? 'bg-secondary-lt' : 'bg-primary-lt'}`;
+    const speed = document.getElementById(`speed_text_${info.id}`);
+    if (speed) speed.textContent = info.speed || '';
+    if (Number.isFinite(progress)) {
+      const percentage = Math.max(0, Math.min(100, progress));
+      const label = document.getElementById(`progress_text_${info.id}`);
+      const bar = document.getElementById(`progress_${info.id}`);
+      if (label) label.textContent = `${percentage}%`;
+      if (bar) {
+        bar.style.width = `${percentage}%`;
+        bar.setAttribute('aria-valuenow', percentage);
+      }
     }
+    const start = document.getElementById(`start_btn_${info.id}`);
+    const stop = document.getElementById(`stop_btn_${info.id}`);
+    if (start) start.hidden = !paused;
+    if (stop) stop.hidden = paused;
   }
 
   //显示新增下载界面
@@ -178,14 +285,19 @@
   }
 
   //事件
+  filter_downloads();
   pageTimeout(get_all_torrents_info, 2000);
 
   NasToolsUI.bindActions('#page_content', {click: {
     'show-download': (element) => show_torrent_download_modal(element.dataset.downloadType),
     'start-download': (element) => control_pt_download('pt_start', NasToolsUI.args(element)[0], element),
     'stop-download': (element) => control_pt_download('pt_stop', NasToolsUI.args(element)[0], element),
-    'remove-download': (element) => remove_pt_download(NasToolsUI.args(element)[0], element)
-  }});
+    'remove-download': (element) => remove_pt_download(...NasToolsUI.args(element)),
+    'reset-download-filters': reset_download_filters,
+    'refresh-downloads': () => get_torrent_info(Array.from(tasks.keys()))
+  }, input: {
+    'filter-downloads': (element, event) => { if (!event.isComposing) filter_downloads(); }
+  }, compositionend: {'filter-downloads': filter_downloads}, change: {'filter-downloads': filter_downloads}});
 
 })();
 </script>

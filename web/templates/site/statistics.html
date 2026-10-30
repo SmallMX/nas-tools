@@ -232,10 +232,10 @@
                       </td>
                       <td class="sort-seeding" data-seeding="{{ item.seeding }}"><a
                               href="#" data-nt-click="statistics-seeding" data-nt-args='{{ [item.site]|tojson }}'
-                              aria-label="seeding_info">{{ item.seeding }}</a></td>
+                              aria-label="查看 {{ item.site }} 的做种信息，共 {{ item.seeding }} 个任务">{{ item.seeding }}</a></td>
                       <td class="sort-size" data-size="{{ item.seeding_size }}"><a
                               href="#" data-nt-click="statistics-seeding" data-nt-args='{{ [item.site]|tojson }}'
-                              aria-label="seeding_info">{{ item.seeding_size | filesizeformat(true) }}</a></td>
+                              aria-label="查看 {{ item.site }} 的做种信息，总大小 {{ item.seeding_size | filesizeformat(true) }}">{{ item.seeding_size | filesizeformat(true) }}</a></td>
                       <td class="sort-bonus" data-bouns="{{ item.bonus }}">{{ item.bonus }}</td>
                       <td class="sort-jtime">
                         <span class="d-none d-lg-block">{{ item.join_at | string | truncate(10, True, '') }}</span>
@@ -245,7 +245,7 @@
                       </td>
                       <td class="activity">
                         <a href="#" data-nt-click="statistics-activity" data-nt-args='{{ [item.site]|tojson }}' class="btn-icon"
-                           aria-label="activity">
+                           aria-label="查看 {{ item.site }} 的活动记录">
                           {{ SVG.activity() }}
                         </a>
                       </td>

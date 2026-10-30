@@ -4,6 +4,10 @@ __pycache__
 .coverage
 htmlcov/
 .DS_Store
+.agents/skills/impeccable/
+.impeccable/critique/
+.impeccable/config.local.json
+.impeccable/live/
 .env
 .env.*
 !.env.example

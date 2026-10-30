@@ -24,7 +24,7 @@
 | P14 | 数据统计 | `/statistics` | [site/statistics.html](../../web/templates/site/statistics.html) | 管理员登录 |
 | P15 | 刷流任务 | `/brushtask` | [site/brushtask.html](../../web/templates/site/brushtask.html) | 管理员登录 |
 | P16 | 自定义下载器 | `/userdownloader` | [download/userdownloader.html](../../web/templates/download/userdownloader.html) | 管理员登录 |
-| P17 | 正在下载 | `/downloading` | [download/downloading.html](../../web/templates/download/downloading.html) | 管理员登录 |
+| P17 | 下载任务 | `/downloading` | [download/downloading.html](../../web/templates/download/downloading.html) | 管理员登录 |
 | P18 | 近期下载 | `/downloaded` | [discovery/recommend.html](../../web/templates/discovery/recommend.html) | 管理员登录 |
 | P19 | 自动删种任务 | `/torrent_remove` | [download/torrent_remove.html](../../web/templates/download/torrent_remove.html) | 管理员登录 |
 | P20 | 工具中心 | `/tools` | [tools/index.html](../../web/templates/tools/index.html) | 管理员登录 |
@@ -48,6 +48,8 @@
 | P38 | 芒果视频 | `/mgtv?params=` | [discovery/recommend.html](../../web/templates/discovery/recommend.html) | 管理员登录 |
 
 ## 动态页面不可遗漏的变体
+
+站点维护 `/site` 与自动签到 `/tools/site-signin` 接受 `site_id` / `site_name` 定位参数，用于页面间定位并高亮对应站点；不增加独立页面计数，也不自动打开编辑表单。优先使用站点 ID，只有缺少 ID 时按名称回退；未匹配或存在同名站点时保留明确提示。
 
 `discovery/recommend.html` 承载多个用户任务，不能只因共享模板就只设计一次。对应完整提示词在 [V01–V08](page-prompts.md#通用媒体列表的独立变体)。
 
@@ -93,7 +95,7 @@
 | D07 | 失败反馈 | `navigation.html · system-fail-modal` |
 | D08 | 媒体速览 | `navigation.html · system-media-modal` |
 | D09 | 实时日志 | `navigation.html · modal-logging` |
-| D10 | 添加下载 | `navigation.html · modal-search-download` |
+| D10 | 添加下载：资源摘要、下载预设与目录规则 | `navigation.html · modal-search-download` |
 | D11 | 高级搜索 | `navigation.html · modal-search-advanced` |
 | D12 | 搜索结果筛选 | `search.html · search-filter-modal-{media}` |
 | D13 | 站点新增与编辑 | `site/site.html · modal-site` |
@@ -137,10 +139,10 @@
 | 外壳 | 全部导航与搜索 | 外壳准备 | 不适用 | 初始化失败 | 抽屉/搜索 | 需要 |
 | 媒体发现与详情 | 海报/人员/元数据 | 卡片骨架 | 无条目/缺图/无评分 | 来源失败 | 网格减列 | 需要 |
 | 资源搜索与站点资源 | 分组/表格 | 请求中 | 无结果/筛选无匹配 | 站点搜索失败 | 筛选弹层/表格滚动 | 需要 |
-| 下载任务 | 速度/进度/菜单 | 数据刷新 | 无任务 | 操作失败 | 紧凑任务行 | 需要 |
+| 下载任务 | 名称/状态筛选、速度/进度、常显暂停/继续 | 数据刷新 | 无任务/筛选无结果 | 操作失败，保留上次数据 | 紧凑任务行，操作换行 | 需要 |
 | 站点与规则 | 卡片/配置摘要 | 读取/执行中 | 尚未配置/未命中 | 连接/执行失败 | 卡片单列 | 需要 |
 | 统计 | 指标/图表/表格 | 局部刷新 | 暂无数据 | 部分站点失败 | 图表堆叠 | 需要 |
-| 工具与签到 | 设置/状态/历史 | 执行中 | 无站点/无历史 | 重试与保存失败 | 表单单列 | 需要 |
+| 工具与签到 | 今日状态/历史优先，可折叠策略设置，站点定位 | 执行中 | 无站点/无历史/目标未找到 | 重试与保存失败 | 表单单列 | 需要 |
 | 设置与管理员账号 | 字段/开关/预设 | 保存/测试中 | 尚未配置 | 字段/请求失败 | 单列/长弹层 | 需要 |
 | 弹窗/抽屉 | 正文/操作 | 局部加载 | 空正文/无匹配 | 原因反馈 | 可滚动/焦点 | 需要 |
 | 403/404/500 | 状态说明/返回首页 | 不适用 | 不适用 | 页面本身即错误 | 需要 | 需要 |

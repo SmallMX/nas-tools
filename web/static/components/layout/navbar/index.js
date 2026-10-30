@@ -81,7 +81,7 @@ const navbar_list = [
     name: "下载管理",
     list: [
       {
-        name: "正在下载",
+        name: "下载任务",
         page: "downloading",
         icon: html`
           <!-- https://tabler-icons.io/static/tabler-icons/icons-png/loader.png -->
