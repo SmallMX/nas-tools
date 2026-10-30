@@ -167,7 +167,11 @@ class StreamingDiscovery:
                                           (":pay-status", "is_purchase", "资费"),
                                           (":comic-status", "is_album_finished", "状态")):
                 definition = json.loads(attributes.get(attribute, "{}"))
-                if not isinstance(definition, dict) or channel not in definition.get("cid", []):
+                if not isinstance(definition, dict):
+                    continue
+                # The PC catalog accepts release-year filters for anime and variety too,
+                # although the legacy page only marks the movie/TV channels for this row.
+                if key != "market_release_date_level" and channel not in definition.get("cid", []):
                     continue
                 values = definition.get("list")
                 if not isinstance(values, list):

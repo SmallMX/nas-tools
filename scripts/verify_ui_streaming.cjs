@@ -21,6 +21,10 @@ const chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
     let staleRelease;
     let staleStarted;
     const staleReady = new Promise(resolve => { staleStarted = resolve; });
+    let pendingRelease;
+    let pendingStarted;
+    let pendingAttempts = 0;
+    const pendingReady = new Promise(resolve => { pendingStarted = resolve; });
     const card = { id: "", source_id: "one", title: "分页示例", type: "TV", year: "2026", site: "腾讯视频", image: "/preview/art/0/poster.svg", detail_url: "https://tencent.example/preview/one" };
     page.on("pageerror", error => errors.push(error.message));
     await page.route(url => url.origin === origin && url.pathname === "/do", async route => {
@@ -36,6 +40,21 @@ const chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
         staleStarted();
         await new Promise(resolve => { staleRelease = resolve; });
         return route.fulfill({ contentType: "application/json", body: JSON.stringify({ code: 0, Filters: [{ key: "old", name: "过期筛选", options: [{ value: "old", name: "过期选项" }] }] }) });
+      }
+      if (scenario === "history-failure" && command === "get_recommend" && data.subtype === "tencent") {
+        const result = failedOnce ? { code: 0, Items: [card], has_more: false }
+          : { code: 1, msg: "历史恢复失败示例" };
+        failedOnce = true;
+        return route.fulfill({ contentType: "application/json", body: JSON.stringify(result) });
+      }
+      if (scenario === "history-pending" && command === "get_recommend" && data.subtype === "tencent") {
+        const attempt = ++pendingAttempts;
+        if (attempt === 1) {
+          pendingStarted();
+          await new Promise(resolve => { pendingRelease = resolve; });
+        }
+        return route.fulfill({ contentType: "application/json", body: JSON.stringify({ code: 0,
+          Items: [{ ...card, source_id: `pending-${attempt}`, title: attempt === 1 ? "过期列表" : "恢复请求" }], has_more: false }) });
       }
       if (scenario !== "pagination" || command !== "get_recommend") return route.continue();
       const currentPage = Number(data.page);
@@ -137,6 +156,50 @@ const chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
     assert.equal(await page.locator("#recommend_load_more").isHidden(), true);
     assert.deepEqual(requests.filter(item => item.command === "get_recommend").map(item => Number(item.data.page)), [1, 1, 2, 3]);
     console.log("PASS 失败重试、来源去重、空中间页继续加载与末页停止");
+
+    scenario = "normal";
+    await page.locator('[data-discovery-source="iqiyi"]').click();
+    await page.waitForFunction(() => window.history.state?.page === "iqiyi" && document.querySelector("#recommend_content")?.dataset.recommendFinished === "true");
+    const completedRequests = requests.filter(item => item.command === "get_recommend").length;
+    await page.goBack();
+    await page.waitForFunction(() => window.history.state?.page === "tencent" && document.querySelectorAll("#recommend_content normal-card").length === 2);
+    await page.evaluate(() => { window.getScrollRate = () => -1; window.dispatchEvent(new Event("scroll")); });
+    await page.goForward();
+    await page.waitForFunction(() => window.history.state?.page === "iqiyi" && document.querySelectorAll("#recommend_content normal-card").length === 8);
+    await page.evaluate(() => window.dispatchEvent(new Event("scroll")));
+    assert.equal(requests.filter(item => item.command === "get_recommend").length, completedRequests);
+    console.log("PASS 后退和前进恢复末页状态，不再请求已结束列表的下一页");
+
+    scenario = "history-failure";
+    failedOnce = false;
+    await page.goto(`${origin}/?next=tencent`);
+    await page.getByRole("button", { name: "重新加载", exact: true }).waitFor();
+    await page.locator('[data-discovery-source="iqiyi"]').click();
+    await page.waitForFunction(() => window.history.state?.page === "iqiyi");
+    const failedRequests = requests.filter(item => item.command === "get_recommend" && item.data.subtype === "tencent").length;
+    await page.goBack();
+    await page.waitForFunction(() => window.history.state?.page === "tencent" && document.querySelector("#recommend_content")?.dataset.recommendFailed === "true");
+    await page.evaluate(() => { window.getScrollRate = () => -1; window.dispatchEvent(new Event("scroll")); });
+    assert.equal(requests.filter(item => item.command === "get_recommend" && item.data.subtype === "tencent").length, failedRequests);
+    await page.getByRole("button", { name: "重新加载", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("#recommend_content")?.dataset.recommendFinished === "true");
+    assert.equal(requests.filter(item => item.command === "get_recommend" && item.data.subtype === "tencent").at(-1).data.page, 1);
+    console.log("PASS 历史恢复失败状态保留手动重试，不自动循环请求");
+
+    scenario = "history-pending";
+    await page.goto(`${origin}/?next=tencent`);
+    await pendingReady;
+    await page.locator('[data-discovery-source="iqiyi"]').click();
+    await page.waitForFunction(() => window.history.state?.page === "iqiyi");
+    await page.goBack();
+    await page.waitForFunction(() => window.history.state?.page === "tencent" && document.querySelector("#recommend_content")?.dataset.recommendFinished === "true");
+    pendingRelease();
+    await page.waitForFunction(() => document.querySelector("#recommend_content normal-card")?.getAttribute("card-title") === "恢复请求");
+    assert.equal(pendingAttempts, 2);
+    assert.equal(requests.filter(item => item.command === "get_recommend" && item.data.subtype === "tencent").at(-1).data.page, 1);
+    assert.equal(await page.locator("#recommend_content [data-loading-placeholder]").count(), 0);
+    assert.equal(await page.locator("#recommend_content normal-card").count(), 1);
+    console.log("PASS 历史恢复未完成请求时重取同一页、清除占位，旧响应不混入结果");
 
     scenario = "normal";
     await page.goto(`${origin}/?next=tencent`);

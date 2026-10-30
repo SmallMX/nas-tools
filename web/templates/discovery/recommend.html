@@ -134,12 +134,25 @@
 
 
   // Keep pagination errors recoverable without triggering a retry loop on every scroll.
+  const recommendContainer = document.getElementById("recommend_content");
+  const restoredLoading = recommendContainer?.dataset.recommendLoading === "true";
+  const restoredPage = Number(recommendContainer?.dataset.recommendPage);
+  if (Number.isInteger(restoredPage) && restoredPage > 0) CurrentPage = restoredPage;
   var loading = false;
-  var recommend_finished = false;
-  var recommend_failed = false;
+  var recommend_finished = recommendContainer?.dataset.recommendFinished === "true";
+  var recommend_failed = recommendContainer?.dataset.recommendFailed === "true";
   const displayedSourceIds = new Set(Array.from(document.querySelectorAll("#recommend_content normal-card[data-source-id]"), card => card.dataset.sourceId));
 
+  function save_recommend_state() {
+    if (!recommendContainer) return;
+    recommendContainer.dataset.recommendPage = String(CurrentPage);
+    recommendContainer.dataset.recommendFinished = String(recommend_finished);
+    recommendContainer.dataset.recommendFailed = String(recommend_failed);
+    recommendContainer.dataset.recommendLoading = String(loading);
+  }
+
   function update_recommend_status(message, actionLabel) {
+    save_recommend_state();
     const status = document.getElementById("recommend_status");
     const button = document.getElementById("recommend_load_more");
     if (status) status.textContent = message;
@@ -220,8 +233,21 @@
     }, 200);
   }
 
-  if (sessionStorage.CurrentPage && document.querySelector("#recommend_content normal-card")) {
+  // History restores HTML, so pagination state must travel with that same container.
+  // Pending requests belong to the old page version; resume their page after removing stale placeholders.
+  del_loading_card_placeholder();
+  if (!restoredPage && sessionStorage.CurrentPage && recommendContainer?.querySelector("normal-card")) {
     CurrentPage = Number(sessionStorage.CurrentPage) || 1;
+  }
+  save_recommend_state();
+  recommendContainer?.setAttribute("aria-busy", "false");
+  const loadMoreButton = document.getElementById("recommend_load_more");
+  if (loadMoreButton) loadMoreButton.disabled = false;
+  if (recommend_finished || recommend_failed) {
+    if (loadMoreButton) loadMoreButton.hidden = recommend_finished;
+  } else if (restoredLoading) {
+    loading_data();
+  } else if (recommendContainer?.querySelector("normal-card")) {
     loading_data_max();
   } else {
     CurrentPage = Number(CurrentPage) || 1;

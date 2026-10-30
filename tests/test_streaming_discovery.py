@@ -297,6 +297,31 @@ class StreamingDiscoveryTest(unittest.TestCase):
             {"eName": "kind", "typeName": "类型", "items": [{"tagId": "3094", "tagName": "爱情"}]}]}})
         self.assertIn("kind", [group["key"] for group in self.discovery.filters("mgtv")])
 
+    def test_iqiyi_anime_and_variety_expose_and_submit_supported_release_years(self):
+        attributes = {
+            ":first-category-list": [],
+            ":my-year": {"cid": ["1", "2", "16"], "list": [
+                {"id": "", "name": "全部年份"}, {"id": "2024", "name": "2024"}]},
+            ":comic-status": {"cid": ["4"], "list": [
+                {"id": "0", "name": "连载"}, {"id": "1", "name": "完结"}]},
+        }
+        page = response(None)
+        page.text = '<div is="i71-list-category" ' + ' '.join(
+            f"{key}='{json.dumps(value, ensure_ascii=False)}'" for key, value in attributes.items()) + '></div>'
+        for category, channel in (("anime", "4"), ("variety", "6")):
+            with self.subTest(category=category):
+                self.http.get_res.side_effect = [page, response({"code": "A00000", "data": {
+                    "list": [], "has_next": 0}})]
+                groups = {group["key"]: group for group in self.discovery.filters("iqiyi", category)}
+                self.assertIn({"value": "2024", "name": "2024"},
+                              groups["market_release_date_level"]["options"])
+                self.assertEqual(category == "anime", "is_album_finished" in groups)
+                self.discovery.discover("iqiyi", params={
+                    "category": category, "market_release_date_level": "2024"})
+                params = self.http.get_res.call_args.kwargs["params"]
+                self.assertEqual(channel, params["channel_id"])
+                self.assertEqual("2024", params["market_release_date_level"])
+
     def test_extra_filters_do_not_share_a_result_cache_entry(self):
         groups = [{"key": "kind", "options": [{"value": "1"}, {"value": "2"}]}]
         self.http.get_res.return_value = response({"code": 200, "data": {"hitDocs": [], "hasMore": False}})
