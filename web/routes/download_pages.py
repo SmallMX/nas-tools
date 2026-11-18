@@ -14,11 +14,13 @@ download_pages_bp = Blueprint("download_pages", __name__)
 @download_pages_bp.route('/downloading', methods=['POST', 'GET'])
 @login_required
 def downloading():
-    DispTorrents = WebAction().get_downloading().get("result")
+    result = WebAction().get_downloading()
+    DispTorrents = result.get("result", [])
     return render_template("download/downloading.html",
                            DownloadCount=len(DispTorrents),
                            Torrents=DispTorrents,
-                           Client=Config().get_config("pt").get("pt_client"))
+                           Client=Config().get_config("pt").get("pt_client"),
+                           DownloadError=result.get("msg") if result.get("code") else None)
 
 
 @download_pages_bp.route('/downloaded', methods=['POST', 'GET'])

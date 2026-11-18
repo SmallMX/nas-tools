@@ -135,16 +135,22 @@ class DouBan:
             return douban_info
 
     def search_douban_medias(self, keyword, mtype: MediaType = None, season=None, episode=None, page=1):
-        """
-        根据关键字搜索豆瓣，返回可能的标题和年份信息
-        """
+        items, _ = self.search_douban_page(keyword, mtype, season, episode, page)
+        return items
+
+    def search_douban_page(self, keyword, mtype: MediaType = None, season=None, episode=None, page=1):
+        """返回词条及后续页状态，包括本页没有电影或剧集的情形。"""
         if not keyword:
-            return []
-        result = self.doubanapi.search(keyword)
+            return [], False
+        offset = (page - 1) * 20
+        result = self.doubanapi.search(keyword, start=offset, count=20)
         if not result:
-            return []
+            return [], False
+        items = result.get("items") or []
+        total = result.get("total")
+        has_more = offset + 20 < int(total) if str(total).isdigit() else len(items) >= 20
         ret_medias = []
-        for item_obj in result.get("items"):
+        for item_obj in items:
             if mtype and mtype.value != item_obj.get("type_name"):
                 continue
             if item_obj.get("type_name") not in (MediaType.TV.value, MediaType.MOVIE.value):
@@ -176,7 +182,7 @@ class DouBan:
             if meta_info not in ret_medias:
                 ret_medias.append(meta_info)
 
-        return ret_medias[(page - 1) * 20:page * 20]
+        return ret_medias, has_more
 
     def get_media_detail_from_web(self, doubanid):
         """

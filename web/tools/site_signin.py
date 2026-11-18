@@ -4,7 +4,7 @@ import re
 
 import log
 from app.helper import ThreadHelper
-from app.config_reload import save_config_and_apply
+from app.config_reload import save_config_and_apply, serialized_config_update
 from app.tools import SiteSignin
 from app.tools.site_signin.config import get_site_signin_config
 from app.tools.site_signin.constants import DEFAULT_RETRY_KEYWORD
@@ -30,6 +30,7 @@ class SiteSigninWebService:
         ThreadHelper().start_thread(self._service.signin, (force, site_ids, None))
         return {"code": 0, "msg": "站点签到任务已启动"}
 
+    @serialized_config_update
     def update_config(self, data=None):
         """校验并保存站点自动签到工具配置。"""
         if not isinstance(data, dict):

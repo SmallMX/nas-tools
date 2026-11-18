@@ -22,6 +22,36 @@ def meta_helper_instance(cache_path, meta_data=None, expire_enabled=False):
 
 
 class MetaHelperTest(unittest.TestCase):
+    def test_unchanged_saves_skip_io_and_changes_during_write_are_persisted_next_time(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "tmdb.dat"
+            helper = meta_helper_instance(path)
+            helper.update_meta_data({"a": {"id": 1, "title": "First"}})
+            write = helper._MetaHelper__write_meta_data
+            def update_while_writing(filename, snapshot):
+                helper.modify_meta_data("a", "Updated")
+                write(filename, snapshot)
+            with patch.object(helper, "_MetaHelper__write_meta_data", side_effect=update_while_writing):
+                helper.save_meta_data()
+            helper.save_meta_data()
+            self.assertEqual("Updated", pickle.loads(path.read_bytes())["a"]["title"])
+            with patch.object(helper, "_MetaHelper__write_meta_data") as writer, \
+                    patch.object(helper, "_MetaHelper__load_meta_data") as reader:
+                helper.save_meta_data()
+                reader.assert_not_called()
+                writer.assert_not_called()
+
+    def test_scheduled_save_expires_unchanged_cache(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "tmdb.dat"
+            helper = meta_helper_instance(path, {"old": {"id": 1, CACHE_EXPIRE_TIMESTAMP_STR: 101}}, True)
+            with patch("app.helper.meta_helper.time.time", return_value=100):
+                helper.save_meta_data()
+            with patch("app.helper.meta_helper.time.time", return_value=102):
+                helper.save_meta_data()
+            self.assertEqual({}, pickle.loads(path.read_bytes()))
+            self.assertEqual({}, helper._meta_data)
+
     def test_save_more_than_25_items_on_python_314(self):
         with tempfile.TemporaryDirectory(prefix="nastool-meta-tests-") as temp_dir:
             cache_path = Path(temp_dir) / "tmdb.dat"

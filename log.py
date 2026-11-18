@@ -12,7 +12,8 @@ from config import Config
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 lock = threading.Lock()
 LOG_QUEUE = deque(maxlen=200)
-LOG_INDEX = 0
+# 微秒起点使页面可携带游标跨 worker 重启，并保持在 JS 安全整数范围内。
+LOG_INDEX = time.time_ns() // 1000
 
 
 class Logger:
@@ -102,12 +103,20 @@ def __append_log_queue(level, text):
             text = text.replace(f"【{source}】", "")
         else:
             source = "System"
+        LOG_INDEX += 1
         LOG_QUEUE.append({
+            "id": LOG_INDEX,
             "time": time.strftime('%H:%M:%S', time.localtime(time.time())),
             "level": level,
             "source": source,
             "text": text})
-        LOG_INDEX += 1
+
+
+def read_logs(cursor=0, source=None):
+    with lock:
+        entries = [entry for entry in LOG_QUEUE
+                   if entry["id"] > cursor and (not source or entry["source"] == source)]
+        return entries, LOG_INDEX
 
 
 def debug(text, module=None):

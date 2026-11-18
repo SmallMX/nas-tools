@@ -23,15 +23,15 @@ class TorrentRemovalRules:
         return self.required_tags.issubset(tags)
 
     def matches_limits(self, *, ratio, seeding_time, size, uploaded):
-        upload_avs = uploaded / seeding_time if seeding_time else 0
         # 沿用严格边界；配置中的 0 仍表示不启用该规则。
         if self._ratio and ratio <= self._ratio:
             return False
-        if self._seeding_time and seeding_time <= self._seeding_time * 3600:
+        if self._seeding_time and (seeding_time is None or seeding_time <= self._seeding_time * 3600):
             return False
         if self._size and (size >= self._max_size or size <= self._min_size):
             return False
-        if self._upload_avs and upload_avs >= self._upload_avs * 1024:
+        if self._upload_avs and (not seeding_time or uploaded is None
+                                 or uploaded / seeding_time >= self._upload_avs * 1024):
             return False
         return True
 
@@ -48,14 +48,14 @@ class TorrentRemovalRules:
         if not self._samedata or not selected:
             return selected
 
-        expanded = []
-        for item in selected:
-            for torrent in torrents:
-                # 辅种只复核标签和同名同大小，不重新应用阈值、路径或客户端状态。
-                if self.required_tags and not self.has_required_tags(tags(torrent)):
-                    continue
-                torrent_id, name, size = identity(torrent)
-                if name == item["name"] and size == item["size"] and torrent_id not in selected_ids:
-                    expanded.append(describe(torrent, expanded=True))
-        # 保留扩展优先的顺序及每个基础命中项各自的扩展结果。
+        groups = {(item["name"], item["size"]): [] for item in selected}
+        for torrent in torrents:
+            torrent_id, name, size = identity(torrent)
+            if torrent_id in selected_ids or (name, size) not in groups:
+                continue
+            if self.required_tags and not self.has_required_tags(tags(torrent)):
+                continue
+            groups[name, size].append(describe(torrent, expanded=True))
+            selected_ids.add(torrent_id)
+        expanded = [torrent for group in groups.values() for torrent in group]
         return expanded + selected

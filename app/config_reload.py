@@ -2,12 +2,25 @@
 
 import copy
 import os
+from functools import wraps
 from threading import RLock
 
 from watchdog.events import FileSystemEventHandler
 
 import log
 from config import Config
+
+
+_config_update_lock = RLock()
+
+
+def serialized_config_update(func):
+    """让读取快照、合并字段、保存及热加载组成一次不可交错的更新。"""
+    @wraps(func)
+    def update(*args, **kwargs):
+        with _config_update_lock:
+            return func(*args, **kwargs)
+    return update
 
 
 def changed_config_paths(previous, current, prefix=""):
@@ -29,24 +42,23 @@ class ConfigReloader:
         self._apply_changes = apply_changes
         self._applied_config = copy.deepcopy(config.get_config())
         self._pending_paths = set()
-        self._lock = RLock()
 
     def reload(self):
         """读取外部修改；坏文件保留原配置，等待后续修改事件重试。"""
-        with self._lock:
+        with _config_update_lock:
             if not self.config.init_config():
                 return False
             return self.apply_current()
 
     def save(self, new_config):
         """保持原子保存契约，成功落盘后应用相关配置。"""
-        with self._lock:
+        with _config_update_lock:
             if not self.config.save_config(new_config):
                 return False
             return self.apply_current()
 
     def apply_current(self):
-        with self._lock:
+        with _config_update_lock:
             current = copy.deepcopy(self.config.get_config())
             if current == self._applied_config and not self._pending_paths:
                 return True

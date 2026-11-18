@@ -451,11 +451,13 @@
 <script type="text/javascript">
 (function () {
   const {pageAction} = NasToolsUI;
+  let taskEditorVersion = 0;
 
   // 显示新增任务
   function show_add_torrent_remove_task_modal(){
+    taskEditorVersion++;
     $("#torrent_remove_task_id").val('');
-    $("#modal-torrent-remove-task-title").val('新增删种任务');
+    $("#modal-torrent-remove-task-title").text('新增删种任务');
     $("#name").val('');
     $("#action").val('1');
     $("#interval").val('');
@@ -479,10 +481,12 @@
 
   // 显示编辑任务
   function show_edit_torrent_remove_task_modal(tid){
-    $("#torrent_remove_task_id").val(tid);
+    const version = ++taskEditorVersion;
     pageAction("get_torrent_remove_task", { tid: tid }, function (ret) {
-      if (ret.code == 0) {
-        $("#modal-download-setting-title").val('编辑下载设置');
+      if (version !== taskEditorVersion) return;
+      if (ret.code === 0 && String(ret.detail?.id) === String(tid)) {
+        $("#torrent_remove_task_id").val(tid);
+        $("#modal-torrent-remove-task-title").text('编辑删种任务');
         $("#name").val(ret.detail.name);
         $("#action").val(ret.detail.action);
         $("#interval").val(ret.detail.interval);
@@ -527,6 +531,8 @@
           $("#tr_state").val(ret.detail.config.tr_state.join(';'));
         }
         $("#modal-torrent-remove-task").modal('show');
+      } else {
+        show_fail_modal(ret.msg || '未能读取这条删种规则，请刷新后重试。');
       }
     });
   }

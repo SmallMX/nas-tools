@@ -812,7 +812,9 @@ class SecurityTest(unittest.TestCase):
         )[0]
 
         self.assertIn("ret.code !== 0", save_handler)
-        self.assertIn("show_fail_modal", save_handler)
+        self.assertIn("tracker.setStatus(ret.msg || '保存失败，请检查输入后重试。', 'error')", save_handler)
+        self.assertIn("return;", save_handler.split("if (ret.code !== 0)", 1)[1].split("}", 1)[0])
+        self.assertIn('data-save-status role="status" aria-live="polite"', source)
 
     def test_media_api_credentials_are_not_rendered(self):
         credentials = {
@@ -857,7 +859,8 @@ class SecurityTest(unittest.TestCase):
                 signin_enable=False, login_enable=False, statistic_enable=False,
                 download_setting="",
             )
-            return App.jinja_env.get_template("site/site.html").render(Sites=[site], **context)
+            with App.test_request_context("/site"):
+                return App.jinja_env.get_template("site/site.html").render(Sites=[site], **context)
 
         for unsafe_url in ("javascript:alert(1)", "data:text/html,<script>alert(1)</script>"):
             with self.subTest(url=unsafe_url):
@@ -897,7 +900,8 @@ class SecurityTest(unittest.TestCase):
             ),
         }
 
-        admin_html = template.render(**common_context)
+        with App.test_request_context("/site"):
+            admin_html = template.render(**common_context)
 
         for secret in ("cookie-key-secret", "cookie-password-secret", "site-password-secret", "two-step-secret"):
             self.assertNotIn(secret, admin_html)

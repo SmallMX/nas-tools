@@ -2,6 +2,8 @@ import copy
 import logging
 import unittest
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 from unittest.mock import Mock, patch
 from uuid import uuid4
 
@@ -63,6 +65,38 @@ class WebConfigSaveTest(unittest.TestCase):
         save.assert_not_called()
         self.config.save_config.assert_not_called()
         self.assertEqual({"app": {"user_agent": "initial"}}, self.original)
+
+    def test_concurrent_field_updates_merge_the_latest_snapshot(self):
+        saving, release, second_requested = Event(), Event(), Event()
+        state = copy.deepcopy(self.original)
+        self.config.get_config.side_effect = lambda: state
+
+        def save(updated):
+            if not saving.is_set():
+                saving.set()
+                if not release.wait(3):
+                    raise TimeoutError("未释放首次保存")
+            state.clear()
+            state.update(updated)
+            return True
+
+        def second_update():
+            second_requested.set()
+            return self.action.action("update_config", {"app.domain": "new-domain"})
+
+        with patch.object(config_reload, "save_config_and_apply", side_effect=save), ThreadPoolExecutor(2) as pool:
+            first = pool.submit(self.action.action, "update_config", {"app.user_agent": "new-agent"})
+            try:
+                self.assertTrue(saving.wait(2))
+                second = pool.submit(second_update)
+                self.assertTrue(second_requested.wait(2))
+                with self.assertRaises(TimeoutError):
+                    second.result(timeout=0.05)
+            finally:
+                release.set()
+            self.assertEqual(0, first.result()["code"])
+            self.assertEqual(0, second.result()["code"])
+        self.assertEqual({"app": {"user_agent": "new-agent", "domain": "new-domain"}}, state)
 
     def test_normal_save_uses_shared_entry_and_reports_application_failure(self):
         for succeeded in (True, False):

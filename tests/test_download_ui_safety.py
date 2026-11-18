@@ -29,6 +29,79 @@ class Markup(HTMLParser):
 
 
 class DownloadUISafetyTest(unittest.TestCase):
+    @unittest.skipUnless(NODE, "资源队列和删种编辑器检查需要 Node.js")
+    def test_resource_batch_and_torrent_rule_requests_keep_their_targets(self):
+        def functions(template, names):
+            source = (ROOT / "web/templates" / template).read_text()
+            return "\n".join(re.search(
+                rf"^  (?:async )?function {name}\([^\n]*\)\s*\{{.*?^  \}}",
+                source, re.MULTILINE | re.DOTALL,
+            ).group(0) for name in names)
+
+        program = r"""
+const assert = require("node:assert/strict");
+const [batch, editor] = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+const vm = require("node:vm");
+const requested = [], failures = [], successes = [];
+const responses = new Map();
+const fields = new Map();
+function $(id) {
+  return {
+    val(value) {
+      if (arguments.length) { fields.set(id, value); return this; }
+      return fields.get(id) ?? id;
+    },
+    text() {}, modal() {},
+  };
+}
+async function check() {
+  const queue = {downloadModalVersion: 0, resourceSiteTitle: "site", $, select_GetSelectedVAL: () => ["2", "4"],
+    show_fail_modal: text => failures.push(text), show_success_modal: text => successes.push(text),
+    NasToolsUI: {pageVersion: 1, pageAction: async (name, params, callback) => {
+      requested.push(params);
+      const response = {code: requested.length === 2 ? 1 : 0, msg: "拒绝"};
+      callback(response);
+      return response;
+    }}};
+  await vm.runInNewContext(batch + "\nbatch_download()", queue);
+  assert.deepEqual(requested.map(item => item.title), ["#title_2", "#title_4"]);
+  assert.ok(requested.every(item => !item.dl_dir && !item.dl_setting));
+  assert.deepEqual(successes, []);
+  assert.equal(failures.length, 1);
+  assert.match(failures[0], /成功 1 项，失败 1 项.*#title_4.*拒绝/);
+
+  const edits = {$, taskEditorVersion: 0, show_downloader() {},
+    pageAction: (_, {tid}, callback) => responses.set(tid, callback)};
+  vm.createContext(edits);
+  vm.runInContext(editor, edits);
+  edits.show_edit_torrent_remove_task_modal("A");
+  edits.show_edit_torrent_remove_task_modal("B");
+  function reply(id) {
+    responses.get(id)({code: 0, detail: {id, name: "Rule " + id, downloader: "Qb",
+      config: {size: [], tags: [], qb_category: [], qb_state: []}}});
+  }
+  reply("B");
+  reply("A");
+  assert.equal(fields.get("#torrent_remove_task_id"), "B");
+  assert.equal(fields.get("#name"), "Rule B");
+  edits.show_edit_torrent_remove_task_modal("A");
+  edits.show_add_torrent_remove_task_modal();
+  reply("A");
+  assert.equal(fields.get("#torrent_remove_task_id"), "");
+  assert.equal(fields.get("#name"), "");
+}
+check().catch(error => { console.error(error); process.exitCode = 1; });
+"""
+        source = [
+            functions("site/resources.html", ["download_resource", "batch_download"]),
+            functions("download/torrent_remove.html", [
+                "show_edit_torrent_remove_task_modal", "show_add_torrent_remove_task_modal",
+            ]),
+        ]
+        result = subprocess.run([NODE, "-e", program], input=json.dumps(source),
+                                text=True, capture_output=True, timeout=15)
+        self.assertEqual(0, result.returncode, result.stderr)
+
     def test_search_resource_metadata_survives_html_attributes_and_has_visible_summary_target(self):
         title = '资源 "修订版" & <img id="injected-resource" onerror="alert(1)">'
         site = '站点\' & "二"'

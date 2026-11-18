@@ -1,5 +1,5 @@
-import time
-from datetime import datetime
+import json
+import re
 
 import transmission_rpc
 
@@ -11,6 +11,16 @@ from app.downloader.client._base import _IDownloadClient
 from app.downloader.removal import TorrentRemovalRules, matches_pattern
 
 
+class _BrushTransmissionClient(transmission_rpc.Client):
+    def _http_query(self, query, timeout=None):
+        response = super()._http_query(query, timeout)
+        # SDK 的 add_torrent 会把 torrent-added 和 torrent-duplicate 转成相同的对象。
+        # 刷流只允许接管本次新建的任务，以免后续删种误删下载器原有的数据。
+        if query.get("method") == "torrent-add" and "torrent-duplicate" in json.loads(response).get("arguments", {}):
+            raise ValueError("种子已在下载器中存在，跳过刷流跟踪")
+        return response
+
+
 class Transmission(_IDownloadClient):
     schema = "transmission"
     client_type = DownloaderType.TR.value
@@ -18,7 +28,7 @@ class Transmission(_IDownloadClient):
 
     # 参考transmission web，仅查询需要的参数，加速种子检索
     _trarg = ["id", "name", "status", "labels", "hashString", "totalSize", "percentDone", "addedDate", "trackerStats",
-              "leftUntilDone", "rateDownload", "rateUpload", "recheckProgress", "rateDownload", "rateUpload",
+              "leftUntilDone", "rateDownload", "rateUpload", "recheckProgress", "secondsSeeding",
               "peersGettingFromUs", "peersSendingToUs", "uploadRatio", "uploadedEver", "downloadedEver", "downloadDir",
               "error", "errorString", "doneDate", "queuePosition", "activityDate", "trackers"]
     trc = None
@@ -27,7 +37,8 @@ class Transmission(_IDownloadClient):
     username = None
     password = None
 
-    def __init__(self, config=None):
+    def __init__(self, config=None, reject_duplicates=False):
+        self._client_class = _BrushTransmissionClient if reject_duplicates else transmission_rpc.Client
         if config:
             self._client_config = config
         else:
@@ -57,11 +68,11 @@ class Transmission(_IDownloadClient):
         """
         try:
             # 登录
-            trt = transmission_rpc.Client(host=self.host,
-                                          port=self.port,
-                                          username=self.username,
-                                          password=self.password,
-                                          timeout=30)
+            trt = self._client_class(host=self.host,
+                                     port=self.port,
+                                     username=self.username,
+                                     password=self.password,
+                                     timeout=30)
             return trt
         except Exception as err:
             ExceptionUtils.exception_traceback(err)
@@ -78,10 +89,10 @@ class Transmission(_IDownloadClient):
         """
         if not self.trc:
             return [], True
-        if isinstance(ids, list):
-            ids = [int(x) for x in ids if str(x).isdigit()]
-        elif str(ids).isdigit():
-            ids = int(ids)
+        if ids is not None:
+            ids = self.__normalize_torrent_ids(ids)
+            if not ids:
+                return [], True
         try:
             torrents = self.trc.get_torrents(ids=ids, arguments=self._trarg)
         except Exception as err:
@@ -89,20 +100,14 @@ class Transmission(_IDownloadClient):
             return [], True
         if status and not isinstance(status, list):
             status = [status]
+        status = {value.replace("_", " ") for value in status or []}
         if tag and not isinstance(tag, list):
             tag = [tag]
         ret_torrents = []
         for torrent in torrents:
             if status and torrent.status not in status:
                 continue
-            labels = torrent.labels if hasattr(torrent, "labels") else []
-            include_flag = True
-            if tag:
-                for t in tag:
-                    if t and t not in labels:
-                        include_flag = False
-                        break
-            if include_flag:
+            if not tag or set(tag).issubset(torrent.get("labels") or []):
                 ret_torrents.append(torrent)
         return ret_torrents, False
 
@@ -203,18 +208,15 @@ class Transmission(_IDownloadClient):
         rules = TorrentRemovalRules(config)
         savepath_key = config.get("savepath_key")
         tracker_key = config.get("tracker_key")
-        tr_state = config.get("tr_state")
+        tr_state = {value.replace("_", " ") for value in config.get("tr_state") or []}
         tr_error_key = config.get("tr_error_key")
 
         def tags(torrent):
-            return getattr(torrent, "labels", None) or []
+            return torrent.get("labels") or []
 
         def matches(torrent):
-            date_done = torrent.date_done or torrent.date_added
-            date_now = int(time.mktime(datetime.now().timetuple()))
-            seeding_time = date_now - int(time.mktime(date_done.timetuple())) if date_done else 0
-            # Transmission 保留按分享率推算上传量的口径。
-            uploaded = torrent.ratio * torrent.total_size
+            seeding_time = torrent.get("secondsSeeding")
+            uploaded = torrent.get("uploadedEver")
             if not rules.matches_limits(ratio=torrent.ratio, seeding_time=seeding_time,
                                         size=torrent.total_size, uploaded=uploaded):
                 return False
@@ -233,7 +235,7 @@ class Transmission(_IDownloadClient):
             return {
                 "id": torrent.id,
                 "name": torrent.name,
-                "site": "" if expanded and not torrent.trackers else torrent.trackers[0].get("sitename"),
+                "site": (torrent.trackers[0].get("sitename") or "") if torrent.trackers else "",
                 "size": torrent.total_size
             }
 
@@ -265,14 +267,16 @@ class Transmission(_IDownloadClient):
 
     @staticmethod
     def __normalize_torrent_ids(ids):
-        if isinstance(ids, bool):
+        multiple = isinstance(ids, (list, tuple, set))
+        valid = []
+        for item in ids if multiple else [ids]:
+            if isinstance(item, str) and re.fullmatch(r"[a-fA-F0-9]{40}", item):
+                valid.append(item)
+            elif str(item).isdigit() and int(item) > 0:
+                valid.append(int(item))
+        if not valid:
             return None
-        if isinstance(ids, (list, tuple, set)):
-            normalized_ids = [int(item) for item in ids if str(item).isdigit() and int(item) > 0]
-            return normalized_ids or None
-        if str(ids).isdigit() and int(ids) > 0:
-            return int(ids)
-        return None
+        return valid if multiple else valid[0]
 
     def start_torrents(self, ids):
         if not self.trc:
@@ -321,12 +325,9 @@ class Transmission(_IDownloadClient):
             return None
         try:
             torrent = self.trc.get_torrent(tid)
+            return torrent.get_files() if torrent else None
         except Exception as err:
             ExceptionUtils.exception_traceback(err)
-            return None
-        if torrent:
-            return torrent.files()
-        else:
             return None
 
     def set_files(self, **kwargs):
@@ -346,7 +347,10 @@ class Transmission(_IDownloadClient):
         if not kwargs.get("file_info"):
             return False
         try:
-            self.trc.set_files(kwargs.get("file_info"))
+            for torrent_id, files in kwargs["file_info"].items():
+                wanted = [file_id for file_id, selection in files.items() if selection["selected"]]
+                unwanted = [file_id for file_id, selection in files.items() if not selection["selected"]]
+                self.trc.change_torrent(ids=torrent_id, files_wanted=wanted, files_unwanted=unwanted)
             return True
         except Exception as err:
             ExceptionUtils.exception_traceback(err)
@@ -373,7 +377,7 @@ class Transmission(_IDownloadClient):
             ids = int(ids)
         else:
             ids = [int(x) for x in ids if str(x).isdigit()]
-        self.trc.change_torrent(ids, uploadLimit=int(limit))
+        self.trc.change_torrent(ids, upload_limit=int(limit), upload_limited=True)
 
     def set_downloadspeed_limit(self, ids, limit):
         """
@@ -387,22 +391,24 @@ class Transmission(_IDownloadClient):
             ids = int(ids)
         else:
             ids = [int(x) for x in ids if str(x).isdigit()]
-        self.trc.change_torrent(ids, downloadLimit=int(limit))
+        self.trc.change_torrent(ids, download_limit=int(limit), download_limited=True)
 
-    def get_downloading_progress(self, tag=None):
+    def get_downloading_progress(self, tag=None, with_error=False):
         """
         获取正在下载的种子进度
         """
-        Torrents = self.get_downloading_torrents(tag=tag)
+        Torrents, error = self.get_torrents(status=["downloading", "download_pending", "stopped"], tag=tag)
         DispTorrents = []
         for torrent in Torrents:
             if torrent.status in ['stopped']:
+                if torrent.percent_done >= 1:
+                    continue
                 state = "Stoped"
                 speed = "已暂停"
             else:
                 state = "Downloading"
-                _dlspeed = StringUtils.str_filesize(torrent.rateDownload)
-                _upspeed = StringUtils.str_filesize(torrent.rateUpload)
+                _dlspeed = StringUtils.str_filesize(torrent.rate_download)
+                _upspeed = StringUtils.str_filesize(torrent.rate_upload)
                 speed = "%s%sB/s %s%sB/s" % (chr(8595), _dlspeed, chr(8593), _upspeed)
             # 进度
             progress = round(torrent.progress)
@@ -413,4 +419,4 @@ class Transmission(_IDownloadClient):
                 'state': state,
                 'progress': progress
             })
-        return DispTorrents
+        return (DispTorrents, error) if with_error else DispTorrents

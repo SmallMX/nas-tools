@@ -388,9 +388,9 @@ def create_preview_app():
         if cmd == "tool_site_signin_status":
             items = [{"site": site["name"], "action_name": "签到", "success": [True, True, False, None][i], "message": ["签到成功（示例）", "已完成（示例）", "连接超时（示例）", "等待下次执行"][i], "created_at": "2026-09-09 08:00", "duration": 860 + 120 * i} for i, site in enumerate(SITES)]
             return jsonify(code=0, running=False, summary={"total": 4, "success": 2, "failed": 1, "pending": 1}, items=items, history=items[:3])
-        if cmd == "refresh_message": return jsonify(code=0, lst_time="demo", message=[] if params.get("lst_time") else [{"title": "只读预览已就绪", "content": "当前使用本地示例数据，不连接任何外部服务。", "time": "2026-09-09 08:00", "status": "success"}])
+        if cmd == "refresh_message": return jsonify(code=0, cursor=1, lst_time="demo", message=[] if params.get("cursor") or params.get("lst_time") else [{"title": "只读预览已就绪", "content": "当前使用本地示例数据，不连接任何外部服务。", "time": "2026-09-09 08:00", "status": "success"}])
         if cmd == "refresh_process": return jsonify(code=0, value=100, text="示例数据已加载")
-        if cmd == "logging": return jsonify(code=0, loglist=[] if params.get("refresh_new") else [
+        if cmd == "logging": return jsonify(code=0, cursor=3, loglist=[] if params.get("cursor") or params.get("refresh_new") else [
             {"time": "08:30:01", "source": "System", "level": "INFO", "text": "只读 UI 预览已就绪（示例日志）"},
             {"time": "08:30:02", "source": "Indexer", "level": "INFO", "text": "已加载 4 个示例站点"},
             {"time": "08:30:03", "source": "Downloader", "level": "INFO", "text": "当前任务数据来自本地 fixtures，未连接下载器"}])

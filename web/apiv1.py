@@ -639,7 +639,8 @@ class DownloadConfigDirectory(ClientResource):
 @system.route('/logging')
 class SystemLogging(ClientResource):
     parser = reqparse.RequestParser()
-    parser.add_argument('refresh_new', type=int, help='是否刷新增量日志（0-否/1-是）', location='form', required=True)
+    parser.add_argument('refresh_new', type=int, help='是否刷新增量日志（0-否/1-是）', location='form')
+    parser.add_argument('cursor', type=int, help='上次响应的日志游标', location='form')
 
     @system.doc(parser=parser)
     def post(self):
@@ -682,13 +683,15 @@ class SystemLogout(ClientResource):
 class SystemMessage(ClientResource):
     parser = reqparse.RequestParser()
     parser.add_argument('lst_time', type=str, help='时间（YYYY-MM-DD HH24:MI:SS）', location='form')
+    parser.add_argument('cursor', type=int, help='上次响应的消息游标', location='form')
 
     @system.doc(parser=parser)
     def post(self):
         """
         查询消息中心消息
         """
-        return WebAction().get_system_message(lst_time=self.parser.parse_args().get("lst_time"))
+        args = self.parser.parse_args()
+        return WebAction().get_system_message(lst_time=args.cursor if args.cursor is not None else args.lst_time)
 
 
 @system.route('/progress')

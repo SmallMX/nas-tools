@@ -135,7 +135,7 @@ class SearchSiteLanguageTest(unittest.TestCase):
 
         media_service.return_value.get_tmdb_en_title.assert_called_once_with(self.media)
         self._assert_both_languages_searched_once()
-        self.assertEqual(3, len(database.return_value.insert_search_results.call_args.kwargs["media_items"]))
+        self.assertEqual(3, len(database.return_value.replace_search_results.call_args.kwargs["media_items"]))
 
 
 class TmdbTitleLanguageIsolationTest(unittest.TestCase):

@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from flask import Flask, g
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -151,10 +152,27 @@ class DownloadActionContractTest(unittest.TestCase):
                 )
                 if success:
                     self.assertEqual("tester", media.user_name)
-                    self.message.send_download_message.assert_called_once_with(in_from=SearchType.WEB, can_item=media)
+                    self.message.send_download_message.assert_called_once_with(SearchType.WEB, media)
                 else:
                     self.message_factory.assert_not_called()
                 self.message.send_download_fail_message.assert_not_called()
+
+    def test_stale_search_result_rejected_and_identification_optional_for_api_download(self):
+        self.database.get_search_result_by_id.return_value = []
+        self.assertNotEqual(0, self.actions.download({"id": 1})["retcode"])
+        self.downloader.download.assert_not_called()
+        self.database.get_search_result_by_id.return_value = [search_row(2)]
+        self.media_service.get_media_info.return_value = None
+        self.downloader.download.return_value = (True, "")
+        self.message.send_download_message.side_effect = RuntimeError("notification failed")
+        with Flask(__name__).test_request_context():
+            g.api_username = "api-admin"
+            self.assertEqual(0, self.actions.download({"id": 2})["retcode"])
+        self.downloader.download.assert_called_once()
+        media = self.downloader.download.call_args.kwargs["media_info"]
+        self.assertEqual("api-admin", media.user_name)
+        self.assertEqual("Show.2", media.org_string)
+        self.assertEqual("https://tracker.example/2", media.enclosure)
 
     def test_download_link_keeps_response_fallback_and_success_only_notification(self):
         sites = self._patch("web.actions.validation.Sites")

@@ -95,10 +95,11 @@ class SearchPreparationTest(unittest.TestCase):
                     self.assertEqual(["中文标题"], self._keywords())
                     if channel == "web":
                         self.assertEqual(1, result[0])
-                        self.web_database.delete_all_search_torrents.assert_called_once_with()
+                        self.web_database.replace_search_results.assert_called_once_with(
+                            media_items=[], ident_flag=True, title="规范输入标题")
                     else:
                         self.assertEqual((None, {}, 0, 0), result)
-                        self.searcher.dbhelper.delete_all_search_torrents.assert_not_called()
+                        self.searcher.dbhelper.replace_search_results.assert_not_called()
                     self.searcher.downloader.batch_download.assert_not_called()
 
     def test_missing_chinese_name_uses_recognized_title(self):
@@ -195,7 +196,7 @@ class SearchPreparationTest(unittest.TestCase):
                 self.media_service.get_tmdb_en_title.assert_not_called()
                 if not identify:
                     self.media_service.get_media_info.assert_not_called()
-                self.web_database.insert_search_results.assert_called_once_with(
+                self.web_database.replace_search_results.assert_called_once_with(
                     media_items=[self.result], ident_flag=False, title="规范输入标题")
 
     def test_web_and_remote_keep_distinct_result_order_and_persistence_contracts(self):
@@ -212,13 +213,11 @@ class SearchPreparationTest(unittest.TestCase):
                 result = self._run(channel, self._media())
                 if channel == "web":
                     self.assertEqual((0, ""), result)
-                    self.web_database.delete_all_search_torrents.assert_called_once_with()
-                    self.web_database.insert_search_results.assert_called_once_with(
+                    self.web_database.replace_search_results.assert_called_once_with(
                         media_items=[second, seeded, first, third, last], ident_flag=True, title="规范输入标题")
                 else:
                     self.assertEqual((None, {}, 5, None), result)
-                    self.searcher.dbhelper.delete_all_search_torrents.assert_called_once_with()
-                    self.searcher.dbhelper.insert_search_results.assert_called_once_with([last, second, seeded, first, third])
+                    self.searcher.dbhelper.replace_search_results.assert_called_once_with([last, second, seeded, first, third])
                 self.searcher.downloader.batch_download.assert_not_called()
                 self.assertEqual([first, third, last, seeded, second], items)
 
@@ -238,7 +237,7 @@ class SearchPreparationTest(unittest.TestCase):
                 self.assertEqual(expected, result)
                 self.searcher.downloader.batch_download.assert_called_once_with(
                     in_from=SearchType.TG, media_list=[self.result], need_tvs=requested, user_name="测试用户")
-                self.searcher.dbhelper.insert_search_results.assert_called_once_with([self.result])
+                self.searcher.dbhelper.replace_search_results.assert_called_once_with([self.result])
 
 
 if __name__ == "__main__":

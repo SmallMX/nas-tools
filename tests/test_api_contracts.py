@@ -1,5 +1,6 @@
 import json
 import unittest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from app.utils import TokenCache
@@ -18,6 +19,31 @@ class ApiContractTest(unittest.TestCase):
 
     def tearDown(self):
         TokenCache.delete(self.token)
+
+    def test_token_downloads_report_acceptance_even_if_notification_fails(self):
+        magnet = "magnet:?xt=urn:btih:" + "a" * 40
+        result = SimpleNamespace(torrent_name="Movie.2024", description="", size=100,
+                                 enclosure=magnet, site="fixture", pageurl="",
+                                 upload_volume_factor=1.0, download_volume_factor=1.0)
+        with patch("web.action.DbHelper") as db, patch("web.action.SiteSigninWebService"), \
+                patch("web.actions.download.Media") as media, patch("web.actions.download.Downloader") as downloader, \
+                patch("web.actions.download.Message") as message:
+            db.return_value.get_search_result_by_id.return_value = [result]
+            media.return_value.get_media_info.return_value = None
+            send = message.return_value.send_download_message
+            send.side_effect = RuntimeError("notification unavailable")
+            submit = downloader.return_value.download
+            submit.return_value = (True, "")
+            for path, data in (("search", {"id": "1"}), ("item", {"title": "Movie.2024", "enclosure": magnet})):
+                with self.subTest(path=path):
+                    response = self.client.post(f"/api/v1/download/{path}", headers=self.headers, data=data)
+                    self.assertEqual(200, response.status_code)
+                    self.assertTrue(response.get_json()["success"])
+                    submit.assert_called_once()
+                    send.assert_called_once()
+                    self.assertEqual("admin", submit.call_args.kwargs["media_info"].user_name)
+                    submit.reset_mock()
+                    send.reset_mock()
 
     def test_swagger_declares_json_encoded_form_fields_as_form_data(self):
         response = self.client.get("/api/v1/swagger.json")

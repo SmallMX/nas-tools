@@ -25,6 +25,14 @@ class Search(TMDb):
         """
         return self._get_obj(self._call(self._urls["companies"], urlencode(params)))
 
+    def media_page(self, kind, params):
+        """Read pagination from the same response as this page's results."""
+        response = self._call(self._urls[kind], urlencode(params))
+        results = self._get_obj(response)
+        pages = response.get("total_pages")
+        has_more = int(pages) > params["page"] if pages is not None else len(results) >= 20
+        return results, has_more
+
     def collections(self, params):
         """
         Search for movies.

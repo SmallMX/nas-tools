@@ -254,9 +254,9 @@ class SearchActions:
             # 搜索词条
             Keyword = data.get("keyword")
             Source = data.get("source")
-            medias = WebUtils.search_media_infos(
+            medias, has_more = WebUtils.search_media_page(
                 keyword=Keyword, source=Source, page=CurrentPage)
-            res_list = [media.to_dict() for media in medias]
+            return {"code": 0, "Items": [media.to_dict() for media in medias], "has_more": has_more}
         elif Type == "DOWNLOADED":
             # 近期下载
             res_list = self.downloads.get_downloaded({

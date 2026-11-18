@@ -1,5 +1,4 @@
 import time
-from datetime import datetime
 from urllib import parse
 
 from packaging.version import parse as v
@@ -74,11 +73,8 @@ class Qbittorrent(_IDownloadClient):
                                         password=self.password,
                                         VERIFY_WEBUI_CERTIFICATE=self._verify_cert,
                                         REQUESTS_ARGS={'timeout': (10, 30)})
-            try:
-                qbt.auth_log_in()
-                self.ver = qbt.app_version()
-            except qbittorrentapi.LoginFailed as e:
-                print(str(e))
+            qbt.auth_log_in()
+            self.ver = qbt.app_version()
             return qbt
         except Exception as err:
             ExceptionUtils.exception_traceback(err)
@@ -102,9 +98,12 @@ class Qbittorrent(_IDownloadClient):
         if not self.qbc:
             return [], True
         try:
-            torrents = self.qbc.torrents_info(torrent_hashes=ids, status_filter=status, tag=tag)
-            if self.is_ver_less_4_4():
-                torrents = self.filter_torrent_by_tag(torrents, tag=tag)
+            tags = [tag] if isinstance(tag, str) else list(tag or [])
+            tags = [value for value in tags if value]
+            server_tag = tags[0] if len(tags) == 1 and not self.is_ver_less_4_4() else None
+            torrents = self.qbc.torrents_info(torrent_hashes=ids, status_filter=status, tag=server_tag)
+            if tags and not server_tag:
+                torrents = self.filter_torrent_by_tag(torrents, tags)
             return torrents or [], False
         except Exception as err:
             ExceptionUtils.exception_traceback(err)
@@ -117,7 +116,7 @@ class Qbittorrent(_IDownloadClient):
         """
         if not self.qbc:
             return []
-        torrents, _ = self.get_torrents(status=["downloading"], tag=tag)
+        torrents, _ = self.get_torrents(status="downloading", tag=tag)
         return torrents
 
     def remove_torrents_tag(self, ids, tag):
@@ -163,27 +162,27 @@ class Qbittorrent(_IDownloadClient):
         def matches(torrent):
             if rules.required_tags and not rules.has_required_tags(tags(torrent)):
                 return False
-            date_done = torrent.completion_on if torrent.completion_on > 0 else torrent.added_on
-            date_now = int(time.mktime(datetime.now().timetuple()))
-            seeding_time = date_now - date_done if date_done else 0
-            if not rules.matches_limits(ratio=torrent.ratio, seeding_time=seeding_time,
+            if not rules.matches_limits(ratio=torrent.ratio, seeding_time=torrent.get("seeding_time"),
                                         size=torrent.size, uploaded=torrent.uploaded):
                 return False
             if savepath_key and not matches_pattern(savepath_key, torrent.save_path):
                 return False
             if tracker_key and not matches_pattern(tracker_key, torrent.tracker):
                 return False
-            if qb_state and torrent.state not in qb_state:
+            state = {"stoppedDL": "pausedDL", "stoppedUP": "pausedUP"}.get(torrent.state, torrent.state)
+            if qb_state and state not in qb_state:
                 return False
             if qb_category and torrent.category not in qb_category:
                 return False
             return True
 
         def describe(torrent, expanded=False):
+            host = parse.urlparse(torrent.tracker or "").hostname or ""
+            parts = host.split(".")
             return {
                 "id": torrent.hash,
                 "name": torrent.name,
-                "site": parse.urlparse(torrent.tracker).netloc.split(".")[-2] if expanded or torrent.tracker else "",
+                "site": parts[-2] if len(parts) >= 2 else host,
                 "size": torrent.size
             }
 
@@ -429,16 +428,9 @@ class Qbittorrent(_IDownloadClient):
             return torrents
         if not isinstance(tag, list):
             tag = [tag]
-        results = []
-        for torrent in torrents:
-            include_flag = True
-            for t in tag:
-                if t and t not in torrent.get("tags"):
-                    include_flag = False
-                    break
-            if include_flag:
-                results.append(torrent)
-        return results
+        required = set(tag)
+        return [torrent for torrent in torrents
+                if required.issubset(value.strip() for value in (torrent.get("tags") or "").split(","))]
 
     def change_torrent(self, **kwargs):
         """
@@ -446,16 +438,18 @@ class Qbittorrent(_IDownloadClient):
         """
         pass
 
-    def get_downloading_progress(self, tag=None):
+    def get_downloading_progress(self, tag=None, with_error=False):
         """
         获取正在下载的种子进度
         """
-        Torrents = self.get_downloading_torrents(tag=tag)
+        Torrents, error = self.get_torrents(tag=tag)
         DispTorrents = []
         for torrent in Torrents:
+            if torrent.get("progress", 0) >= 1:
+                continue
             # 进度
             progress = round(torrent.get('progress') * 100, 1)
-            if torrent.get('state') in ['pausedDL']:
+            if torrent.get('state') in ('pausedDL', 'stoppedDL'):
                 state = "Stoped"
                 speed = "已暂停"
             else:
@@ -475,4 +469,4 @@ class Qbittorrent(_IDownloadClient):
                 'state': state,
                 'progress': progress
             })
-        return DispTorrents
+        return (DispTorrents, error) if with_error else DispTorrents

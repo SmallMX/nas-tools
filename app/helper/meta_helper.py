@@ -1,7 +1,6 @@
 import copy
 import os
 import pickle
-import random
 import tempfile
 import time
 from enum import Enum
@@ -43,26 +42,39 @@ class MetaHelper(object):
 
     _meta_path = None
     _tmdb_cache_expire = False
+    _revision = 0
+    _saved_revision = None
+    _next_expiry = None
 
     def __init__(self):
         self.init_config()
 
     def init_config(self):
         self.reload_runtime_config()
-        self._meta_path = os.path.join(Config().get_config_path(), 'tmdb.dat')
-        self._meta_data = self.__load_meta_data(self._meta_path)
+        with save_lock, lock:
+            self._meta_path = os.path.join(Config().get_config_path(), 'tmdb.dat')
+            self._meta_data = self.__load_meta_data(self._meta_path)
+            self._revision = 0
+            self._saved_revision = None
+            self._next_expiry = None
 
     def reload_runtime_config(self):
         """刷新过期策略，不覆盖尚未保存的内存媒体缓存。"""
         laboratory = Config().get_config('laboratory') or {}
-        self._tmdb_cache_expire = laboratory.get("tmdb_cache_expire", False)
+        with lock:
+            enabled = laboratory.get("tmdb_cache_expire", False)
+            if enabled != self._tmdb_cache_expire:
+                self._tmdb_cache_expire = enabled
+                self._revision += 1
 
     def clear_meta_data(self):
         """
         清空所有TMDB缓存
         """
         with lock:
-            self._meta_data = {}
+            if self._meta_data:
+                self._meta_data = {}
+                self._revision += 1
 
     def get_meta_data_path(self):
         """
@@ -74,13 +86,16 @@ class MetaHelper(object):
         """
         根据KEY值获取缓存值
         """
+        now = int(time.time())
         with lock:
             info: dict = self._meta_data.get(key)
             if info:
                 expire = info.get(CACHE_EXPIRE_TIMESTAMP_STR)
-                if not expire or int(time.time()) < expire:
-                    info[CACHE_EXPIRE_TIMESTAMP_STR] = int(time.time()) + EXPIRE_TIMESTAMP
-                    self.update_meta_data({key: info})
+                if not expire or now < expire:
+                    if expire != now + EXPIRE_TIMESTAMP:
+                        info[CACHE_EXPIRE_TIMESTAMP_STR] = now + EXPIRE_TIMESTAMP
+                        if str(info.get("id")) != "0":
+                            self._revision += 1
                 elif expire and self._tmdb_cache_expire:
                     self.delete_meta_data(key)
                     return {}
@@ -118,25 +133,25 @@ class MetaHelper(object):
         @return: 被删除的缓存内容
         """
         with lock:
-            return self._meta_data.pop(key, None)
+            removed = self._meta_data.pop(key, None)
+            if removed is not None and str(removed.get("id")) != "0":
+                self._revision += 1
+            return removed
 
     def delete_meta_data_by_tmdbid(self, tmdbid):
         """
         清空对应TMDBID的所有缓存记录，以强制更新TMDB中最新的数据
         """
-        for key in list(self._meta_data):
-            if str(self._meta_data.get(key, {}).get("id")) == str(tmdbid):
-                with lock:
-                    self._meta_data.pop(key)
+        with lock:
+            for key, item in list(self._meta_data.items()):
+                if str(item.get("id")) == str(tmdbid):
+                    self.delete_meta_data(key)
 
     def delete_unknown_meta(self):
         """
         清除未识别的缓存记录，以便重新检索TMDB
         """
-        for key in list(self._meta_data):
-            if str(self._meta_data.get(key, {}).get("id")) == '0':
-                with lock:
-                    self._meta_data.pop(key)
+        self.delete_meta_data_by_tmdbid(0)
 
     def modify_meta_data(self, key, title):
         """
@@ -148,6 +163,7 @@ class MetaHelper(object):
         with lock:
             if self._meta_data.get(key):
                 self._meta_data[key]['title'] = title
+                self._revision += 1
                 self._meta_data[key][CACHE_EXPIRE_TIMESTAMP_STR] = int(time.time()) + EXPIRE_TIMESTAMP
             return self._meta_data.get(key)
 
@@ -177,6 +193,8 @@ class MetaHelper(object):
                 if not self._meta_data.get(key):
                     item[CACHE_EXPIRE_TIMESTAMP_STR] = int(time.time()) + EXPIRE_TIMESTAMP
                     self._meta_data[key] = item
+                    if str(item.get("id")) != "0":
+                        self._revision += 1
 
     def save_meta_data(self, force=False):
         """
@@ -184,20 +202,31 @@ class MetaHelper(object):
         """
         with save_lock:
             with lock:
-                meta_snapshot = copy.deepcopy(self._meta_data)
-            meta_data = self.__load_meta_data(self._meta_path)
-            new_meta_data = {
-                key: value
-                for key, value in meta_snapshot.items()
-                if str(value.get("id")) != '0'
-            }
-
-            if not force \
-                    and not self._random_sample(new_meta_data) \
-                    and meta_data.keys() == new_meta_data.keys():
-                return
-
-            self.__write_meta_data(self._meta_path, new_meta_data)
+                now = int(time.time())
+                expiry_due = self._next_expiry is not None and now >= self._next_expiry
+                if not force and self._saved_revision == self._revision and not expiry_due:
+                    return
+                snapshot = {}
+                next_expiry = None
+                for key, item in list(self._meta_data.items()):
+                    if str(item.get("id")) == '0':
+                        continue
+                    expiry = item.get(CACHE_EXPIRE_TIMESTAMP_STR)
+                    if not expiry:
+                        expiry = now + EXPIRE_TIMESTAMP
+                        item[CACHE_EXPIRE_TIMESTAMP_STR] = expiry
+                    if self._tmdb_cache_expire:
+                        if now >= expiry:
+                            del self._meta_data[key]
+                            continue
+                        if next_expiry is None or expiry < next_expiry:
+                            next_expiry = expiry
+                    snapshot[key] = copy.deepcopy(item)
+                revision = self._revision
+            self.__write_meta_data(self._meta_path, snapshot)
+            with lock:
+                self._saved_revision = revision
+                self._next_expiry = next_expiry
 
     @staticmethod
     def __write_meta_data(path, meta_data):
@@ -226,41 +255,6 @@ class MetaHelper(object):
             if temp_path and os.path.exists(temp_path):
                 os.unlink(temp_path)
 
-    def _random_sample(self, new_meta_data):
-        """
-        采样分析是否需要保存
-        """
-        ret = False
-        if len(new_meta_data) < 25:
-            keys = list(new_meta_data.keys())
-            for k in keys:
-                info = new_meta_data.get(k)
-                expire = info.get(CACHE_EXPIRE_TIMESTAMP_STR)
-                if not expire:
-                    ret = True
-                    info[CACHE_EXPIRE_TIMESTAMP_STR] = int(time.time()) + EXPIRE_TIMESTAMP
-                elif int(time.time()) >= expire:
-                    ret = True
-                    if self._tmdb_cache_expire:
-                        new_meta_data.pop(k)
-        else:
-            count = 0
-            keys = random.sample(list(new_meta_data), 25)
-            for k in keys:
-                info = new_meta_data.get(k)
-                expire = info.get(CACHE_EXPIRE_TIMESTAMP_STR)
-                if not expire:
-                    ret = True
-                    info[CACHE_EXPIRE_TIMESTAMP_STR] = int(time.time()) + EXPIRE_TIMESTAMP
-                elif int(time.time()) >= expire:
-                    ret = True
-                    if self._tmdb_cache_expire:
-                        new_meta_data.pop(k)
-                        count += 1
-            if count >= 5:
-                ret |= self._random_sample(new_meta_data)
-        return ret
-
     def get_cache_title(self, key):
         """
         获取缓存的标题
@@ -274,7 +268,7 @@ class MetaHelper(object):
         """
         重新设置缓存标题
         """
-        cache_media_info = self._meta_data.get(key)
-        if not cache_media_info:
-            return
-        self._meta_data[key]['title'] = cn_title
+        with lock:
+            if key in self._meta_data:
+                self._meta_data[key]['title'] = cn_title
+                self._revision += 1

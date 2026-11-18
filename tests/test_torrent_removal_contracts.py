@@ -47,6 +47,7 @@ class TorrentRemovalContractsTest(unittest.TestCase):
                 else:
                     torrent_id = number
                     torrent = SimpleNamespace(
+                        get={"secondsSeeding": 7200, "uploadedEver": 0, "labels": labels}.get,
                         id=torrent_id, name=name, labels=labels,
                         date_done=now - timedelta(hours=2), date_added=now - timedelta(hours=4),
                         ratio=2, total_size=1024 ** 3, download_dir="/downloads",

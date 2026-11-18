@@ -13,12 +13,8 @@ class DbHelper:
     _db = MainDb()
 
     @DbPersist(_db)
-    def insert_search_results(self, media_items: list, title=None, ident_flag=True):
-        """
-        将返回信息插入数据库
-        """
-        if not media_items:
-            return
+    def replace_search_results(self, media_items: list, title=None, ident_flag=True):
+        """在一个事务中发布本次搜索，失败时保留上一批结果。"""
         data_list = []
         for media_item in media_items:
             if media_item.type == MediaType.TV:
@@ -60,6 +56,7 @@ class DbHelper:
                     upload_volume_factor=media_item.upload_volume_factor,
                     download_volume_factor=media_item.download_volume_factor
                 ))
+        self._db.query(SearchResultInfo).delete(synchronize_session=False)
         self._db.insert(data_list)
 
     def get_search_result_by_id(self, dl_id):
@@ -73,13 +70,6 @@ class DbHelper:
         查询检索结果的所有记录
         """
         return self._db.query(SearchResultInfo).all()
-
-    @DbPersist(_db)
-    def delete_all_search_torrents(self, ):
-        """
-        删除所有搜索的记录
-        """
-        self._db.query(SearchResultInfo).delete()
 
     def get_config_site(self, ):
         """
@@ -401,11 +391,11 @@ class DbHelper:
         """
         查询站点数据历史
         """
-        if strict_urls:
+        if strict_urls is not None:
             # 根据站点优先级排序
             return self._db.query(SiteUserInfoStats) \
                 .join(ConfigSite, SiteUserInfoStats.site == ConfigSite.name) \
-                .filter(SiteUserInfoStats.url.in_(tuple(strict_urls + ["__DUMMY__"]))) \
+                .filter(SiteUserInfoStats.url.in_(strict_urls)) \
                 .order_by(cast(ConfigSite.pri, Integer).asc()).limit(num).all()
         else:
             return self._db.query(SiteUserInfoStats).limit(num).all()
@@ -518,8 +508,8 @@ class DbHelper:
         查询近期上传下载量
         """
         # 查询最大最小日期
-        if strict_urls is None:
-            strict_urls = []
+        if strict_urls is not None and not strict_urls:
+            return 0, 0, [], [], []
 
         b_date = (datetime.datetime.now() - datetime.timedelta(days=days)).strftime("%Y-%m-%d")
         date_ret = self._db.query(func.max(SiteStatisticsHistory.date),
@@ -538,7 +528,7 @@ class DbHelper:
                                           func.sum(SiteStatisticsHistory.upload).label("upload"),
                                           func.sum(SiteStatisticsHistory.download).label("download")).filter(
                     SiteStatisticsHistory.date >= min_date,
-                    SiteStatisticsHistory.url.in_(tuple(strict_urls + ["__DUMMY__"]))).group_by(
+                    SiteStatisticsHistory.url.in_(strict_urls)).group_by(
                     SiteStatisticsHistory.site, SiteStatisticsHistory.date).subquery()
             else:
                 subquery = self._db.query(SiteStatisticsHistory.site.label("site"),
@@ -578,56 +568,40 @@ class DbHelper:
         """
         查询下载历史是否存在
         """
-        if not title or not tmdbid:
+        if not tmdbid:
             return False
+        query = self._db.query(DownloadHistory.id).filter(DownloadHistory.tmdbid == str(tmdbid))
         if mtype:
-            count = self._db.query(DownloadHistory).filter(
-                (DownloadHistory.title == title) | (DownloadHistory.tmdbid == tmdbid),
-                DownloadHistory.type == mtype).count()
-        else:
-            count = self._db.query(DownloadHistory).filter(
-                (DownloadHistory.title == title) | (DownloadHistory.tmdbid == tmdbid)).count()
-        if count > 0:
-            return True
-        else:
-            return False
+            query = query.filter(DownloadHistory.type == mtype)
+        return query.first() is not None
 
     @DbPersist(_db)
     def insert_download_history(self, media_info):
-        """
-        新增下载历史
-        """
-        if not media_info:
+        """以媒体类型和 TMDB ID 记载最近一次下载。"""
+        if not media_info or not media_info.title or not media_info.tmdb_id:
             return
-        if not media_info.title or not media_info.tmdb_id:
-            return
-        if self.is_exists_download_history(media_info.title, media_info.tmdb_id, media_info.type.value):
-            self._db.query(DownloadHistory).filter(DownloadHistory.title == media_info.title,
-                                                   DownloadHistory.tmdbid == media_info.tmdb_id,
-                                                   DownloadHistory.type == media_info.type.value).update(
-                {
-                    "torrent": media_info.org_string,
-                    "enclosure": media_info.enclosure,
-                    "desc": media_info.description,
-                    "date": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time())),
-                    "site": media_info.site
-                }
-            )
-        else:
-            self._db.insert(DownloadHistory(
-                title=media_info.title,
-                year=media_info.year,
-                type=media_info.type.value,
-                tmdbid=media_info.tmdb_id,
-                vote=media_info.vote_average,
-                poster=media_info.get_poster_image(),
-                overview=media_info.overview,
-                torrent=media_info.org_string,
-                enclosure=media_info.enclosure,
-                desc=media_info.description,
-                date=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time())),
-                site=media_info.site
-            ))
+        identity = {"tmdbid": str(media_info.tmdb_id), "type": media_info.type.value}
+        values = {
+            "title": media_info.title,
+            "year": media_info.year,
+            "vote": media_info.vote_average,
+            "overview": media_info.overview,
+            "torrent": media_info.org_string,
+            "enclosure": media_info.enclosure,
+            "desc": media_info.description,
+            "date": time.strftime('%Y-%m-%d %H:%M:%S'),
+            "site": media_info.site,
+        }
+        poster = media_info.get_poster_image()
+        if poster:
+            values["poster"] = poster
+        # The first UPDATE obtains SQLite's writer lock even on a miss. Another
+        # writer cannot insert this identity before this transaction commits.
+        updated = self._db.query(DownloadHistory).filter_by(**identity).update(
+            values, synchronize_session="fetch"
+        )
+        if not updated:
+            self._db.insert(DownloadHistory(**identity, **values))
 
     def get_download_history(self, date=None, hid=None, num=30, page=1):
         """
@@ -641,7 +615,7 @@ class DbHelper:
         else:
             offset = (int(page) - 1) * int(num)
             return self._db.query(DownloadHistory).order_by(
-                DownloadHistory.date.desc()).limit(num).offset(offset).all()
+                DownloadHistory.date.desc(), DownloadHistory.id.desc()).limit(num).offset(offset).all()
 
     def is_media_downloaded(self, title, tmdbid):
         """
@@ -755,6 +729,11 @@ class DbHelper:
         """
         if not brush_id:
             return
+        if upload_size is None or download_size is None:
+            self._db.query(SiteBrushTask).filter(SiteBrushTask.id == int(brush_id)).update({
+                "remove_count": SiteBrushTask.remove_count + remove_count
+            })
+            return
         delete_upsize = 0
         delete_dlsize = 0
         remove_sizes = self.get_brushtask_remove_size(brush_id)
@@ -780,9 +759,9 @@ class DbHelper:
         增加刷流下载的种子信息
         """
         if not brush_id:
-            return
-        if self.is_brushtask_torrent_exists(brush_id, title, enclosure):
-            return
+            return False
+        if self.is_brushtask_torrent_exists(brush_id, enclosure):
+            return False
         self._db.insert(SiteBrushTorrents(
             task_id=brush_id,
             torrent_name=title,
@@ -808,19 +787,15 @@ class DbHelper:
                 SiteBrushTorrents.task_id == int(brush_id)
             ).order_by(SiteBrushTorrents.lst_mod_date.desc()).all()
 
-    def is_brushtask_torrent_exists(self, brush_id, title, enclosure):
+    def is_brushtask_torrent_exists(self, brush_id, enclosure):
         """
         查询刷流任务种子是否已存在
         """
         if not brush_id:
             return False
-        count = self._db.query(SiteBrushTorrents).filter(SiteBrushTorrents.task_id == brush_id,
-                                                         SiteBrushTorrents.torrent_name == title,
-                                                         SiteBrushTorrents.enclosure == enclosure).count()
-        if count > 0:
-            return True
-        else:
-            return False
+        return self._db.query(SiteBrushTorrents.id).filter(
+            SiteBrushTorrents.task_id == brush_id, SiteBrushTorrents.enclosure == enclosure
+        ).first() is not None
 
     @DbPersist(_db)
     def update_brushtask_torrent_state(self, ids: list):
@@ -829,24 +804,20 @@ class DbHelper:
         """
         if not ids:
             return
-        for _id in ids:
-            self._db.query(SiteBrushTorrents).filter(SiteBrushTorrents.task_id == _id[1],
-                                                     SiteBrushTorrents.download_id == _id[2]).update(
+        for record_id, byte_counts in ids:
+            self._db.query(SiteBrushTorrents).filter(SiteBrushTorrents.id == record_id).update(
                 {
-                    "torrent_size": _id[0],
+                    "torrent_size": byte_counts,
                     "download_id": '0'
                 }
             )
 
     @DbPersist(_db)
-    def delete_brushtask_torrent(self, brush_id, download_id):
+    def delete_brushtask_torrent(self, record_id):
         """
         删除刷流种子记录
         """
-        if not download_id or not brush_id:
-            return
-        self._db.query(SiteBrushTorrents).filter(SiteBrushTorrents.task_id == brush_id,
-                                                 SiteBrushTorrents.download_id == download_id).delete()
+        return self._db.query(SiteBrushTorrents).filter(SiteBrushTorrents.id == record_id).delete() == 1
 
     def get_user_downloaders(self, did=None):
         """

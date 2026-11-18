@@ -93,6 +93,11 @@ class WebUtils:
 
     @staticmethod
     def search_media_infos(keyword, source=None, page=1):
+        items, _ = WebUtils.search_media_page(keyword, source, page)
+        return items
+
+    @staticmethod
+    def search_media_page(keyword, source=None, page=1):
         """
         搜索TMDB或豆瓣词条
         :param: keyword 关键字
@@ -101,7 +106,7 @@ class WebUtils:
         :param: episode 集号
         """
         if not keyword:
-            return []
+            return [], False
         mtype, key_word, season_num, episode_num, _, content = StringUtils.get_keyword_from_string(keyword)
         if source == "tmdb":
             use_douban_titles = False
@@ -110,26 +115,20 @@ class WebUtils:
         else:
             use_douban_titles = Config().get_config("laboratory").get("use_douban_titles")
         if use_douban_titles:
-            medias = DouBan().search_douban_medias(keyword=key_word,
-                                                   mtype=mtype,
-                                                   season=season_num,
-                                                   episode=episode_num,
-                                                   page=page)
-        else:
-            meta_info = MetaInfo(title=content)
-            tmdbinfos = Media().get_tmdb_infos(title=meta_info.get_name(),
-                                               year=meta_info.year,
-                                               mtype=mtype,
-                                               page=page)
-            medias = []
-            for tmdbinfo in tmdbinfos:
-                tmp_info = MetaInfo(title=keyword)
-                tmp_info.set_tmdb_info(tmdbinfo)
-                if meta_info.type != MediaType.MOVIE and tmp_info.type == MediaType.MOVIE:
-                    continue
-                if tmp_info.begin_season:
-                    tmp_info.title = "%s 第%s季" % (tmp_info.title, cn2an.an2cn(meta_info.begin_season, mode='low'))
-                if tmp_info.begin_episode:
-                    tmp_info.title = "%s 第%s集" % (tmp_info.title, meta_info.begin_episode)
-                medias.append(tmp_info)
-        return medias
+            return DouBan().search_douban_page(keyword=key_word, mtype=mtype, season=season_num,
+                                               episode=episode_num, page=page)
+        meta_info = MetaInfo(title=content)
+        tmdbinfos, has_more = Media().get_tmdb_infos_page(
+            title=meta_info.get_name(), year=meta_info.year, mtype=mtype, page=page)
+        medias = []
+        for tmdbinfo in tmdbinfos:
+            tmp_info = MetaInfo(title=keyword)
+            tmp_info.set_tmdb_info(tmdbinfo)
+            if meta_info.type != MediaType.MOVIE and tmp_info.type == MediaType.MOVIE:
+                continue
+            if tmp_info.begin_season:
+                tmp_info.title = "%s 第%s季" % (tmp_info.title, cn2an.an2cn(meta_info.begin_season, mode='low'))
+            if tmp_info.begin_episode:
+                tmp_info.title = "%s 第%s集" % (tmp_info.title, meta_info.begin_episode)
+            medias.append(tmp_info)
+        return medias, has_more

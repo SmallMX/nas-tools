@@ -1,6 +1,7 @@
 from pathlib import Path
 import re
 from urllib.parse import urlsplit
+from flask import g, has_request_context
 from flask_login import current_user
 import log
 from app.brushtask import BrushTask
@@ -24,6 +25,18 @@ class DownloadActions:
 
     def __init__(self, dbhelper):
         self.dbhelper = dbhelper
+
+    @staticmethod
+    def _notify_download(media, success, error=""):
+        try:
+            api_username = getattr(g, "api_username", None) if has_request_context() else None
+            media.user_name = api_username or getattr(current_user, "username", None)
+            if success:
+                Message().send_download_message(SearchType.WEB, media)
+            else:
+                Message().send_download_fail_message(media, error)
+        except Exception as exc:
+            log.warn(f"【Download】发送下载通知失败：{type(exc).__name__}")
 
     @staticmethod
     def _mteam_download_link(site_name, page_url):
@@ -52,28 +65,23 @@ class DownloadActions:
         dl_dir = data.get("dir")
         dl_setting = data.get("setting")
         results = self.dbhelper.get_search_result_by_id(dl_id)
-        for res in results:
-            media = Media().get_media_info(title=res.torrent_name, subtitle=res.description)
-            if not media:
-                continue
-            media.set_torrent_info(enclosure=res.enclosure,
-                                   size=res.size,
-                                   site=res.site,
-                                   page_url=res.pageurl,
-                                   upload_volume_factor=float(
-                                       res.upload_volume_factor),
-                                   download_volume_factor=float(res.download_volume_factor))
-            # 添加下载
-            ret, ret_msg = Downloader().download(media_info=media,
-                                                 download_dir=dl_dir,
-                                                 download_setting=dl_setting)
-            if ret:
-                # 发送消息
-                media.user_name = current_user.username
-                Message().send_download_message(in_from=SearchType.WEB,
-                                                can_item=media)
-            else:
-                return {"retcode": -1, "retmsg": ret_msg}
+        if not results:
+            return {"retcode": -1, "retmsg": "搜索结果已失效，请重新搜索"}
+        res = results[0]
+        media = Media().get_media_info(title=res.torrent_name, subtitle=res.description)
+        if not media:
+            media = MetaInfo(title=res.torrent_name, subtitle=res.description)
+            media.org_string = res.torrent_name
+        media.set_torrent_info(
+            enclosure=res.enclosure, size=res.size, site=res.site, page_url=res.pageurl,
+            upload_volume_factor=float(res.upload_volume_factor) if res.upload_volume_factor is not None else None,
+            download_volume_factor=float(res.download_volume_factor) if res.download_volume_factor is not None else None,
+        )
+        ret, ret_msg = Downloader().download(media_info=media, download_dir=dl_dir,
+                                             download_setting=dl_setting)
+        if not ret:
+            return {"retcode": -1, "retmsg": ret_msg or "下载器拒绝了任务"}
+        self._notify_download(media, True)
         return {"retcode": 0, "retmsg": ""}
 
     @staticmethod
@@ -133,9 +141,7 @@ class DownloadActions:
                                              download_dir=dl_dir,
                                              download_setting=dl_setting)
         if ret:
-            # 发送消息
-            media.user_name = current_user.username
-            Message().send_download_message(SearchType.WEB, media)
+            DownloadActions._notify_download(media, True)
             return {"code": 0, "msg": "下载成功"}
         else:
             return {"code": 1, "msg": ret_msg or "如连接正常，请检查下载任务是否存在"}
@@ -153,12 +159,7 @@ class DownloadActions:
                                                  download_dir=dl_dir,
                                                  download_setting=dl_setting,
                                                  torrent_file=_file_path)
-            # 发送消息
-            _media_info.user_name = current_user.username
-            if ret:
-                Message().send_download_message(SearchType.WEB, _media_info)
-            else:
-                Message().send_download_fail_message(_media_info, ret_msg)
+            DownloadActions._notify_download(_media_info, ret, ret_msg)
             return bool(ret), ret_msg or "下载器拒绝了任务"
 
         if not isinstance(data, dict):
@@ -195,10 +196,14 @@ class DownloadActions:
                 file_path = raw_path.resolve(strict=True)
                 if file_path.parent != temp_root or not file_path.is_file():
                     raise ValueError("种子文件不在临时目录内")
-                media_info = Media().get_media_info(title=file_name)
+                original_name = file_item["upload"].get("original_filename") or file_name
+                if not isinstance(original_name, str):
+                    raise ValueError("无效的种子名称")
+                title = Path(original_name.replace("\\", "/")).name or file_name
+                media_info = Media().get_media_info(title=title)
                 if not media_info:
-                    media_info = MetaInfo(title=file_name)
-                    media_info.org_string = file_name
+                    media_info = MetaInfo(title=title)
+                    media_info.org_string = title
                 success, error_message = __download(media_info, str(file_path))
                 if success:
                     success_count += 1
@@ -289,13 +294,15 @@ class DownloadActions:
         查询具体种子的信息
         """
         ids = data.get("ids")
-        Client, Torrents = Downloader().get_torrents(torrent_ids=ids)
+        Client, Torrents, failed = Downloader().get_torrents(torrent_ids=ids, with_error=True)
+        if failed:
+            return {"retcode": 1, "retmsg": "无法读取下载任务，请检查下载器连接。", "torrents": []}
         DispTorrents = []
         for torrent in Torrents:
             if not torrent:
                 continue
             if Client == DownloaderType.QB:
-                if torrent.get('state') in ['pausedDL']:
+                if torrent.get('state') in {'pausedDL', 'pausedUP', 'stoppedDL', 'stoppedUP'}:
                     state = "Stoped"
                     speed = "已暂停"
                 else:
@@ -316,8 +323,8 @@ class DownloadActions:
                     speed = "已暂停"
                 else:
                     state = "Downloading"
-                    dlspeed = StringUtils.str_filesize(torrent.rateDownload)
-                    upspeed = StringUtils.str_filesize(torrent.rateUpload)
+                    dlspeed = StringUtils.str_filesize(torrent.rate_download)
+                    upspeed = StringUtils.str_filesize(torrent.rate_upload)
                     speed = "%s%sB/s %s%sB/s" % (chr(8595),
                                                  dlspeed, chr(8593), upspeed)
                 # 进度
@@ -467,7 +474,9 @@ class DownloadActions:
         """
         查询正在下载的任务
         """
-        torrents = Downloader().get_downloading_progress()
+        torrents, failed = Downloader().get_downloading_progress(with_error=True)
+        if failed:
+            return {"code": 1, "msg": "无法读取下载任务，请检查下载器连接。", "result": []}
         MediaHander = Media()
         for torrent in torrents:
             # 识别

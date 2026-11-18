@@ -1149,6 +1149,8 @@
 
   //刷新LOG标志
   let refresh_logging_flag = false;
+  let loggingCursor = 0;
+  let loggingRequest = 0;
 
   //开始刷新日志
   function start_logging() {
@@ -1159,6 +1161,8 @@
   //停止刷新日志
   function stop_logging() {
     refresh_logging_flag = false;
+    clearTimeout(refresh_logging_timer);
+    loggingRequest++;
   }
 
   // 日志来源筛选时关掉之前的刷新日志计时器
@@ -1167,9 +1171,12 @@
 
   //刷新日志
   function refresh_logging(flag) {
-    let refresh_new = $("#logging_content").children().length;
-    ajax_post("logging", {"refresh_new": refresh_new, "source": logger_source}, function (ret) {
+    const requestId = ++loggingRequest;
+    clearTimeout(refresh_logging_timer);
+    ajax_post("logging", {"cursor": loggingCursor, "source": logger_source}, function (ret) {
+      if (requestId !== loggingRequest) return;
       if (ret.loglist) {
+        loggingCursor = ret.cursor ?? loggingCursor;
         let log_list = ret.loglist;
         let tdstyle = "padding-top: 0.5rem; padding-bottom: 0.5rem";
         const fragment = document.createDocumentFragment();
@@ -1251,6 +1258,7 @@
     stop_logging();
      // 清空日志
     $("#logging_content").html("")
+    loggingCursor = 0;
     logger_source = ""
   });
 
@@ -1258,6 +1266,7 @@
     stop_logging();
      // 清空日志
     $("#logging_content").html("")
+    loggingCursor = 0;
     logger_source = ""
   });
 
@@ -1295,6 +1304,7 @@
 
     // 清空日志
     $("#logging_content").html("")
+    loggingCursor = 0;
 
     // 重新拉取日志
     refresh_logging()
@@ -1335,15 +1345,14 @@
     return item;
   }
 
-  function refresh_message(time_str) {
-    ajax_post("refresh_message", {"lst_time": time_str}, function (ret) {
+  function refresh_message(cursor) {
+    ajax_post("refresh_message", {cursor}, function (ret) {
       if (ret.code === 0) {
-        let lst_time = ret.lst_time;
         const msgs = ret.message;
         for (let i = 0; i < msgs.length; i++) {
           document.querySelector("#system-messages")?.prepend(build_system_message(msgs[i]));
         }
-        setTimeout(() => refresh_message(lst_time), 10000);
+        setTimeout(() => refresh_message(ret.cursor), 10000);
       }
     }, true, false);
   }
@@ -1546,11 +1555,14 @@
     torrent_dropzone.on("success", function (file, response) {
       if (response && response.code === 0 && response.filename && file.upload) {
         file.upload.filename = response.filename;
+        file.upload.original_filename = response.original_filename;
+      } else {
+        torrent_dropzone.emit("error", file, response?.msg || "上传失败，请重新选择文件");
       }
     });
 
     // 刷新消息
-    refresh_message("");
+    refresh_message(null);
 
     {% if not TMDBFlag %}
       // 检查tmdb配置

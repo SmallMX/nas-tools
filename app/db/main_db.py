@@ -10,11 +10,12 @@
 import json
 import os
 import threading
+import time
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.pool import QueuePool
 
-from app.db.models import Base
+from app.db.models import Base, DownloadHistory, SearchResultInfo
 from app.utils import ExceptionUtils
 from config import Config
 
@@ -110,6 +111,47 @@ def remove_db_session():
     _Session.remove()
 
 
+def _upgrade_search_result_ids(connection):
+    schema = connection.exec_driver_sql(
+        "SELECT sql FROM sqlite_master WHERE name = 'search_result_info'"
+    ).scalar_one()
+    if "AUTOINCREMENT" in schema.upper():
+        return
+    # Older pages only know a recyclable row ID. Retire their IDs together
+    # with the old cache and start the durable sequence above legacy ranges.
+    old_max = connection.exec_driver_sql(
+        "SELECT COALESCE(MAX(id), 0) FROM search_result_info"
+    ).scalar_one()
+    table = SearchResultInfo.__table__
+    table.drop(connection)
+    table.create(connection)
+    connection.exec_driver_sql(
+        "INSERT INTO sqlite_sequence(name, seq) VALUES (?, ?)",
+        (table.name, max(old_max, time.time_ns() // 1_000_000)),
+    )
+
+
+def _upgrade_download_history(connection):
+    if connection.exec_driver_sql(
+        "SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_download_history_identity'"
+    ).scalar():
+        return
+    connection.exec_driver_sql("""
+        DELETE FROM download_history WHERE id IN (
+            SELECT id FROM (
+                SELECT id, row_number() OVER (
+                    PARTITION BY type, tmdbid ORDER BY date DESC, id DESC
+                ) AS position
+                FROM download_history
+                WHERE type IS NOT NULL AND type != '' AND tmdbid IS NOT NULL AND tmdbid != ''
+            ) WHERE position > 1
+        )
+    """)
+    index = next(index for index in DownloadHistory.__table__.indexes
+                 if index.name == "idx_download_history_identity")
+    index.create(connection)
+
+
 class MainDb:
     """
     主数据库访问对象 (DAO)，封装对 user.db 的增删改查和事务控制。
@@ -132,6 +174,10 @@ class MainDb:
         with lock:
             Base.metadata.create_all(_Engine)
             with _Engine.begin() as connection:
+                # Serialize the schema check and its DDL across processes.
+                connection.exec_driver_sql("BEGIN IMMEDIATE")
+                _upgrade_search_result_ids(connection)
+                _upgrade_download_history(connection)
                 for table, retired_columns in RETIRED_DATABASE_COLUMNS.items():
                     existing_columns = {
                         str(row[1]).lower(): str(row[1])

@@ -415,7 +415,7 @@ class Media:
                             info = tv_info
         # 返回
         if info:
-            info['media_type'] = MediaType.MOVIE if info.get('media_type') == 'movie' else MediaType.TV
+            info['media_type'] = MediaType.MOVIE if info.get('media_type') in ('movie', MediaType.MOVIE) else MediaType.TV
             return info
         else:
             log.info("【Meta】%s 在TMDB中未找到媒体信息!" % file_media_name)
@@ -530,77 +530,52 @@ class Media:
         return tmdb_info
 
     def get_tmdb_infos(self, title, year=None, mtype: MediaType = None, page=1):
-        """
-        查询名称中有关键字的所有的TMDB信息并返回
-        """
+        items, _ = self.get_tmdb_infos_page(title, year, mtype, page)
+        return items
+
+    def get_tmdb_infos_page(self, title, year=None, mtype: MediaType = None, page=1):
+        """返回当前页词条与上游分页状态，保留过滤后为空的中间页。"""
         if not self.tmdb:
             log.error("【Meta】TMDB API Key 未设置！")
-            return []
+            return [], False
         if not title:
-            return []
+            return [], False
         if not mtype and not year:
-            results = self.__search_multi_tmdbinfos(title)
-        else:
-            if not mtype:
-                results = list(
-                    set(self.__search_movie_tmdbinfos(title, year)).union(set(self.__search_tv_tmdbinfos(title, year))))
-                # 组合结果的情况下要排序
-                results = sorted(results,
-                                 key=lambda x: x.get("release_date") or x.get("first_air_date") or "0000-00-00",
-                                 reverse=True)
-            elif mtype == MediaType.MOVIE:
-                results = self.__search_movie_tmdbinfos(title, year)
-            else:
-                results = self.__search_tv_tmdbinfos(title, year)
-        return results[(page - 1) * 20:page * 20]
+            results, has_more = self.search.media_page("multi", {"query": title, "page": page})
+            media_types = {"movie": MediaType.MOVIE, "tv": MediaType.TV}
+            matches = []
+            for item in results:
+                kind = media_types.get(item.get("media_type"))
+                if kind:
+                    item["media_type"] = kind
+                    matches.append(item)
+            return matches, has_more
 
-    def __search_multi_tmdbinfos(self, title):
-        """
-        同时查询模糊匹配的电影、电视剧TMDB信息
-        """
-        if not title:
-            return []
-        ret_infos = []
-        multis = self.search.multi({"query": title}) or []
-        for multi in multis:
-            if multi.get("media_type") in ["movie", "tv"]:
-                multi['media_type'] = MediaType.MOVIE if multi.get("media_type") == "movie" else MediaType.TV
-                ret_infos.append(multi)
-        return ret_infos
-
-    def __search_movie_tmdbinfos(self, title, year):
-        """
-        查询模糊匹配的所有电影TMDB信息
-        """
-        if not title:
-            return []
-        ret_infos = []
-        if year:
-            movies = self.search.movies({"query": title, "year": year}) or []
-        else:
-            movies = self.search.movies({"query": title}) or []
-        for movie in movies:
-            if title in movie.get("title"):
-                movie['media_type'] = MediaType.MOVIE
-                ret_infos.append(movie)
-        return ret_infos
-
-    def __search_tv_tmdbinfos(self, title, year):
-        """
-        查询模糊匹配的所有电视剧TMDB信息
-        """
-        if not title:
-            return []
-        ret_infos = []
-        if year:
-            tvs = self.search.tv_shows({"query": title, "first_air_date_year": year}) or []
-        else:
-            tvs = self.search.tv_shows({"query": title}) or []
-        for tv in tvs:
-            if title in tv.get("name"):
-                tv['media_type'] = MediaType.TV
-                ret_infos.append(tv)
-        return ret_infos
+        matches = []
+        has_more = False
+        if mtype in (None, MediaType.MOVIE):
+            params = {"query": title, "page": page}
+            if year:
+                params["year"] = year
+            movies, has_more = self.search.media_page("movies", params)
+            for movie in movies:
+                if title in (movie.get("title") or ""):
+                    movie["media_type"] = MediaType.MOVIE
+                    matches.append(movie)
+        if mtype != MediaType.MOVIE:
+            params = {"query": title, "page": page}
+            if year:
+                params["first_air_date_year"] = year
+            shows, more_shows = self.search.media_page("tv_shows", params)
+            has_more = has_more or more_shows
+            for tv in shows:
+                if title in (tv.get("name") or ""):
+                    tv["media_type"] = MediaType.TV
+                    matches.append(tv)
+        if not mtype:
+            matches.sort(key=lambda item: item.get("release_date") or item.get("first_air_date") or "",
+                         reverse=True)
+        return matches, has_more
 
     @staticmethod
     def __make_cache_key(meta_info):

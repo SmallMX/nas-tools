@@ -9,7 +9,6 @@ from pathlib import Path
 from flask import Blueprint, make_response, request, send_file
 from flask_login import login_required
 from werkzeug.exceptions import RequestEntityTooLarge
-from werkzeug.utils import secure_filename
 
 from app.db.main_db import RETIRED_DATABASE_TABLES, RETIRED_SYSTEM_CONFIG_KEYS
 from app.utils import ExceptionUtils
@@ -98,9 +97,7 @@ def backup():
     zip_file = None
     try:
         config_path = Path(Config().get_config_path())
-        backup_root = config_path / "backup"
-        backup_root.mkdir(parents=True, exist_ok=True)
-        backup_dir = Path(tempfile.mkdtemp(prefix="bk_", dir=backup_root))
+        backup_dir = Path(tempfile.mkdtemp(prefix="bk_", dir=config_path))
 
         shutil.copy2(config_path / "config.yaml", backup_dir)
         category = (Config().get_config("media") or {}).get("category")
@@ -125,7 +122,8 @@ def backup():
                     shutil.copy2(site_file, sites_backup / site_file.name)
         create_sqlite_backup(config_path / "user.db", backup_dir / "user.db")
 
-        zip_file = Path(shutil.make_archive(str(backup_dir), "zip", str(backup_dir)))
+        zip_file = backup_dir.with_suffix(".zip")
+        shutil.make_archive(str(backup_dir), "zip", str(backup_dir))
         shutil.rmtree(backup_dir)
         backup_dir = None
 
@@ -134,14 +132,10 @@ def backup():
             as_attachment=True,
             download_name=f"nastool-backup-{zip_file.stem.removeprefix('bk_')}.zip",
         )
-        def cleanup_backup_artifacts():
-            zip_file.unlink(missing_ok=True)
-            try:
-                backup_root.rmdir()
-            except OSError:
-                pass
+        # WSGI 仍逐块传输文件，但须由 Response.close 关闭文件并执行清理。
+        response.direct_passthrough = False
 
-        response.call_on_close(cleanup_backup_artifacts)
+        response.call_on_close(lambda: zip_file.unlink(missing_ok=True))
         return response
     except Exception as error:
         ExceptionUtils.exception_traceback(error)
@@ -149,20 +143,16 @@ def backup():
             shutil.rmtree(backup_dir, ignore_errors=True)
         if zip_file:
             zip_file.unlink(missing_ok=True)
-        if 'backup_root' in locals():
-            try:
-                backup_root.rmdir()
-            except OSError:
-                pass
         return make_response("创建备份失败", 400)
 
 
 @system_files_bp.route("/upload", methods=["POST"])
 @login_required
 def upload():
+    file_path = None
     try:
         uploaded_file = request.files["file"]
-        filename = secure_filename(uploaded_file.filename)
+        filename = Path((uploaded_file.filename or "").replace("\\", "/")).name
         if not filename:
             return {"code": 1, "msg": "文件名为空或不合法", "filepath": ""}
 
@@ -173,20 +163,20 @@ def upload():
 
         temp_path = Path(Config().get_temp_path()).resolve()
         temp_path.mkdir(parents=True, exist_ok=True)
-        file_path = (temp_path / filename).resolve()
-        if temp_path not in file_path.parents:
-            return {"code": 1, "msg": "非法的文件路径", "filepath": ""}
-
         uploaded_file.seek(0, os.SEEK_END)
         file_size = uploaded_file.tell()
         uploaded_file.seek(0)
         if file_size > 20 * 1024 * 1024:
             return {"code": 1, "msg": "文件大小超过限制 (最大 20MB)", "filepath": ""}
 
-        uploaded_file.save(str(file_path))
-        return {"code": 0, "filename": filename, "filepath": str(file_path)}
+        with tempfile.NamedTemporaryFile(dir=temp_path, prefix="upload-", suffix=".torrent", delete=False) as output:
+            file_path = Path(output.name)
+            uploaded_file.save(output)
+        return {"code": 0, "filename": file_path.name, "original_filename": filename, "filepath": str(file_path)}
     except RequestEntityTooLarge:
         raise
     except Exception as error:
+        if file_path:
+            file_path.unlink(missing_ok=True)
         ExceptionUtils.exception_traceback(error)
         return {"code": 1, "msg": "上传文件失败", "filepath": ""}

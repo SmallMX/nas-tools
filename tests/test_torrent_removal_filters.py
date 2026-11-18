@@ -1,8 +1,6 @@
 import copy
 import re
-import time
 import unittest
-from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -21,36 +19,26 @@ class TorrentRemovalFiltersTest(unittest.TestCase):
     GIB = 1024 ** 3
     CLIENTS = {"qb": Qbittorrent, "tr": Transmission}
 
-    def setUp(self):
-        self.now = datetime(2026, 10, 15, 12, 0)
-        self.timestamp = int(time.mktime(self.now.timetuple()))
-        for module in ("qbittorrent", "transmission"):
-            patcher = patch(f"app.downloader.client.{module}.datetime")
-            patcher.start().now.return_value = self.now
-            self.addCleanup(patcher.stop)
-
-    def _time_fields(self, client, age):
-        if client == "qb":
-            return {"completion_on": self.timestamp - age}
-        return {"date_done": datetime.fromtimestamp(self.timestamp - age)}
+    @staticmethod
+    def _time_fields(client, seconds):
+        return {"seeding_time": seconds} if client == "qb" else {"secondsSeeding": seconds}
 
     def _torrent(self, client, index, **overrides):
         if client == "qb":
             values = dict(hash=f"hash-{index}", name=f"Torrent {index}", ratio=2,
                           size=2 * self.GIB, uploaded=0,
-                          completion_on=self.timestamp - 7200, added_on=self.timestamp - 10800,
+                          seeding_time=7200,
                           save_path="/data/Movies", tracker=f"https://tracker.site{index}.example/announce",
                           state="uploading", category="Movies", tags="NASTOOL, managed")
             values.update(overrides)
             return TorrentDict(values)
         values = dict(id=index, name=f"Torrent {index}", ratio=2, total_size=2 * self.GIB,
-                      uploaded_ever=0, date_done=datetime.fromtimestamp(self.timestamp - 7200),
-                      date_added=datetime.fromtimestamp(self.timestamp - 10800),
+                      uploadedEver=0, secondsSeeding=7200,
                       download_dir="/data/Movies", status="seeding", error_string="",
                       trackers=[{"announce": f"https://tracker.site{index}.example/announce", "sitename": f"Site {index}"}],
                       labels=["NASTOOL", "managed"])
         values.update(overrides)
-        return SimpleNamespace(**values)
+        return SimpleNamespace(get=values.get, **values)
 
     @staticmethod
     def _id(client, index):
@@ -69,7 +57,7 @@ class TorrentRemovalFiltersTest(unittest.TestCase):
             upload_rows = []
             for uploaded in (102399, 102400, 102401):
                 fields = {**self._time_fields(client, 100), size_field: 102400}
-                fields.update({"uploaded": uploaded} if client == "qb" else {"ratio": uploaded / 102400})
+                fields.update({"uploaded": uploaded} if client == "qb" else {"uploadedEver": uploaded})
                 upload_rows.append(fields)
             cases = (
                 ("ratio", {"ratio": 2}, [{"ratio": value} for value in (1.999, 2, 2.001)], [3]),
@@ -94,33 +82,15 @@ class TorrentRemovalFiltersTest(unittest.TestCase):
                                           {"ratio": 0, "seeding_time": 0, "size": size_filter, "upload_avs": 0})
                     self.assertEqual([self._id(client, 1)], [row["id"] for row in result])
 
-    def test_completion_date_precedes_added_date_and_missing_dates_keep_zero_duration(self):
+    def test_only_verified_cumulative_seeding_seconds_can_match_time_and_speed(self):
         for client in self.CLIENTS:
-            with self.subTest(client=client):
-                if client == "qb":
-                    fallback = {"completion_on": 0, "added_on": self.timestamp - 3601}
-                    missing = {"completion_on": 0, "added_on": 0}
-                else:
-                    fallback = {"date_done": None, "date_added": datetime.fromtimestamp(self.timestamp - 3601)}
-                    missing = {"date_done": None, "date_added": None}
-                torrents = [self._torrent(client, 1, **fallback),
-                            self._torrent(client, 2, **self._time_fields(client, 300)),
-                            self._torrent(client, 3, **missing)]
-                result = self._search(client, torrents, {"seeding_time": 1})
-                self.assertEqual([self._id(client, 1)], [row["id"] for row in result])
-                # 无可用时间时平均速度按 0 计算，不产生除零或改用当前上传速度。
-                result = self._search(client, [torrents[2]], {"upload_avs": 1})
-                self.assertEqual([self._id(client, 3)], [row["id"] for row in result])
-
-    def test_qb_uses_uploaded_bytes_while_transmission_uses_ratio_times_size(self):
-        for ratio, uploaded, expected_qb, expected_tr in ((2, 51200, True, False), (0, 204800, False, True)):
-            for client, expected in (("qb", expected_qb), ("tr", expected_tr)):
-                with self.subTest(client=client, ratio=ratio, uploaded=uploaded):
-                    native = {"size": 102400, "uploaded": uploaded} if client == "qb" else {
-                        "total_size": 102400, "uploaded_ever": uploaded}
-                    torrent = self._torrent(client, 1, ratio=ratio, **native, **self._time_fields(client, 100))
-                    result = self._search(client, [torrent], {"upload_avs": 1})
-                    self.assertEqual([self._id(client, 1)] if expected else [], [row["id"] for row in result])
+            elapsed = {"added_on": 10, "completion_on": 0} if client == "qb" else {"addedDate": 10, "doneDate": 0}
+            torrents = [self._torrent(client, index, **self._time_fields(client, seconds), **elapsed)
+                        for index, seconds in enumerate((None, 0, 3601), 1)]
+            for config in ({"seeding_time": 1}, {"upload_avs": 1}):
+                with self.subTest(client=client, config=config):
+                    result = self._search(client, torrents, config)
+                    self.assertEqual([self._id(client, 3)], [row["id"] for row in result])
 
     def test_regex_is_case_insensitive_but_tracker_sources_remain_client_specific(self):
         trackers = [{"announce": "https://primary.example/announce", "sitename": "Primary"},
@@ -190,7 +160,7 @@ class TorrentRemovalFiltersTest(unittest.TestCase):
                 self.assertEqual(original_config, config)
                 self.assertEqual(original_torrents, torrents)
 
-    def test_result_shape_native_ids_order_and_existing_samedata_repeat_order_are_preserved(self):
+    def test_samedata_preserves_native_ids_and_adds_each_matching_torrent_once(self):
         for client in self.CLIENTS:
             with self.subTest(client=client):
                 first = self._torrent(client, 2, name="same-data", ratio=3)
@@ -203,8 +173,7 @@ class TorrentRemovalFiltersTest(unittest.TestCase):
                 self.assertEqual(expected, result)
 
                 expanded = self._search(client, torrents, {"ratio": 2, "samedata": 1})
-                # 保持当前逐命中扩展行为：同内容的两个原命中会各自追加同一个扩展项。
-                self.assertEqual([self._id(client, index) for index in (3, 3, 2, 1)], [row["id"] for row in expanded])
+                self.assertEqual([self._id(client, index) for index in (3, 2, 1)], [row["id"] for row in expanded])
 
     def test_missing_config_and_client_api_failures_return_empty_results(self):
         for client, cls in self.CLIENTS.items():

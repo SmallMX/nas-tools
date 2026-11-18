@@ -1,17 +1,17 @@
 import datetime
 import time
 from collections import deque
+from threading import Lock
 
 from app.utils.commons import singleton
 
 
 @singleton
 class MessageCenter:
-    _message_queue = deque(maxlen=50)
-    _message_index = 0
-
     def __init__(self):
-        pass
+        self._message_queue = deque(maxlen=50)
+        self._message_index = time.time_ns() // 1000
+        self._lock = Lock()
 
     def insert_system_message(self, level, title, content=None):
         """
@@ -35,10 +35,12 @@ class MessageCenter:
         """
         将消息增加到队列
         """
-        self._message_queue.appendleft({"level": level,
-                                        "title": title,
-                                        "content": content,
-                                        "time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))})
+        with self._lock:
+            self._message_index += 1
+            self._message_queue.appendleft({
+                "id": self._message_index, "level": level, "title": title, "content": content,
+                "time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time())),
+            })
 
     def get_system_messages(self, num=20, lst_time=None):
         """
@@ -46,15 +48,20 @@ class MessageCenter:
         :param num:条数
         :param lst_time: 最后时间
         """
+        with self._lock:
+            messages = list(self._message_queue)
+        if isinstance(lst_time, int):
+            # 突发消息超过一页时先返回最早未读的一页，下一次从这一页继续。
+            return [message for message in messages if message["id"] > lst_time][-num:]
         if not lst_time:
-            return list(self._message_queue)[:num]
+            return messages[:num]
         try:
             last_time = datetime.datetime.strptime(lst_time, '%Y-%m-%d %H:%M:%S')
         except (TypeError, ValueError):
-            return list(self._message_queue)[:num]
+            return messages[:num]
 
         ret_messages = []
-        for message in list(self._message_queue):
+        for message in messages:
             message_time = datetime.datetime.strptime(message.get("time"), '%Y-%m-%d %H:%M:%S')
             if message_time <= last_time:
                 break

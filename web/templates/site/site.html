@@ -281,6 +281,7 @@
         </div>
       </div>
       <div class="modal-footer">
+        <span id="site_save_error" class="text-danger" role="alert" hidden></span>
         <button id="site_close_btn" data-nt-click="site-close" class="btn btn-link">
           关闭
         </button>
@@ -453,8 +454,11 @@
     }
   }
 
+  let siteEditorVersion = 0;
   //打开新增站点框
   function show_site_modal() {
+    siteEditorVersion++;
+    $("#site_save_error").prop('hidden', true);
     $("#site_id").val('');
     $("#site_name").val('');
     $("#site_pri").val('1');
@@ -462,6 +466,10 @@
     $("#site_signurl").val('');
     $("#site_cookie").val('');
     $("#site_apikey").val('');
+    $("#site_download_setting").val('');
+    document.querySelectorAll('#modal-site [name="site_uses"]').forEach(field => {
+      field.checked = field.defaultChecked;
+    });
     $("#site_ua").val('');
     $("#site_chrome").val('N');
     $("#site_proxy").val('N');
@@ -474,11 +482,13 @@
   }
   //编辑站点
   function edit_site(tid) {
-    $("#site_id").val(tid);
-    $("#site_close_btn").text("删除");
+    const version = ++siteEditorVersion;
     //根据ID查询详细信息
     NasToolsUI.pageAction("get_site", { "id": tid }, function (ret) {
-      if (ret.site) {
+      if (version !== siteEditorVersion) return;
+      if (ret.site && String(ret.site.id) === String(tid)) {
+        $("#site_close_btn").text("删除");
+        $("#site_save_error").prop('hidden', true);
         $("#site_id").val(ret.site.id);
         $("#site_name").val(ret.site.name);
         $("#site_pri").val(ret.site.pri);
@@ -486,6 +496,7 @@
         $("#site_signurl").val(ret.site.signurl);
         $("#site_cookie").val(ret.site.cookie);
         $("#site_apikey").val(ret.site.apikey || '');
+        $("#site_download_setting").val(ret.site.download_setting || '');
         $("#site_ua").val(ret.site.ua);
         if (ret.site.parse) {
           $("#site_parse").val("Y");
@@ -511,6 +522,8 @@
         $("#modal-site-title").text("编辑站点");
         $("#add_or_edit_site_btn").text("修改");
         $("#modal-site").modal("show");
+      } else {
+        show_fail_modal(ret.msg || '无法读取站点信息，请刷新后重试。');
       }
     });
   }
@@ -611,7 +624,14 @@
       }
     }
 
+    const version = siteEditorVersion;
+    $("#site_save_error").prop('hidden', true);
     return NasToolsUI.withButton('#add_or_edit_site_btn', '处理中...', () => NasToolsUI.pageAction("update_site", data, function (ret) {
+      if (version !== siteEditorVersion) return;
+      if (ret.code !== true && ret.code !== 0) {
+        $("#site_save_error").text(ret.msg || '站点保存失败，请稍后重试。').prop('hidden', false);
+        return;
+      }
       $("#modal-site").modal("hide");
       //刷新页面
       window_history_refresh();

@@ -120,9 +120,13 @@ class Downloader:
         if not ctype:
             return None
         with client_lock:
-            if not self.clients.get(ctype.value):
-                self.clients[ctype.value] = self.__build_class(ctype.value, conf)
-            return self.clients.get(ctype.value)
+            client = self.clients.get(ctype.value)
+            if client:
+                return client
+            client = self.__build_class(ctype.value, conf)
+            if client and (client.qbc if ctype == DownloaderType.QB else client.trc):
+                self.clients[ctype.value] = client
+            return client
 
     def __get_download_attributes(self, media_info, download_setting=None):
         """为添加任务和后续选集解析同一份下载器设置。"""
@@ -353,19 +357,20 @@ class Downloader:
             ExceptionUtils.exception_traceback(err)
             return self._default_client_type, []
 
-    def get_downloading_progress(self):
+    def get_downloading_progress(self, with_error=False):
         """
         查询正在下载中的进度信息
         """
-        if not self.default_client:
-            return []
+        client = self.default_client
+        if not client:
+            return ([], True) if with_error else []
         if self._pt_monitor_only:
             tag = [PT_TAG]
         else:
             tag = None
-        return self.default_client.get_downloading_progress(tag=tag)
+        return client.get_downloading_progress(tag=tag, with_error=with_error)
 
-    def get_torrents(self, torrent_ids):
+    def get_torrents(self, torrent_ids, with_error=False):
         """
         根据ID或状态查询下载器中的种子信息
         :param torrent_ids: 种子ID列表
@@ -374,9 +379,9 @@ class Downloader:
         client_type = self._default_client_type
         client = self.__get_client(client_type)
         if not client:
-            return None, []
-        torrent_list, _ = client.get_torrents(ids=torrent_ids)
-        return client_type, torrent_list
+            return (None, [], True) if with_error else (None, [])
+        torrent_list, error = client.get_torrents(ids=torrent_ids)
+        return (client_type, torrent_list, error) if with_error else (client_type, torrent_list)
 
     def start_torrents(self, downloader=None, ids=None):
         """
@@ -665,7 +670,7 @@ class Downloader:
                             if downloader == DownloaderType.TR:
                                 torrent_id = ret.id
                             elif downloader == DownloaderType.QB:
-                                torrent_id = _client.get_torrent_id_by_tag(tag=torrent_tag, status=["paused"])
+                                torrent_id = _client.get_torrent_id_by_tag(tag=torrent_tag, status="paused")
                             else:
                                 continue
                             if not torrent_id:

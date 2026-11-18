@@ -35,6 +35,10 @@ class ConfigSite(Base):
 class DownloadHistory(Base):
     """下载历史 —— 记录每次成功添加到下载器的种子信息（标题、站点、日期等）。"""
     __tablename__ = 'download_history'
+    __table_args__ = (
+        Index("idx_download_history_identity", "type", "tmdbid", unique=True,
+              sqlite_where=text("type IS NOT NULL AND type != '' AND tmdbid IS NOT NULL AND tmdbid != ''")),
+    )
 
     id = Column('id', Integer, Sequence('id'), primary_key=True)
     title = Column('title', Text, index=True)
@@ -115,8 +119,9 @@ class TorrentRemoveTask(Base):
 class SearchResultInfo(Base):
     """搜索结果缓存 —— 暂存从各站点搜索到的种子信息，供前端展示和用户选择下载。"""
     __tablename__ = 'search_result_info'
+    __table_args__ = {"sqlite_autoincrement": True}
 
-    id = Column('id', Integer, Sequence('id'), primary_key=True)
+    id = Column('id', Integer, primary_key=True)
     torrent_name = Column('torrent_name', Text)
     enclosure = Column('enclosure', Text)
     description = Column('description', Text)

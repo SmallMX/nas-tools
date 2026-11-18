@@ -5,12 +5,15 @@ import json
 import os.path
 import re
 import signal
+from hashlib import sha256
 from threading import Timer
-from flask import has_request_context, request
+from cacheout import LRUCache
+from flask import has_request_context, request, session
 from flask_login import logout_user
 from werkzeug.security import generate_password_hash
 import log
 from app.conf import SystemConfig, ModuleConf
+from app.config_reload import serialized_config_update
 from app.helper import ProgressHelper, DisplayHelper
 from app.message import Message, MessageCenter
 from app.retired_features import sanitize_config_write
@@ -19,6 +22,10 @@ from app.utils import RequestUtils, ExceptionUtils
 from config import Config
 from web.security import request_is_admin, sanitize_message_client
 from web.actions.validation import prepare_message_client_config, validate_site_config_url
+
+
+# 兼容仅发送 refresh_new 的旧 API 客户端，每个令牌独立记录读取位置。
+_legacy_log_cursors = LRUCache(maxsize=256)
 
 
 def get_restart_target_pid(server_software=None):
@@ -132,33 +139,26 @@ class SystemActions:
         """
         查询实时日志
         """
-        log_list = []
-        refresh_new = data.get('refresh_new')
-        source = data.get('source')
-
-        if not source:
-            if not refresh_new:
-                log_list = list(log.LOG_QUEUE)
-            elif log.LOG_INDEX:
-                if log.LOG_INDEX > len(list(log.LOG_QUEUE)):
-                    log_list = list(log.LOG_QUEUE)
-                else:
-                    log_list = list(log.LOG_QUEUE)[-log.LOG_INDEX:]
-            log.LOG_INDEX = 0
-        else:
-            queue_logs = list(log.LOG_QUEUE)
-            for message in queue_logs:
-                if str(message.get("source")) == source:
-                    log_list.append(message)
-                else:
-                    continue
-
-            if refresh_new:
-                if int(refresh_new) < len(log_list):
-                    log_list = log_list[int(refresh_new):]
-                elif int(refresh_new) >= len(log_list):
-                    log_list = []
-        return {"loglist": log_list}
+        cursor = data.get("cursor")
+        legacy = cursor is None and has_request_context()
+        token_key = None
+        if legacy:
+            auth = request.headers.get("Authorization")
+            if auth:
+                token_key = sha256(auth.encode()).digest()
+            if data.get("refresh_new"):
+                cursor = _legacy_log_cursors.get(token_key) if token_key else session.get("log_cursor")
+        try:
+            cursor = max(0, int(cursor or 0))
+        except (TypeError, ValueError):
+            return {"code": 1, "msg": "无效的日志游标", "loglist": []}
+        entries, cursor = log.read_logs(cursor, data.get("source"))
+        if legacy:
+            if token_key:
+                _legacy_log_cursors.set(token_key, cursor)
+            else:
+                session["log_cursor"] = cursor
+        return {"loglist": entries, "cursor": cursor}
 
     def restart(self, data):
         """
@@ -176,6 +176,7 @@ class SystemActions:
         logout_user()
         return {"code": 0}
 
+    @serialized_config_update
     def update_config(self, data):
         """
         更新配置信息
@@ -206,11 +207,13 @@ class SystemActions:
     @staticmethod
     def get_system_message(lst_time):
         messages = MessageCenter().get_system_messages(lst_time=lst_time)
+        cursor = messages[0]["id"] if messages else (lst_time if isinstance(lst_time, int) else 0)
         if messages:
             lst_time = messages[0].get("time")
         return {
             "code": 0,
             "message": messages,
+            "cursor": cursor,
             "lst_time": lst_time
         }
 
@@ -218,7 +221,14 @@ class SystemActions:
         """
         刷新首页消息中心
         """
-        lst_time = data.get("lst_time")
+        lst_time = data.get("cursor")
+        if lst_time is None:
+            lst_time = data.get("lst_time")
+        else:
+            try:
+                lst_time = int(lst_time)
+            except (TypeError, ValueError):
+                return {"code": 1, "msg": "无效的消息游标"}
         system_msg = self.get_system_message(lst_time=lst_time)
         messages = system_msg.get("message")
         lst_time = system_msg.get("lst_time")
@@ -234,7 +244,7 @@ class SystemActions:
                 "content": plain_text(message.get("content")),
                 "time": str(message.get("time") or ""),
             })
-        return {"code": 0, "message": message_items, "lst_time": lst_time}
+        return {"code": 0, "message": message_items, "lst_time": lst_time, "cursor": system_msg.get("cursor", 0)}
 
     @staticmethod
     def net_test(data):

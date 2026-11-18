@@ -14,6 +14,7 @@ class WebSearchLifecycleTest(unittest.TestCase):
         self.searcher.search_medias = Mock()
         self._patch("Searcher").return_value = self.searcher
         self.database = self._patch("DbHelper").return_value
+        self.database.replace_search_results.return_value = True
         self.media = self._patch("Media").return_value
         self._patch("log")
         self._patch("StringUtils").get_keyword_from_string.return_value = (
@@ -30,7 +31,7 @@ class WebSearchLifecycleTest(unittest.TestCase):
     def test_success_ends_progress_after_results_are_saved(self):
         events = Mock()
         events.attach_mock(self.progress.start, "start")
-        events.attach_mock(self.database.insert_search_results, "save")
+        events.attach_mock(self.database.replace_search_results, "save")
         events.attach_mock(self.progress.end, "end")
 
         result = search_torrents.search_medias_for_web("Example", ident_flag=False)
@@ -50,14 +51,13 @@ class WebSearchLifecycleTest(unittest.TestCase):
         self.assertEqual((1, "Example 未检索到任何资源"), result)
         self.progress.start.assert_called_once_with("search")
         self.progress.end.assert_called_once_with("search")
-        self.database.insert_search_results.assert_not_called()
+        self.database.replace_search_results.assert_called_once_with(media_items=[], ident_flag=False, title="Example")
 
     def test_failures_end_progress_and_preserve_original_exception(self):
         failures = (
             (self.media.get_media_info, True),
             (self.searcher.search_medias, False),
-            (self.database.delete_all_search_torrents, False),
-            (self.database.insert_search_results, False),
+            (self.database.replace_search_results, False),
         )
         for operation, identify in failures:
             with self.subTest(operation=operation):
@@ -89,7 +89,7 @@ class WebSearchLifecycleTest(unittest.TestCase):
 
         self.assertEqual([call("search"), call("search")], self.progress.start.call_args_list)
         self.progress.end.assert_called_once_with("search")
-        self.database.delete_all_search_torrents.assert_not_called()
+        self.database.replace_search_results.assert_not_called()
 
 
 class RemoteSearchLifecycleTest(unittest.TestCase):
@@ -158,14 +158,14 @@ class RemoteSearchLifecycleTest(unittest.TestCase):
         self.assertEqual((None, {}, 1, None), self._search())
 
         self._assert_progress_ended()
-        self.searcher.dbhelper.insert_search_results.assert_called_once_with([self.media])
+        self.searcher.dbhelper.replace_search_results.assert_called_once_with([self.media])
         self.searcher.downloader.batch_download.assert_not_called()
 
     def test_failures_end_progress_and_preserve_original_exception(self):
         operations = (
             self.media.get_episode_list,
             self.searcher.search_medias,
-            self.searcher.dbhelper.insert_search_results,
+            self.searcher.dbhelper.replace_search_results,
             self.searcher.downloader.batch_download,
         )
         for operation in operations:

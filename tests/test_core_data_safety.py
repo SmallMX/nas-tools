@@ -311,6 +311,7 @@ class CoreDataSafetyTest(unittest.TestCase):
         torrent = AttrDict(
             hash="hash",
             name="brush-item",
+            progress=1, state="uploading",
             added_on=int(time.time()) - 3600,
             completion_on=int(time.time()) - 1800,
             ratio=2,
@@ -319,7 +320,7 @@ class CoreDataSafetyTest(unittest.TestCase):
             last_activity=int(time.time()) - 60,
         )
         dbhelper = Mock()
-        dbhelper.get_brushtask_torrents.return_value = [SimpleNamespace(download_id="hash")]
+        dbhelper.get_brushtask_torrents.return_value = [SimpleNamespace(id=11, downloader="1", download_id="hash")]
         dbhelper.update_brushtask_torrent_state.side_effect = lambda _: events.append("database") or True
         service.dbhelper = dbhelper
         service._brush_tasks = [{
@@ -358,7 +359,7 @@ class CoreDataSafetyTest(unittest.TestCase):
         brush_class = singleton_class(BrushTask)
         service = brush_class.__new__(brush_class)
         dbhelper = Mock()
-        dbhelper.get_brushtask_torrents.return_value = [SimpleNamespace(download_id="paused")]
+        dbhelper.get_brushtask_torrents.return_value = [SimpleNamespace(id=11, downloader="1", download_id="paused")]
         service.dbhelper = dbhelper
         service._brush_tasks = [{
             "state": "Y",
@@ -369,7 +370,7 @@ class CoreDataSafetyTest(unittest.TestCase):
             "sendmessage": "N",
         }]
         service.get_downloader_info = Mock(return_value={"type": "qbittorrent"})
-        paused_torrent = AttrDict(hash="paused")
+        paused_torrent = AttrDict(hash="paused", progress=0.5, state="pausedDL", added_on=0)
         client = Mock()
         client.get_torrents.side_effect = [([paused_torrent], False), ([], False), ([], False)]
 

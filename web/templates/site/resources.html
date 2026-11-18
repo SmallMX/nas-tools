@@ -202,10 +202,6 @@
     })
   }
 
-  //下载种子
-  var total_downloads = [];
-  var current_download = 0;
-
   function download_resource(id, batch) {
     const modalVersion = downloadModalVersion;
     const site = resourceSiteTitle;
@@ -221,8 +217,8 @@
       site: site,
       enclosure: enclosure,
       title: title,
-      dl_dir: $("#search_download_dir").val(),
-      dl_setting: $("#search_download_setting").val(),
+      dl_dir: batch ? "" : $("#search_download_dir").val(),
+      dl_setting: batch ? "" : $("#search_download_setting").val(),
       description: description,
       page_url: page_url,
       size: size,
@@ -238,38 +234,31 @@
         } else {
           $("#search_download_error").text(`添加下载失败：${ret.msg || '请检查连接后重试'}`).prop('hidden', false);
         }
-      } else {
-        current_download = current_download + 1;
-        if (current_download < total_downloads.length) {
-          if (ret.code !== 0) {
-            show_fail_modal(`${title} 添加下载失败 ${ret.msg}`, function () {
-              download_resource(total_downloads[current_download], true);
-            });
-          } else {
-            download_resource(total_downloads[current_download], true);
-          }
-        } else {
-          show_success_modal("添加下载完成！");
-        }
       }
     });
 
   }
 
   //批量下载
-  function batch_download() {
-    total_downloads = [];
-    let download_items_id = select_GetSelectedVAL("resources_item");
-    for (let id in download_items_id) {
-      if ($(`#title_${id}`).val()) {
-        total_downloads.push(id);
-      }
-    }
-    if (total_downloads.length === 0) {
+  async function batch_download() {
+    const ids = select_GetSelectedVAL("resources_item");
+    if (!ids.length) {
+      show_fail_modal("请先选择需要下载的资源。");
       return;
     }
-    current_download = 0;
-    download_resource(total_downloads[current_download], true);
+    const version = NasToolsUI.pageVersion;
+    const failures = [];
+    for (const id of ids) {
+      const title = $(`#title_${id}`).val();
+      const ret = await download_resource(id, true);
+      if (version !== NasToolsUI.pageVersion) return;
+      if (ret.code !== 0) failures.push(`${title}（${ret.msg || '添加失败'}）`);
+    }
+    if (failures.length) {
+      show_fail_modal(`成功 ${ids.length - failures.length} 项，失败 ${failures.length} 项：${failures.join('；')}`);
+    } else {
+      show_success_modal(`已添加 ${ids.length} 项下载。`);
+    }
   }
 
   //名称测试
@@ -280,7 +269,7 @@
 
   NasToolsUI.bindActions('#page_content', {
     click: {
-      'resources-batch-download': () => batch_download(),
+      'resources-batch-download': element => NasToolsUI.withButton(element, '添加中…', batch_download),
       'resources-back': () => navmenu('sitelist'),
       'resources-previous': element => go_pre_page(...NasToolsUI.args(element)),
       'resources-page': element => go_page(...NasToolsUI.args(element)),

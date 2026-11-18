@@ -151,6 +151,7 @@ print(json.dumps(result))
       assert.equal(count('get_site'), before + 1);
       assert.deepEqual(latest('get_site').data, {id: '1'});
       assert.equal(await page.locator('#site_name').inputValue(), fixtures.quoted);
+      assert.equal(await page.locator('#site_download_setting').inputValue(), String(fixtures.site_data.download_setting));
       assert.equal(await page.locator('#fixture-injected').count(), 0);
       assert.deepEqual(await page.locator('[name="site_uses"]:checked').evaluateAll(els => els.map(el => el.value)), ['Q', 'T']);
     });
@@ -159,7 +160,13 @@ print(json.dumps(result))
       await page.locator('label').filter({has: page.locator('[name="site_uses"][value="Q"]')}).click();
       await page.locator('label').filter({has: page.locator('[name="site_uses"][value="D"]')}).click();
       await page.locator('#site_parse').selectOption('N');
-      await page.locator('#site_download_setting').selectOption('1');
+      responders.set('update_site', () => ({code: 400, msg: '站点名称重复'}));
+      await page.locator('#add_or_edit_site_btn').click();
+      await page.locator('#site_save_error').waitFor({state: 'visible'});
+      assert.equal(await page.locator('#site_save_error').textContent(), '站点名称重复');
+      assert.equal(await page.locator('#site_name').inputValue(), fixtures.quoted);
+      assert.equal(await page.locator('#site_parse').inputValue(), 'N');
+      assert.equal(await page.locator('#modal-site').isVisible(), true);
       const response = deferred();
       responders.set('update_site', () => response.promise);
       const before = count('update_site');
@@ -171,7 +178,7 @@ print(json.dumps(result))
         site_note: {apikey: '', download_setting: '1', parse: 'N', ua: 'fixture-agent', chrome: 'N', proxy: 'N', message: 'Y'}
       });
       assert.equal(await page.locator('#add_or_edit_site_btn').isDisabled(), true);
-      response.resolve({code: 0});
+      response.resolve({code: true});
       await page.locator('#modal-site').waitFor({state: 'hidden'});
       await pause(100);
       assert.equal(count('update_site'), before + 1);
@@ -245,8 +252,27 @@ print(json.dumps(result))
       assert.equal(data.dl_dir, '/demo/downloads');
       assert.equal(data.dl_setting, ''); // 默认沿用站点下载设置。
       assert.equal(typeof data.size, 'string');
-      await page.locator('#system-success-modal').waitFor({state: 'visible'});
-      await closeModal('#system-success-modal');
+      await page.locator('#system-success-action-modal').waitFor({state: 'visible'});
+      await closeModal('#system-success-action-modal');
+    });
+
+    await check('批量下载提交所选的非连续资源，汇总末项失败', async () => {
+      const enclosures = [];
+      for (const id of ['1', '3']) {
+        await page.locator(`[name="resources_item"][value="${id}"]`).check();
+        enclosures.push(await page.locator(`#enclosure_${id}`).inputValue());
+      }
+      const sent = [];
+      responders.set('download_link', data => {
+        sent.push(data);
+        return sent.length === 2 ? {code: 1, msg: '示例错误'} : {code: 0};
+      });
+      await page.locator('[data-nt-click="resources-batch-download"]').click();
+      await page.locator('#system-fail-modal').waitFor({state: 'visible'});
+      assert.deepEqual(sent.map(data => data.enclosure), enclosures);
+      assert.ok(sent.every(data => data.dl_dir === '' && data.dl_setting === ''));
+      assert.match(await page.locator('#system_fail_message').textContent(), /成功 1 项，失败 1 项.*示例错误/);
+      await closeModal('#system-fail-modal');
     });
 
     await check('资源上一页随页码启用，页码点击传递数字页', async () => {
@@ -274,18 +300,17 @@ print(json.dumps(result))
       }
     });
 
-    await check('推荐宏筛选安全传参并保留导航上下文', async () => {
+    await check('探索筛选安全传参并保留电影页面与选中项', async () => {
       await navigate('tmdb_movie');
-      const header = page.locator('.nt-discovery-header');
-      await header.locator('.dropdown-toggle').click();
-      await header.locator('[data-nt-click="recommend-filter"]').nth(1).click();
-      await page.waitForFunction(() => window.history.state?.page?.startsWith('recommend?'));
+      const option = page.locator('[data-filter-key="with_genres"]').getByRole('button', {name: fixtures.quoted, exact: true});
+      await option.click();
+      await page.waitForFunction(() => window.history.state?.page?.startsWith('tmdb_movie?'));
       const url = fragments.at(-1);
-      assert.equal(url.searchParams.get('type'), 'DISCOVER');
-      assert.equal(url.searchParams.get('subtype'), 'MOV');
-      assert.equal(url.searchParams.get('title'), fixtures.quoted);
-      assert.equal(url.searchParams.get('filter'), 'tmdb_movie');
+      assert.equal(url.pathname, '/tmdb_movie');
       assert.deepEqual(JSON.parse(url.searchParams.get('params')), {with_genres: fixtures.quoted});
+      assert.equal(await option.getAttribute('aria-pressed'), 'true');
+      assert.equal(await page.locator('#recommend_title').textContent(), fixtures.quoted);
+      assert.equal(await page.locator('[data-filter-key="media_type"] [aria-pressed="true"]').getAttribute('data-filter-value'), 'MOV');
       assert.equal(await page.locator('#fixture-injected').count(), 0);
       assert.equal(await page.evaluate(() => window.fixtureInjected), undefined);
     });

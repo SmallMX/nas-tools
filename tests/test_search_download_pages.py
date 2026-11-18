@@ -6,6 +6,8 @@ from unittest.mock import patch
 from flask import Flask
 
 from app.conf import ModuleConf
+from app.utils.types import DownloaderType
+from web.actions.download import DownloadActions
 from web.routes import download_pages, search_pages
 
 
@@ -209,11 +211,36 @@ class SearchDownloadPageContractTest(unittest.TestCase):
                     self.download_actions.get_downloading.return_value = {"result": torrents, "total": 999}
                     self.config.get_config.return_value = {"pt_client": client}
                     self.assert_render("/downloading", method, self.download_render, "download/downloading.html", {
-                        "DownloadCount": len(torrents), "Torrents": torrents, "Client": client,
+                        "DownloadCount": len(torrents), "Torrents": torrents, "Client": client, "DownloadError": None,
                     }, query={"client": "ignored"}, body={"client": "ignored"})
                     self.download_actions.get_downloading.assert_called_once_with()
                     self.config.get_config.assert_called_once_with("pt")
                     self.assertIs(torrents, self.download_render.call_args.kwargs["Torrents"])
+
+    def test_downloading_passes_connection_errors_to_the_page(self):
+        self.download_actions.get_downloading.return_value = {"code": 1, "msg": "下载器连接失败", "result": []}
+        self.config.get_config.return_value = {"pt_client": "transmission"}
+        self.assert_render("/downloading", "GET", self.download_render, "download/downloading.html", {
+            "DownloadCount": 0, "Torrents": [], "Client": "transmission", "DownloadError": "下载器连接失败",
+        })
+
+    @patch("web.actions.download.Downloader")
+    def test_polling_distinguishes_disconnection_from_pause_and_empty_results(self, downloader):
+        fetch = downloader.return_value.get_torrents
+        fetch.return_value = (DownloaderType.TR, [], True)
+        failed = DownloadActions.pt_info({"ids": [7]})
+        self.assertNotEqual(0, failed["retcode"])
+        self.assertTrue(failed["retmsg"])
+        fetch.assert_called_once_with(torrent_ids=[7], with_error=True)
+        fetch.return_value = (DownloaderType.TR, [], False)
+        self.assertEqual({"retcode": 0, "torrents": []}, DownloadActions.pt_info({"ids": [7]}))
+        fetch.return_value = (DownloaderType.TR, [
+            SimpleNamespace(id=7, status="downloading", progress=10.3, rate_download=1024, rate_upload=0),
+            SimpleNamespace(id=8, status="stopped", progress=40),
+        ], False)
+        active, paused = DownloadActions.pt_info({"ids": [7, 8]})["torrents"]
+        self.assertEqual("Downloading", active["state"])
+        self.assertEqual("Stoped", paused["state"])
 
     def test_download_history_preserves_original_page_type_and_query_only_input(self):
         for page, expected in ((None, 1), ("", 1), ("002", "002"), ("0", "0"), ("-1", "-1"), ("bad", "bad")):

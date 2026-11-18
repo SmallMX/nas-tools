@@ -18,7 +18,10 @@
           </div>
         </div>
 {% endcall %}
-{% if DownloadCount > 0 %}
+{% if DownloadError %}
+  {{ OOPS.systemerror('下载器连接失败', DownloadError) }}
+  <div class="text-center"><button type="button" class="btn" data-nt-click="retry-download-page">重新连接</button></div>
+{% elif DownloadCount > 0 %}
   <div class="page-body">
     <div class="container-xl">
       <div class="nt-download-toolbar">
@@ -485,8 +488,13 @@
       if (!torrent_dropzone || !torrent_dropzone.files || !torrent_dropzone.files[0] && !magnet) {
         return;
       }
+      const files = torrent_dropzone.files;
+      if (files.some(file => !file.upload?.original_filename)) {
+        $("#search_download_error").text("请等待种子上传完成，或移除上传失败的文件。").prop("hidden", false);
+        return;
+      }
       const params = {
-        "files": torrent_dropzone.files,
+        "files": files.map(file => ({upload: file.upload})),
         "magnets": magnet.split("\n"),
         "dl_dir": $("#search_download_dir").val(),
         "dl_setting": $("#search_download_setting").val()
@@ -511,6 +519,7 @@
   pageTimeout(get_all_torrents_info, 2000);
 
   NasToolsUI.bindActions('#page_content', {click: {
+    'retry-download-page': () => window_history_refresh(),
     'show-download': (element) => show_torrent_download_modal(element.dataset.downloadType),
     'start-download': (element) => control_pt_download('pt_start', NasToolsUI.args(element)[0], element),
     'stop-download': (element) => control_pt_download('pt_stop', NasToolsUI.args(element)[0], element),
